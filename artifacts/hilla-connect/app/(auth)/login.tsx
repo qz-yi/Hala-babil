@@ -17,9 +17,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
+import { useToast } from "@/components/Toast";
 
 export default function LoginScreen() {
   const { login, t, theme } = useApp();
+  const { showToast } = useToast();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
   const [phone, setPhone] = useState("");
@@ -33,17 +35,18 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!phone.trim() || !password.trim()) {
-      Alert.alert(t("error"), t("fillAll"));
+      showToast(t("fillAll"), "error");
       return;
     }
     setLoading(true);
     const success = await login(phone.trim(), password);
     setLoading(false);
     if (success) {
+      showToast(t("welcome") + "!", "success");
       router.dismissAll();
       router.replace("/(tabs)");
     } else {
-      Alert.alert(t("error"), t("invalidCredentials"));
+      showToast(t("invalidCredentials"), "error");
     }
   };
 

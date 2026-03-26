@@ -2,12 +2,14 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
   FlatList,
+  Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -20,29 +22,82 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
-import type { Message, User } from "@/context/AppContext";
+import type { User } from "@/context/AppContext";
+import { useToast } from "@/components/Toast";
 
 const SUPER_ADMIN_PHONE = "07719820537";
 
-function SeatButton({
+function SpeakingRing({
+  color,
+  speaking,
+}: {
+  color: string;
+  speaking: boolean;
+}) {
+  const pulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!speaking) {
+      pulse.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.18, duration: 500, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 500, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [speaking]);
+
+  if (!speaking) return null;
+  return (
+    <Animated.View
+      style={[
+        StyleSheet.absoluteFillObject,
+        styles.speakRing,
+        {
+          borderColor: color,
+          transform: [{ scale: pulse }],
+        },
+      ]}
+    />
+  );
+}
+
+function SeatCard({
   index,
   user,
   isOwner,
   isSuperAdmin,
   currentUser,
   accentColor,
-  onJoin,
+  onPress,
   onKick,
   onBan,
   colors,
   t,
+  isMuted,
 }: any) {
   const isMe = user?.id === currentUser?.id;
   const isSuperAdminUser = user?.phone === SUPER_ADMIN_PHONE;
+  const userColor = user
+    ? ACCENT_COLORS[user.name.length % ACCENT_COLORS.length]
+    : accentColor;
+  const [speaking, setSpeaking] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => {
+      setSpeaking(Math.random() > 0.5);
+    }, 1200);
+    return () => clearInterval(interval);
+  }, [user?.id]);
 
   const handleLongPress = () => {
-    if (!isOwner && !isSuperAdmin) return;
-    if (!user || isMe) return;
+    if ((!isOwner && !isSuperAdmin) || !user || isMe) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(user.name, "الإجراءات", [
       { text: t("kickUser"), onPress: () => onKick(user.id) },
       { text: t("banUser"), style: "destructive", onPress: () => onBan(user.id) },
@@ -52,7 +107,7 @@ function SeatButton({
 
   return (
     <TouchableOpacity
-      onPress={() => !user && onJoin(index)}
+      onPress={() => !user && onPress(index)}
       onLongPress={handleLongPress}
       activeOpacity={0.8}
       style={[
@@ -60,62 +115,89 @@ function SeatButton({
         {
           backgroundColor: user
             ? isSuperAdminUser
-              ? "#FFD70022"
-              : `${accentColor}22`
+              ? "#FFD70014"
+              : `${userColor}18`
             : colors.backgroundTertiary,
           borderColor: user
             ? isSuperAdminUser
               ? "#FFD700"
-              : accentColor
+              : speaking
+              ? userColor
+              : `${userColor}55`
             : colors.border,
-          borderWidth: isSuperAdminUser ? 2 : 1,
+          borderWidth: isSuperAdminUser ? 2 : 1.5,
         },
       ]}
     >
-      {user ? (
-        <>
-          {isSuperAdminUser && (
-            <View style={styles.seatCrown}>
-              <Text style={{ fontSize: 10 }}>👑</Text>
+      <View style={styles.seatInner}>
+        {/* Speaking ring */}
+        {user && !isMuted && (
+          <View style={styles.avatarRingWrap}>
+            <SpeakingRing color={isSuperAdminUser ? "#FFD700" : userColor} speaking={speaking} />
+            <View
+              style={[
+                styles.seatAvatarLg,
+                {
+                  backgroundColor: isSuperAdminUser ? "#FFD700" : `${userColor}40`,
+                },
+              ]}
+            >
+              {user.avatar ? (
+                <Image source={{ uri: user.avatar }} style={styles.seatAvatarImg} />
+              ) : (
+                <Text
+                  style={[
+                    styles.seatAvatarText,
+                    { color: isSuperAdminUser ? "#000" : userColor },
+                  ]}
+                >
+                  {user.name[0]?.toUpperCase()}
+                </Text>
+              )}
             </View>
-          )}
-          <View
-            style={[
-              styles.seatAvatar,
-              {
-                backgroundColor: isSuperAdminUser ? "#FFD700" : `${accentColor}44`,
-              },
-            ]}
-          >
-            <Text style={[styles.seatAvatarText, { color: isSuperAdminUser ? "#000" : "#fff" }]}>
-              {user.name[0]?.toUpperCase()}
-            </Text>
           </View>
-          <Text style={[styles.seatName, { color: colors.text }]} numberOfLines={1}>
-            {isMe ? "أنا" : user.name.split(" ")[0]}
-          </Text>
-          <Ionicons name="mic" size={14} color={accentColor} />
-        </>
-      ) : (
-        <>
-          <Ionicons name="add-circle-outline" size={26} color={colors.textSecondary} />
-          <Text style={[styles.seatEmptyText, { color: colors.textSecondary }]}>
-            {t("seat")} {index + 1}
-          </Text>
-        </>
-      )}
+        )}
+
+        {user ? (
+          <>
+            <View style={styles.seatNameRow}>
+              {isSuperAdminUser && <Text style={{ fontSize: 10 }}>👑</Text>}
+              <Text
+                style={[styles.seatName, { color: colors.text }]}
+                numberOfLines={1}
+              >
+                {isMe ? "أنا" : user.name.split(" ")[0]}
+              </Text>
+            </View>
+            <View style={[styles.micIndicator, { backgroundColor: speaking && !isMuted ? `${userColor}33` : "transparent" }]}>
+              <Ionicons
+                name={speaking && !isMuted ? "mic" : "mic-outline"}
+                size={12}
+                color={speaking && !isMuted ? userColor : colors.textSecondary}
+              />
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={[styles.emptyAvatarCircle, { borderColor: colors.border }]}>
+              <Ionicons name="add" size={22} color={colors.textSecondary} />
+            </View>
+            <Text style={[styles.seatEmptyLabel, { color: colors.textSecondary }]}>
+              {t("seat")} {index + 1}
+            </Text>
+          </>
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
 
-function ChatMessage({ msg, isMe, colors, isSuperAdmin }: any) {
-  const accentColor = ACCENT_COLORS[msg.senderName.length % ACCENT_COLORS.length];
+function ChatBubble({ msg, isMe, colors }: any) {
+  const color = ACCENT_COLORS[msg.senderName.length % ACCENT_COLORS.length];
   return (
-    <Animated.View
-      style={[styles.chatMsg, isMe ? styles.chatMsgRight : styles.chatMsgLeft]}
-    >
+    <View style={[styles.chatMsg, isMe ? styles.chatMsgRight : styles.chatMsgLeft]}>
       {!isMe && (
-        <Text style={[styles.chatSender, { color: accentColor }]}>{msg.senderName}</Text>
+        <Text style={[styles.chatSender, { color }]}>{msg.senderName}</Text>
       )}
       <View
         style={[
@@ -130,7 +212,7 @@ function ChatMessage({ msg, isMe, colors, isSuperAdmin }: any) {
           {msg.content}
         </Text>
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -144,17 +226,27 @@ export default function RoomScreen() {
     leaveRoomSeat,
     kickFromRoom,
     banFromRoom,
+    deleteRoom,
     sendRoomMessage,
     t,
     theme,
   } = useApp();
+  const { showToast } = useToast();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
   const [message, setMessage] = useState("");
   const [muted, setMuted] = useState(false);
+  const [joinModal, setJoinModal] = useState<{ visible: boolean; seatIndex: number }>({
+    visible: false,
+    seatIndex: -1,
+  });
   const flatRef = useRef<FlatList>(null);
 
+  const topPad = Platform.OS === "web" ? 30 : insets.top;
+  const botPad = Platform.OS === "web" ? 20 : insets.bottom;
+
   const room = rooms.find((r) => r.id === id);
+
   if (!room) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
@@ -173,7 +265,20 @@ export default function RoomScreen() {
 
   const handleLeave = () => {
     leaveRoomSeat(room.id);
+    showToast("غادرت الغرفة", "info");
     router.back();
+  };
+
+  const handleSeatPress = (index: number) => {
+    setJoinModal({ visible: true, seatIndex: index });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const confirmJoinSeat = () => {
+    joinRoomSeat(room.id, joinModal.seatIndex);
+    setJoinModal({ visible: false, seatIndex: -1 });
+    showToast("انضممت للمقعد!", "success");
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const handleSend = () => {
@@ -183,8 +288,19 @@ export default function RoomScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+  const handleDeleteRoom = () => {
+    Alert.alert(t("deleteRoom"), room.name + "؟", [
+      { text: t("cancel"), style: "cancel" },
+      {
+        text: t("deleteRoom"), style: "destructive",
+        onPress: () => {
+          deleteRoom(room.id);
+          showToast("تم حذف الغرفة", "success");
+          router.back();
+        },
+      },
+    ]);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -196,31 +312,50 @@ export default function RoomScreen() {
         <View style={styles.headerRow}>
           <TouchableOpacity
             onPress={() => router.back()}
-            style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[styles.headerBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
             <Ionicons name="chevron-down" size={22} color={colors.text} />
           </TouchableOpacity>
+
           <View style={styles.headerInfo}>
-            <Text style={[styles.roomTitle, { color: colors.text }]}>{room.name}</Text>
-            <Text style={[styles.roomOwnerLabel, { color: colors.textSecondary }]}>
-              {room.ownerName}
+            <Text style={[styles.roomTitle, { color: colors.text }]} numberOfLines={1}>
+              {room.name}
+            </Text>
+            <Text style={[styles.roomOwner, { color: colors.textSecondary }]}>
+              👤 {room.ownerName}
             </Text>
           </View>
+
           <TouchableOpacity
-            onPress={() => { setMuted(!muted); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-            style={[styles.muteBtn, { backgroundColor: muted ? `${colors.danger}22` : `${accentColor}22` }]}
+            onPress={() => {
+              setMuted(!muted);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              showToast(muted ? "تم تفعيل الميكروفون" : "تم كتم الميكروفون", "info");
+            }}
+            style={[
+              styles.headerBtn,
+              { backgroundColor: muted ? `${colors.danger}22` : `${accentColor}22`, borderColor: muted ? colors.danger : `${accentColor}55` },
+            ]}
           >
             <Ionicons name={muted ? "mic-off" : "mic"} size={20} color={muted ? colors.danger : accentColor} />
           </TouchableOpacity>
+
+          {(isOwner || isSuperAdmin) && (
+            <TouchableOpacity
+              onPress={handleDeleteRoom}
+              style={[styles.headerBtn, { backgroundColor: `${colors.danger}22`, borderColor: `${colors.danger}44` }]}
+            >
+              <Ionicons name="trash-outline" size={18} color={colors.danger} />
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Super Admin Royal Entrance */}
         {isSuperAdminUser && (
-          <View style={styles.royalBanner}>
+          <View style={{ marginTop: 10 }}>
             <LinearGradient
               colors={["#FFD700", "#FFA500"]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={styles.royalGradient}
+              style={styles.royalBanner}
             >
               <Text style={styles.royalText}>👑 {t("royal")} 👑</Text>
             </LinearGradient>
@@ -228,31 +363,37 @@ export default function RoomScreen() {
         )}
       </LinearGradient>
 
-      {/* Seats Grid */}
-      <View style={styles.seatsGrid}>
-        {Array(6).fill(null).map((_, i) => (
-          <SeatButton
-            key={i}
-            index={i}
-            user={room.seatUsers[i]}
-            isOwner={isOwner}
-            isSuperAdmin={isSuperAdmin}
-            currentUser={currentUser}
-            accentColor={accentColor}
-            onJoin={(idx: number) => {
-              if (!isInRoom) joinRoomSeat(room.id, idx);
-              else joinRoomSeat(room.id, idx);
-            }}
-            onKick={(uid: string) => kickFromRoom(room.id, uid)}
-            onBan={(uid: string) => banFromRoom(room.id, uid)}
-            colors={colors}
-            t={t}
-          />
-        ))}
+      {/* Seats — modern 2×3 grid */}
+      <View style={styles.seatsSection}>
+        <View style={styles.seatsGrid}>
+          {Array(6).fill(null).map((_, i) => (
+            <SeatCard
+              key={i}
+              index={i}
+              user={room.seatUsers[i]}
+              isOwner={isOwner}
+              isSuperAdmin={isSuperAdmin}
+              currentUser={currentUser}
+              accentColor={accentColor}
+              onPress={handleSeatPress}
+              onKick={(uid: string) => {
+                kickFromRoom(room.id, uid);
+                showToast("تم طرد المستخدم", "info");
+              }}
+              onBan={(uid: string) => {
+                banFromRoom(room.id, uid);
+                showToast("تم حظر المستخدم", "error");
+              }}
+              colors={colors}
+              t={t}
+              isMuted={muted}
+            />
+          ))}
+        </View>
       </View>
 
       {/* Chat */}
-      <View style={[styles.chatContainer, { backgroundColor: colors.backgroundSecondary, borderTopColor: colors.border }]}>
+      <View style={[styles.chatArea, { backgroundColor: colors.backgroundSecondary, borderTopColor: colors.border }]}>
         <FlatList
           ref={flatRef}
           data={[...room.chat].reverse()}
@@ -261,36 +402,39 @@ export default function RoomScreen() {
           contentContainerStyle={styles.chatList}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <ChatMessage
+            <ChatBubble
               msg={item}
               isMe={item.senderId === currentUser?.id}
               colors={colors}
-              isSuperAdmin={item.senderId === SUPER_ADMIN_PHONE}
             />
           )}
           ListEmptyComponent={
-            <View style={styles.emptyChatState}>
+            <View style={styles.emptyChat}>
               <Ionicons name="chatbubbles-outline" size={32} color={colors.border} />
-              <Text style={[styles.emptyChatText, { color: colors.textSecondary }]}>
+              <Text style={[{ color: colors.textSecondary, fontFamily: "Inter_400Regular", fontSize: 13 }]}>
                 ابدأ الدردشة
               </Text>
             </View>
           }
         />
 
-        {/* Input */}
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={0}
         >
-          <View style={[styles.inputRow, { paddingBottom: botPad + 8, borderTopColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-            <TouchableOpacity
-              onPress={handleLeave}
-              style={[styles.leaveBtn, { backgroundColor: `${colors.danger}22` }]}
-            >
+          <View
+            style={[
+              styles.inputRow,
+              {
+                paddingBottom: botPad + 8,
+                borderTopColor: colors.border,
+                backgroundColor: colors.backgroundSecondary,
+              },
+            ]}
+          >
+            <TouchableOpacity onPress={handleLeave} style={[styles.roundBtn, { backgroundColor: `${colors.danger}22` }]}>
               <Ionicons name="exit-outline" size={20} color={colors.danger} />
             </TouchableOpacity>
-            <View style={[styles.inputWrapper, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+            <View style={[styles.inputWrap, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
               <TextInput
                 style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
                 placeholder={t("typeMessage")}
@@ -304,97 +448,195 @@ export default function RoomScreen() {
             </View>
             <TouchableOpacity
               onPress={handleSend}
-              style={[styles.sendBtn, { backgroundColor: accentColor }]}
               disabled={!message.trim()}
+              style={[styles.roundBtn, { backgroundColor: message.trim() ? accentColor : colors.backgroundTertiary }]}
             >
-              <Ionicons name="send" size={18} color="#fff" />
+              <Ionicons name="send" size={18} color={message.trim() ? "#fff" : colors.textSecondary} />
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       </View>
+
+      {/* Join Seat Confirmation Modal */}
+      <Modal
+        visible={joinModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setJoinModal({ visible: false, seatIndex: -1 })}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setJoinModal({ visible: false, seatIndex: -1 })}
+        >
+          <Pressable
+            style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => {}}
+          >
+            <View style={[styles.modalIconWrap, { backgroundColor: `${accentColor}22` }]}>
+              <Ionicons name="mic" size={32} color={accentColor} />
+            </View>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              تأكيد الصعود للمنصة
+            </Text>
+            <Text style={[styles.modalDesc, { color: colors.textSecondary }]}>
+              هل تريد الجلوس في المقعد رقم {joinModal.seatIndex + 1}؟
+            </Text>
+            <View style={styles.modalBtns}>
+              <TouchableOpacity
+                onPress={() => setJoinModal({ visible: false, seatIndex: -1 })}
+                style={[styles.modalCancelBtn, { borderColor: colors.border }]}
+              >
+                <Text style={[{ color: colors.textSecondary, fontFamily: "Inter_500Medium", fontSize: 15 }]}>
+                  {t("cancel")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={confirmJoinSeat} style={{ flex: 1 }}>
+                <LinearGradient
+                  colors={[accentColor, `${accentColor}cc`]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.modalConfirmBtn}
+                >
+                  <Ionicons name="mic" size={18} color="#fff" />
+                  <Text style={styles.modalConfirmText}>صعود</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
+const SEAT_SIZE = 100;
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingHorizontal: 16, paddingBottom: 12 },
-  headerRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  backBtn: {
-    width: 42, height: 42, borderRadius: 14,
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerBtn: {
+    width: 42, height: 42, borderRadius: 13,
     alignItems: "center", justifyContent: "center", borderWidth: 1,
   },
   headerInfo: { flex: 1 },
   roomTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  roomOwnerLabel: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  muteBtn: {
-    width: 42, height: 42, borderRadius: 14,
-    alignItems: "center", justifyContent: "center",
-  },
-  royalBanner: { marginTop: 10 },
-  royalGradient: {
+  roomOwner: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
+  royalBanner: {
     borderRadius: 14, paddingVertical: 8, paddingHorizontal: 16,
     alignItems: "center",
   },
-  royalText: {
-    color: "#000", fontFamily: "Inter_700Bold",
-    fontSize: 14, letterSpacing: 1,
-  },
+  royalText: { color: "#000", fontFamily: "Inter_700Bold", fontSize: 14, letterSpacing: 1 },
+  seatsSection: { padding: 16 },
   seatsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    padding: 16,
     gap: 12,
     justifyContent: "center",
   },
   seat: {
-    width: "30%",
-    aspectRatio: 0.9,
-    borderRadius: 20,
+    width: SEAT_SIZE,
+    height: SEAT_SIZE + 20,
+    borderRadius: 22,
+    overflow: "visible",
+    position: "relative",
+  },
+  seatInner: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
     padding: 8,
+  },
+  avatarRingWrap: {
     position: "relative",
+    width: 54,
+    height: 54,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  seatCrown: { position: "absolute", top: 4, right: 4 },
-  seatAvatar: {
-    width: 44, height: 44, borderRadius: 14,
+  speakRing: {
+    borderRadius: 30,
+    borderWidth: 2.5,
+    position: "absolute",
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+  },
+  seatAvatarLg: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  seatAvatarImg: { width: "100%", height: "100%", borderRadius: 18 },
+  seatAvatarText: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  seatNameRow: { flexDirection: "row", alignItems: "center", gap: 3 },
+  seatName: { fontSize: 11, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  micIndicator: {
+    borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2,
+    flexDirection: "row", alignItems: "center", gap: 2,
+  },
+  emptyAvatarCircle: {
+    width: 52, height: 52, borderRadius: 18,
     alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderStyle: "dashed",
   },
-  seatAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  seatName: { fontSize: 11, fontFamily: "Inter_500Medium", textAlign: "center" },
-  seatEmptyText: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  chatContainer: { flex: 1, borderTopWidth: 1 },
+  seatEmptyLabel: { fontSize: 10, fontFamily: "Inter_400Regular" },
+  chatArea: { flex: 1, borderTopWidth: 1 },
   chatList: { padding: 12, gap: 8 },
-  chatMsg: { maxWidth: "80%" },
+  chatMsg: { maxWidth: "82%" },
   chatMsgLeft: { alignSelf: "flex-start" },
   chatMsgRight: { alignSelf: "flex-end" },
-  chatSender: { fontSize: 11, fontFamily: "Inter_600SemiBold", marginBottom: 3, paddingLeft: 4 },
+  chatSender: { fontSize: 11, fontFamily: "Inter_600SemiBold", marginBottom: 2, paddingHorizontal: 4 },
   chatBubble: {
     borderRadius: 16, borderWidth: 1,
     paddingVertical: 8, paddingHorizontal: 12,
   },
   chatText: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
-  emptyChatState: { alignItems: "center", paddingVertical: 24, gap: 8 },
-  emptyChatText: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  emptyChat: { alignItems: "center", paddingVertical: 24, gap: 8 },
   inputRow: {
     flexDirection: "row", alignItems: "center",
     gap: 10, paddingHorizontal: 12,
     paddingTop: 10, borderTopWidth: 1,
   },
-  leaveBtn: {
+  roundBtn: {
     width: 42, height: 42, borderRadius: 14,
     alignItems: "center", justifyContent: "center",
   },
-  inputWrapper: {
+  inputWrap: {
     flex: 1, borderRadius: 14, borderWidth: 1,
-    paddingHorizontal: 12, height: 44,
-    justifyContent: "center",
+    paddingHorizontal: 14, height: 44, justifyContent: "center",
   },
   input: { fontSize: 15, height: "100%" },
-  sendBtn: {
-    width: 42, height: 42, borderRadius: 14,
+  modalOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center", justifyContent: "center",
   },
+  modalCard: {
+    width: "85%", maxWidth: 340,
+    borderRadius: 28, borderWidth: 1,
+    padding: 28, alignItems: "center", gap: 14,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.3, shadowRadius: 40, elevation: 30,
+  },
+  modalIconWrap: {
+    width: 72, height: 72, borderRadius: 22,
+    alignItems: "center", justifyContent: "center",
+  },
+  modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
+  modalDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
+  modalBtns: { flexDirection: "row", gap: 12, width: "100%", marginTop: 4 },
+  modalCancelBtn: {
+    flex: 1, height: 50, borderRadius: 14, borderWidth: 1,
+    alignItems: "center", justifyContent: "center",
+  },
+  modalConfirmBtn: {
+    height: 50, borderRadius: 14,
+    alignItems: "center", justifyContent: "center",
+    flexDirection: "row", gap: 8,
+  },
+  modalConfirmText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 },
 });

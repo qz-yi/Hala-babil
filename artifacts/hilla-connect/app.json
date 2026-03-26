@@ -30,7 +30,13 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "يسمح التطبيق بالوصول إلى صورك لتحديث صورتك الشخصية."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

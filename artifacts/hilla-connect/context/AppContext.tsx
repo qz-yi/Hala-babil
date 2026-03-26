@@ -107,6 +107,7 @@ interface AppContextValue {
     password: string
   ) => Promise<boolean>;
   logout: () => Promise<void>;
+  updateProfile: (name: string, avatar?: string) => Promise<void>;
   createRoom: (name: string, image?: string) => Promise<Room | null>;
   deleteRoom: (roomId: string) => void;
   joinRoomSeat: (roomId: string, seatIndex: number) => void;
@@ -479,6 +480,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.removeItem("currentUser");
   }, []);
 
+  const updateProfile = useCallback(
+    async (name: string, avatar?: string) => {
+      if (!currentUser) return;
+      const updated: User = {
+        ...currentUser,
+        name,
+        ...(avatar !== undefined ? { avatar } : {}),
+      };
+      setCurrentUser(updated);
+      await AsyncStorage.setItem("currentUser", JSON.stringify(updated));
+      const updatedUsers = users.map((u) =>
+        u.id === updated.id ? updated : u
+      );
+      saveUsers(updatedUsers);
+      const updatedRooms = rooms.map((r) => ({
+        ...r,
+        ownerName: r.ownerId === updated.id ? updated.name : r.ownerName,
+        seatUsers: r.seatUsers.map((su) =>
+          su?.id === updated.id ? updated : su
+        ),
+      }));
+      saveRooms(updatedRooms);
+    },
+    [currentUser, users, rooms]
+  );
+
   const createRoom = useCallback(
     async (name: string, image?: string): Promise<Room | null> => {
       if (!currentUser) return null;
@@ -740,6 +767,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       login,
       register,
       logout,
+      updateProfile,
       createRoom,
       deleteRoom,
       joinRoomSeat,
@@ -771,6 +799,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       login,
       register,
       logout,
+      updateProfile,
       createRoom,
       deleteRoom,
       joinRoomSeat,

@@ -94,3 +94,37 @@ Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHea
 ### `scripts` (`@workspace/scripts`)
 
 Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+
+---
+
+## Hilla Connect Mobile App (`artifacts/hilla-connect`)
+
+Arabic-first social communication Expo React Native app.
+
+### Features
+- **Auth**: Login, Register, Forgot Password. Super Admin: `07719820537` / `1w2q3r4eSATHA2026$`
+- **Voice Rooms**: 6-seat grid with modern seat cards, animated speaking rings, confirmation modal for joining, mute/leave, kick/ban by owner
+- **Private Messaging**: Conversation list + real-time chat
+- **Restaurants**: Directory with menu display, call & WhatsApp buttons
+- **Profile**: Avatar upload (expo-image-picker), name editing via modal, theme toggle, language toggle (AR/EN)
+- **Super Admin Panel**: Manage restaurants (full CRUD), ban/unban users, delete rooms — gold crown theme
+- **Toast System**: In-app animated toast notifications (success/error/info) throughout all actions
+- **Agora Integration**: Backend generates RTC tokens at `POST /api/agora/token` (AGORA_APP_ID + AGORA_APP_CERTIFICATE set as env vars)
+
+### Key Files
+- `context/AppContext.tsx` — All state, auth, rooms, messaging, restaurants, `updateProfile`
+- `components/Toast.tsx` — In-app toast provider + hook `useToast`
+- `app/(auth)/` — Login, Register (Field component extracted to avoid keyboard focus bug), Forgot Password
+- `app/(tabs)/` — Home, Messages, Restaurants, Profile
+- `app/room/[id].tsx` — Modern voice room with animated seats, confirmation modal, delete button
+- `app/admin.tsx` — Super Admin panel
+- `constants/colors.ts` — Full light/dark theme + `ACCENT_COLORS` array
+
+### Data Persistence
+All data stored in AsyncStorage (no backend DB). The API server handles Agora token generation only.
+
+### Important Notes
+- Never define components inside other components (causes keyboard focus loss)
+- Use `Date.now().toString() + Math.random()` for IDs (no uuid package)
+- FlatList with `inverted` prop for chat (not scrollToEnd)
+- Use `useToast()` hook from `@/components/Toast` for all user feedback

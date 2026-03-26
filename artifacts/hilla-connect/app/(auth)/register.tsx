@@ -3,7 +3,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -17,9 +16,67 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
+import { useToast } from "@/components/Toast";
+
+interface FieldProps {
+  icon: string;
+  placeholder: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  inputRef?: React.RefObject<TextInput>;
+  nextRef?: React.RefObject<TextInput>;
+  keyboardType?: any;
+  secure?: boolean;
+  showSecure?: boolean;
+  onToggleSecure?: () => void;
+  last?: boolean;
+  onSubmit?: () => void;
+  colors: any;
+}
+
+function RegisterField({
+  icon,
+  placeholder,
+  value,
+  onChangeText,
+  inputRef,
+  nextRef,
+  keyboardType = "default",
+  secure = false,
+  showSecure = false,
+  onToggleSecure,
+  last = false,
+  onSubmit,
+  colors,
+}: FieldProps) {
+  return (
+    <View style={[styles.inputWrapper, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+      <Ionicons name={icon as any} size={20} color={colors.textSecondary} style={{ flexShrink: 0 }} />
+      <TextInput
+        ref={inputRef}
+        style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
+        placeholder={placeholder}
+        placeholderTextColor={colors.textSecondary}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        secureTextEntry={secure && !showSecure}
+        returnKeyType={last ? "done" : "next"}
+        onSubmitEditing={last ? onSubmit : () => nextRef?.current?.focus()}
+        textAlign={Platform.OS !== "web" ? "right" : "left"}
+      />
+      {secure && onToggleSecure && (
+        <TouchableOpacity onPress={onToggleSecure}>
+          <Ionicons name={showSecure ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
 
 export default function RegisterScreen() {
   const { register, t, theme } = useApp();
+  const { showToast } = useToast();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
 
@@ -38,58 +95,25 @@ export default function RegisterScreen() {
   const addressRef = useRef<TextInput>(null);
   const passRef = useRef<TextInput>(null);
 
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+  const topPad = Platform.OS === "web" ? 30 : insets.top;
+  const botPad = Platform.OS === "web" ? 20 : insets.bottom;
 
   const handleRegister = async () => {
     if (!name || !phone || !email || !age || !address || !password) {
-      Alert.alert(t("error"), t("fillAll"));
+      showToast(t("fillAll"), "error");
       return;
     }
     setLoading(true);
     const success = await register(name.trim(), phone.trim(), email.trim(), parseInt(age), address.trim(), password);
     setLoading(false);
     if (success) {
+      showToast(t("success") + "! " + t("welcome"), "success");
       router.dismissAll();
       router.replace("/(tabs)");
     } else {
-      Alert.alert(t("error"), t("phoneExists"));
+      showToast(t("phoneExists"), "error");
     }
   };
-
-  const Field = ({
-    icon,
-    placeholder,
-    value,
-    onChangeText,
-    ref: refProp,
-    nextRef,
-    keyboardType = "default" as any,
-    secure = false,
-    last = false,
-  }: any) => (
-    <View style={[styles.inputWrapper, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
-      <Ionicons name={icon} size={20} color={colors.textSecondary} style={{ flexShrink: 0 }} />
-      <TextInput
-        ref={refProp}
-        style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
-        placeholder={placeholder}
-        placeholderTextColor={colors.textSecondary}
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType={keyboardType}
-        secureTextEntry={secure}
-        returnKeyType={last ? "done" : "next"}
-        onSubmitEditing={last ? handleRegister : () => nextRef?.current?.focus()}
-        textAlign={Platform.OS !== "web" ? "right" : "left"}
-      />
-      {secure && (
-        <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-          <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -136,12 +160,12 @@ export default function RegisterScreen() {
           </View>
 
           <View style={styles.form}>
-            <Field icon="person-outline" placeholder={t("name")} value={name} onChangeText={setName} nextRef={phoneRef} />
-            <Field icon="call-outline" placeholder={t("phone")} value={phone} onChangeText={setPhone} ref={phoneRef} nextRef={emailRef} keyboardType="phone-pad" />
-            <Field icon="mail-outline" placeholder={t("email")} value={email} onChangeText={setEmail} ref={emailRef} nextRef={ageRef} keyboardType="email-address" />
-            <Field icon="calendar-outline" placeholder={t("age")} value={age} onChangeText={setAge} ref={ageRef} nextRef={addressRef} keyboardType="number-pad" />
-            <Field icon="location-outline" placeholder={t("address")} value={address} onChangeText={setAddress} ref={addressRef} nextRef={passRef} />
-            <Field icon="lock-closed-outline" placeholder={t("password")} value={password} onChangeText={setPassword} ref={passRef} secure={true} last={true} />
+            <RegisterField icon="person-outline" placeholder={t("name")} value={name} onChangeText={setName} nextRef={phoneRef} colors={colors} />
+            <RegisterField icon="call-outline" placeholder={t("phone")} value={phone} onChangeText={setPhone} inputRef={phoneRef} nextRef={emailRef} keyboardType="phone-pad" colors={colors} />
+            <RegisterField icon="mail-outline" placeholder={t("email")} value={email} onChangeText={setEmail} inputRef={emailRef} nextRef={ageRef} keyboardType="email-address" colors={colors} />
+            <RegisterField icon="calendar-outline" placeholder={t("age")} value={age} onChangeText={setAge} inputRef={ageRef} nextRef={addressRef} keyboardType="number-pad" colors={colors} />
+            <RegisterField icon="location-outline" placeholder={t("address")} value={address} onChangeText={setAddress} inputRef={addressRef} nextRef={passRef} colors={colors} />
+            <RegisterField icon="lock-closed-outline" placeholder={t("password")} value={password} onChangeText={setPassword} inputRef={passRef} secure showSecure={showPassword} onToggleSecure={() => setShowPassword(!showPassword)} last onSubmit={handleRegister} colors={colors} />
 
             <TouchableOpacity activeOpacity={0.85} onPress={handleRegister} disabled={loading}>
               <LinearGradient

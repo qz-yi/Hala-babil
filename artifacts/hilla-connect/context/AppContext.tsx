@@ -171,7 +171,7 @@ const translations: Record<Language, Record<string, string>> = {
     forgotPassword: "نسيت كلمة المرور؟",
     contactAdmin: "تواصل مع الإدارة",
     welcome: "مرحباً بك",
-    hillaConnect: "هلة كونكت",
+    hillaConnect: "هلا بابل",
     noRooms: "لا توجد غرف حتى الآن",
     createFirst: "أنشئ أول غرفة!",
     seat: "مقعد",

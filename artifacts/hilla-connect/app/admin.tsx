@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import {
   Alert,
   FlatList,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -263,7 +264,11 @@ export default function AdminScreen() {
               return (
                 <View key={u.id} style={[styles.listItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <View style={[styles.listAvatar, { backgroundColor: `${color}33` }]}>
-                    <Text style={[styles.listAvatarText, { color }]}>{u.name[0]?.toUpperCase()}</Text>
+                    {u.avatar ? (
+                      <Image source={{ uri: u.avatar }} style={styles.listAvatarImg} />
+                    ) : (
+                      <Text style={[styles.listAvatarText, { color }]}>{u.name[0]?.toUpperCase()}</Text>
+                    )}
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.listTitle, { color: colors.text }]}>{u.name}</Text>
@@ -367,8 +372,15 @@ const styles = StyleSheet.create({
   listAvatar: {
     width: 42, height: 42, borderRadius: 13,
     alignItems: "center", justifyContent: "center",
+    overflow: "hidden",
   },
   listAvatarText: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  listAvatarImg: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+    borderRadius: 13,
+  },
   listTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   listSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   dangerBtn: {

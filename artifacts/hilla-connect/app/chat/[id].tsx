@@ -7,6 +7,7 @@ import {
   Alert,
   FlatList,
   KeyboardAvoidingView,
+  Image,
   Platform,
   StyleSheet,
   Text,
@@ -89,9 +90,13 @@ export default function ChatScreen() {
             <Ionicons name="arrow-back" size={20} color={colors.text} />
           </TouchableOpacity>
           <View style={[styles.headerAvatar, { backgroundColor: `${accentColor}33` }]}>
-            <Text style={[styles.headerAvatarText, { color: accentColor }]}>
-              {otherUser?.name[0]?.toUpperCase()}
-            </Text>
+            {otherUser?.avatar ? (
+              <Image source={{ uri: otherUser.avatar }} style={styles.headerAvatarImg} />
+            ) : (
+              <Text style={[styles.headerAvatarText, { color: accentColor }]}>
+                {otherUser?.name[0]?.toUpperCase()}
+              </Text>
+            )}
           </View>
           <View style={styles.headerInfo}>
             <Text style={[styles.headerName, { color: colors.text }]}>{otherUser?.name}</Text>
@@ -205,8 +210,15 @@ const styles = StyleSheet.create({
   headerAvatar: {
     width: 42, height: 42, borderRadius: 14,
     alignItems: "center", justifyContent: "center",
+    overflow: "hidden",
   },
   headerAvatarText: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  headerAvatarImg: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 14,
+    resizeMode: "cover",
+  },
   headerInfo: { flex: 1 },
   headerName: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   onlineRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },

@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   FlatList,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -42,7 +43,11 @@ function UserPickerModal({ users, currentUser, onSelect, onClose, colors, t }: a
                 style={[styles.userItem, { borderColor: colors.border }]}
               >
                 <View style={[styles.userAvatar, { backgroundColor: `${color}33` }]}>
-                  <Text style={[styles.userAvatarText, { color }]}>{item.name[0]?.toUpperCase()}</Text>
+                  {item.avatar ? (
+                    <Image source={{ uri: item.avatar }} style={styles.userAvatarImg} />
+                  ) : (
+                    <Text style={[styles.userAvatarText, { color }]}>{item.name[0]?.toUpperCase()}</Text>
+                  )}
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.userName, { color: colors.text }]}>{item.name}</Text>
@@ -139,7 +144,11 @@ export default function MessagesScreen() {
                 activeOpacity={0.8}
               >
                 <View style={[styles.convoAvatar, { backgroundColor: `${color}33` }]}>
-                  <Text style={[styles.convoAvatarText, { color }]}>{other.name[0]?.toUpperCase()}</Text>
+                  {other.avatar ? (
+                    <Image source={{ uri: other.avatar }} style={styles.convoAvatarImg} />
+                  ) : (
+                    <Text style={[styles.convoAvatarText, { color }]}>{other.name[0]?.toUpperCase()}</Text>
+                  )}
                 </View>
                 <View style={styles.convoInfo}>
                   <View style={styles.convoTopRow}>
@@ -194,8 +203,15 @@ const styles = StyleSheet.create({
   convoAvatar: {
     width: 52, height: 52, borderRadius: 16,
     alignItems: "center", justifyContent: "center",
+    overflow: "hidden",
   },
   convoAvatarText: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  convoAvatarImg: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 16,
+    resizeMode: "cover",
+  },
   convoInfo: { flex: 1 },
   convoTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   convoName: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
@@ -229,8 +245,15 @@ const styles = StyleSheet.create({
   userAvatar: {
     width: 46, height: 46, borderRadius: 14,
     alignItems: "center", justifyContent: "center",
+    overflow: "hidden",
   },
   userAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  userAvatarImg: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 14,
+    resizeMode: "cover",
+  },
   userName: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   userPhone: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
   emptyPicker: { alignItems: "center", paddingVertical: 40 },

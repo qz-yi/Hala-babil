@@ -23,8 +23,8 @@ interface FieldProps {
   placeholder: string;
   value: string;
   onChangeText: (v: string) => void;
-  inputRef?: React.RefObject<TextInput>;
-  nextRef?: React.RefObject<TextInput>;
+  inputRef?: React.RefObject<TextInput | null>;
+  nextRef?: React.RefObject<TextInput | null>;
   keyboardType?: any;
   secure?: boolean;
   showSecure?: boolean;

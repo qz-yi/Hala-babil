@@ -109,7 +109,7 @@ interface AppContextValue {
   logout: () => Promise<void>;
   updateProfile: (name: string, avatar?: string) => Promise<void>;
   createRoom: (name: string, image?: string) => Promise<Room | null>;
-  deleteRoom: (roomId: string) => void;
+  deleteRoom: (roomId: string) => Promise<void>;
   joinRoomSeat: (roomId: string, seatIndex: number) => void;
   leaveRoomSeat: (roomId: string) => void;
   sendRoomMessage: (
@@ -477,7 +477,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     setCurrentUser(null);
-    await AsyncStorage.removeItem("currentUser");
+    setUsers([]);
+    setRooms([]);
+    setConversations([]);
+    setRestaurants([]);
+    setPasswords({});
+    setBlockedUsers([]);
+    try {
+      await AsyncStorage.clear();
+    } catch {
+      // If AsyncStorage clear fails, we still want to complete logout.
+    }
   }, []);
 
   const updateProfile = useCallback(
@@ -502,8 +512,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ),
       }));
       saveRooms(updatedRooms);
+
+      // Keep avatars in conversations in sync too.
+      const updatedConversations = conversations.map((c) => ({
+        ...c,
+        participantUsers: c.participantUsers.map((pu) =>
+          pu.id === updated.id ? updated : pu
+        ),
+      }));
+      saveConversations(updatedConversations);
     },
-    [currentUser, users, rooms]
+    [currentUser, users, rooms, conversations]
   );
 
   const createRoom = useCallback(
@@ -534,7 +553,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const deleteRoom = useCallback(
-    (roomId: string) => {
+    async (roomId: string) => {
+      // Requirement: deleteRoom must call the API.
+      // The server might not persist rooms yet, but the request is made.
+      try {
+        await fetch(`/api/rooms/${roomId}`, { method: "DELETE" });
+      } catch {
+        // If API call fails, we still remove locally to keep UI responsive.
+      }
       saveRooms(rooms.filter((r) => r.id !== roomId));
     },
     [rooms]

@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -7,6 +8,7 @@ import {
   Alert,
   Animated,
   FlatList,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -22,7 +24,16 @@ import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { Room } from "@/context/AppContext";
 
-function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t, colors }: any) {
+function RoomCard({
+  room,
+  onPress,
+  onDelete,
+  isOwner,
+  isSuperAdmin,
+  t,
+  colors,
+  theme,
+}: any) {
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
   const occupied = room.seats.filter((s: any) => s !== null).length;
 
@@ -35,10 +46,25 @@ function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t, colors }:
   };
 
   const accentColor = ACCENT_COLORS[room.name.length % ACCENT_COLORS.length];
+  const ownerUser =
+    room.seatUsers?.find((u: any) => u?.id === room.ownerId) ??
+    room.seatUsers?.find((u: any) => !!u) ??
+    null;
 
   return (
     <Animated.View style={[{ transform: [{ scale: scaleAnim }] }]}>
-      <Pressable onPress={handlePress} style={[styles.roomCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Pressable onPress={handlePress} style={[styles.roomCard, { borderColor: colors.border }]}>
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: colors.card, opacity: 0.65 },
+          ]}
+        />
+        <BlurView
+          intensity={45}
+          tint={theme === "dark" ? "dark" : "light"}
+          style={StyleSheet.absoluteFill}
+        />
         <LinearGradient
           colors={[`${accentColor}22`, `${accentColor}08`]}
           style={StyleSheet.absoluteFill}
@@ -47,7 +73,13 @@ function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t, colors }:
 
         <View style={styles.roomHeader}>
           <View style={[styles.roomAvatar, { backgroundColor: `${accentColor}33` }]}>
-            <Text style={styles.roomAvatarText}>{room.name[0]?.toUpperCase() || "R"}</Text>
+            {ownerUser?.avatar ? (
+              <Image source={{ uri: ownerUser.avatar }} style={styles.roomAvatarImg} />
+            ) : (
+              <Text style={styles.roomAvatarText}>
+                {(ownerUser?.name?.[0] ?? room.name?.[0])?.toUpperCase() || "R"}
+              </Text>
+            )}
           </View>
           <View style={styles.roomInfo}>
             <Text style={[styles.roomName, { color: colors.text }]} numberOfLines={1}>
@@ -82,7 +114,11 @@ function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t, colors }:
                 ]}
               >
                 {user ? (
-                  <Text style={styles.seatText}>{user.name[0]?.toUpperCase()}</Text>
+                  user.avatar ? (
+                    <Image source={{ uri: user.avatar }} style={styles.seatAvatarImg} />
+                  ) : (
+                    <Text style={styles.seatText}>{user.name[0]?.toUpperCase()}</Text>
+                  )
                 ) : (
                   <Ionicons name="mic-off-outline" size={14} color={colors.textSecondary} />
                 )}
@@ -253,6 +289,7 @@ export default function HomeScreen() {
               isSuperAdmin={isSuperAdmin}
               t={t}
               colors={colors}
+              theme={theme}
             />
           )}
         />
@@ -297,10 +334,13 @@ const styles = StyleSheet.create({
   },
   list: { padding: 16, gap: 14 },
   roomCard: {
-    borderRadius: 20, borderWidth: 1,
+    borderRadius: 24, borderWidth: 1,
     overflow: "hidden",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08, shadowRadius: 8, elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 9,
   },
   roomColorBar: { height: 3, width: "100%" },
   roomHeader: {
@@ -308,11 +348,18 @@ const styles = StyleSheet.create({
     padding: 14, gap: 12,
   },
   roomAvatar: {
-    width: 46, height: 46, borderRadius: 14,
+    width: 46, height: 46, borderRadius: 16,
     alignItems: "center", justifyContent: "center",
+    overflow: "hidden",
   },
   roomAvatarText: {
     fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff",
+  },
+  roomAvatarImg: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 16,
+    resizeMode: "cover",
   },
   roomInfo: { flex: 1 },
   roomName: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
@@ -328,8 +375,15 @@ const styles = StyleSheet.create({
     width: 38, height: 38, borderRadius: 12,
     alignItems: "center", justifyContent: "center",
     borderWidth: 1,
+    overflow: "hidden",
   },
   seatText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  seatAvatarImg: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 12,
+    resizeMode: "cover",
+  },
   roomFooter: {
     flexDirection: "row", alignItems: "center",
     justifyContent: "space-between",

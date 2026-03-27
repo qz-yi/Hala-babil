@@ -45,7 +45,7 @@ export default function ProfileScreen() {
         onPress: async () => {
           await logout();
           showToast("تم تسجيل الخروج", "info");
-          router.replace("/");
+          router.replace("/(auth)/login");
         },
       },
     ]);

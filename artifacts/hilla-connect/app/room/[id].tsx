@@ -130,10 +130,16 @@ function SeatCard({
       ]}
     >
       <View style={styles.seatInner}>
-        {/* Speaking ring */}
-        {user && !isMuted && (
+        {/* Avatar is always visible inside the room seats.
+            The "speaking" ring is only shown when not muted. */}
+        {user && (
           <View style={styles.avatarRingWrap}>
-            <SpeakingRing color={isSuperAdminUser ? "#FFD700" : userColor} speaking={speaking} />
+            {!isMuted && (
+              <SpeakingRing
+                color={isSuperAdminUser ? "#FFD700" : userColor}
+                speaking={speaking}
+              />
+            )}
             <View
               style={[
                 styles.seatAvatarLg,
@@ -261,9 +267,15 @@ export default function RoomScreen() {
   const accentColor = ACCENT_COLORS[room.name.length % ACCENT_COLORS.length];
   const isOwner = room.ownerId === currentUser?.id;
   const isInRoom = room.seats.includes(currentUser?.id || "");
+  const ownerUser =
+    room.seatUsers?.find((u: any) => u?.id === room.ownerId) ??
+    room.seatUsers?.find((u: any) => !!u) ??
+    null;
+  const effectiveMuted = !isInRoom || muted;
   const isSuperAdminUser = currentUser?.phone === SUPER_ADMIN_PHONE;
 
   const handleLeave = () => {
+    setMuted(true);
     leaveRoomSeat(room.id);
     showToast("غادرت الغرفة", "info");
     router.back();
@@ -275,6 +287,8 @@ export default function RoomScreen() {
   };
 
   const confirmJoinSeat = () => {
+    // Audio (or voice UI) should start only after explicit seat confirmation.
+    setMuted(false);
     joinRoomSeat(room.id, joinModal.seatIndex);
     setJoinModal({ visible: false, seatIndex: -1 });
     showToast("انضممت للمقعد!", "success");
@@ -317,6 +331,16 @@ export default function RoomScreen() {
             <Ionicons name="chevron-down" size={22} color={colors.text} />
           </TouchableOpacity>
 
+          <View style={[styles.headerAvatar, { backgroundColor: `${accentColor}33` }]}>
+            {ownerUser?.avatar ? (
+              <Image source={{ uri: ownerUser.avatar }} style={styles.headerAvatarImg} />
+            ) : (
+              <Text style={[styles.headerAvatarText, { color: accentColor }]}>
+                {(ownerUser?.name?.[0] ?? room.ownerName?.[0] ?? "R")?.toUpperCase()}
+              </Text>
+            )}
+          </View>
+
           <View style={styles.headerInfo}>
             <Text style={[styles.roomTitle, { color: colors.text }]} numberOfLines={1}>
               {room.name}
@@ -328,16 +352,24 @@ export default function RoomScreen() {
 
           <TouchableOpacity
             onPress={() => {
+              if (!isInRoom) {
+                showToast("ادخل للمقعد أولاً", "info");
+                return;
+              }
               setMuted(!muted);
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               showToast(muted ? "تم تفعيل الميكروفون" : "تم كتم الميكروفون", "info");
             }}
             style={[
               styles.headerBtn,
-              { backgroundColor: muted ? `${colors.danger}22` : `${accentColor}22`, borderColor: muted ? colors.danger : `${accentColor}55` },
+              { backgroundColor: effectiveMuted ? `${colors.danger}22` : `${accentColor}22`, borderColor: effectiveMuted ? colors.danger : `${accentColor}55` },
             ]}
           >
-            <Ionicons name={muted ? "mic-off" : "mic"} size={20} color={muted ? colors.danger : accentColor} />
+            <Ionicons
+              name={effectiveMuted ? "mic-off" : "mic"}
+              size={20}
+              color={effectiveMuted ? colors.danger : accentColor}
+            />
           </TouchableOpacity>
 
           {(isOwner || isSuperAdmin) && (
@@ -386,7 +418,7 @@ export default function RoomScreen() {
               }}
               colors={colors}
               t={t}
-              isMuted={muted}
+              isMuted={effectiveMuted}
             />
           ))}
         </View>
@@ -518,6 +550,21 @@ const styles = StyleSheet.create({
     width: 42, height: 42, borderRadius: 13,
     alignItems: "center", justifyContent: "center", borderWidth: 1,
   },
+  headerAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  headerAvatarImg: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 14,
+    resizeMode: "cover",
+  },
+  headerAvatarText: { fontSize: 16, fontFamily: "Inter_700Bold" },
   headerInfo: { flex: 1 },
   roomTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
   roomOwner: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },

@@ -80,6 +80,7 @@ export interface MenuItem {
   name: string;
   price: number;
   description?: string;
+  image?: string;
 }
 
 const SUPER_ADMIN_PHONE = "07719820537";

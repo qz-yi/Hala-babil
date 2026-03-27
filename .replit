@@ -26,4 +26,4 @@ path = "scripts/post-merge.sh"
 timeoutMs = 20000
 
 [nix]
-packages = ["zip"]
+packages = ["zip", "nano"]

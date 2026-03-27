@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Hilla Connect",
-    "slug": "hilla-connect",
+    "name": "Hala babil",
+    "slug": "halababil",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "hilla-connect",
+    "scheme": "halababil",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -14,13 +14,15 @@
       "backgroundColor": "#0A0A14"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.halababil.app"
     },
     "android": {
-      "backgroundColor": "#0A0A14"
+      "backgroundColor": "#0A0A14",
+      "package": "com.halababil.app"
     },
     "web": {
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       [

@@ -4,7 +4,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-  Alert,
   Image,
   Modal,
   Platform,
@@ -34,21 +33,19 @@ export default function ProfileScreen() {
   const [editModal, setEditModal] = useState(false);
   const [editName, setEditName] = useState(currentUser?.name || "");
   const [saving, setSaving] = useState(false);
+  const [logoutModal, setLogoutModal] = useState(false);
 
   const userColor = ACCENT_COLORS[(currentUser?.name?.length || 0) % ACCENT_COLORS.length];
 
   const handleLogout = () => {
-    Alert.alert(t("logout"), t("confirmLogout"), [
-      { text: t("cancel"), style: "cancel" },
-      {
-        text: t("logout"), style: "destructive",
-        onPress: async () => {
-          await logout();
-          showToast("تم تسجيل الخروج", "info");
-          router.replace("/(auth)/login");
-        },
-      },
-    ]);
+    setLogoutModal(true);
+  };
+
+  const confirmLogout = async () => {
+    setLogoutModal(false);
+    await logout();
+    showToast("تم تسجيل الخروج", "info");
+    router.replace("/(auth)/login");
   };
 
   const handlePickImage = async () => {
@@ -285,6 +282,41 @@ export default function ProfileScreen() {
                   style={styles.saveBtn}
                 >
                   <Text style={styles.saveBtnText}>{saving ? "..." : t("save")}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Logout Confirmation Modal */}
+      <Modal visible={logoutModal} transparent animationType="fade" onRequestClose={() => setLogoutModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setLogoutModal(false)}>
+          <Pressable
+            style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => {}}
+          >
+            <View style={[styles.settingIcon, { backgroundColor: `${colors.danger}18`, width: 64, height: 64, borderRadius: 20, alignSelf: "center" }]}>
+              <Ionicons name="log-out-outline" size={30} color={colors.danger} />
+            </View>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>تسجيل الخروج</Text>
+            <Text style={{ color: colors.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }}>
+              هل أنت متأكد أنك تريد تسجيل الخروج من حسابك؟
+            </Text>
+            <View style={styles.modalBtns}>
+              <TouchableOpacity
+                onPress={() => setLogoutModal(false)}
+                style={[styles.cancelBtn, { borderColor: colors.border }]}
+              >
+                <Text style={{ color: colors.textSecondary, fontFamily: "Inter_500Medium" }}>{t("cancel")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={confirmLogout} style={{ flex: 1 }}>
+                <LinearGradient
+                  colors={[colors.danger, "#c0392b"]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.saveBtn}
+                >
+                  <Text style={styles.saveBtnText}>تسجيل الخروج</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>

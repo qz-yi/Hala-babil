@@ -4,7 +4,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   FlatList,
   Image,
@@ -74,14 +73,14 @@ function SeatCard({
   currentUser,
   accentColor,
   onPress,
-  onKick,
-  onBan,
+  onManage,
   colors,
   t,
   isMuted,
 }: any) {
   const isMe = user?.id === currentUser?.id;
   const isSuperAdminUser = user?.phone === SUPER_ADMIN_PHONE;
+  const canManage = (isOwner || isSuperAdmin) && !!user && !isMe;
   const userColor = user
     ? ACCENT_COLORS[user.name.length % ACCENT_COLORS.length]
     : accentColor;
@@ -95,21 +94,10 @@ function SeatCard({
     return () => clearInterval(interval);
   }, [user?.id]);
 
-  const handleLongPress = () => {
-    if ((!isOwner && !isSuperAdmin) || !user || isMe) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(user.name, "الإجراءات", [
-      { text: t("kickUser"), onPress: () => onKick(user.id) },
-      { text: t("banUser"), style: "destructive", onPress: () => onBan(user.id) },
-      { text: t("cancel"), style: "cancel" },
-    ]);
-  };
-
   return (
     <TouchableOpacity
       onPress={() => !user && onPress(index)}
-      onLongPress={handleLongPress}
-      activeOpacity={0.8}
+      activeOpacity={user ? 1 : 0.8}
       style={[
         styles.seat,
         {
@@ -130,8 +118,6 @@ function SeatCard({
       ]}
     >
       <View style={styles.seatInner}>
-        {/* Avatar is always visible inside the room seats.
-            The "speaking" ring is only shown when not muted. */}
         {user && (
           <View style={styles.avatarRingWrap}>
             {!isMuted && (
@@ -182,6 +168,17 @@ function SeatCard({
                 color={speaking && !isMuted ? userColor : colors.textSecondary}
               />
             </View>
+            {canManage && (
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  onManage(user);
+                }}
+                style={[styles.adminDotBtn, { backgroundColor: `${colors.danger}22` }]}
+              >
+                <Ionicons name="ellipsis-horizontal" size={12} color={colors.danger} />
+              </TouchableOpacity>
+            )}
           </>
         ) : (
           <>
@@ -246,6 +243,11 @@ export default function RoomScreen() {
     visible: false,
     seatIndex: -1,
   });
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [adminActionModal, setAdminActionModal] = useState<{ visible: boolean; user: User | null }>({
+    visible: false,
+    user: null,
+  });
   const flatRef = useRef<FlatList>(null);
 
   const topPad = Platform.OS === "web" ? 30 : insets.top;
@@ -303,17 +305,14 @@ export default function RoomScreen() {
   };
 
   const handleDeleteRoom = () => {
-    Alert.alert(t("deleteRoom"), room.name + "؟", [
-      { text: t("cancel"), style: "cancel" },
-      {
-        text: t("deleteRoom"), style: "destructive",
-        onPress: () => {
-          deleteRoom(room.id);
-          showToast("تم حذف الغرفة", "success");
-          router.back();
-        },
-      },
-    ]);
+    setDeleteModal(true);
+  };
+
+  const confirmDeleteRoom = () => {
+    setDeleteModal(false);
+    deleteRoom(room.id);
+    showToast("تم حذف الغرفة", "success");
+    router.back();
   };
 
   return (
@@ -408,13 +407,8 @@ export default function RoomScreen() {
               currentUser={currentUser}
               accentColor={accentColor}
               onPress={handleSeatPress}
-              onKick={(uid: string) => {
-                kickFromRoom(room.id, uid);
-                showToast("تم طرد المستخدم", "info");
-              }}
-              onBan={(uid: string) => {
-                banFromRoom(room.id, uid);
-                showToast("تم حظر المستخدم", "error");
+              onManage={(user: User) => {
+                setAdminActionModal({ visible: true, user });
               }}
               colors={colors}
               t={t}
@@ -488,6 +482,107 @@ export default function RoomScreen() {
           </View>
         </KeyboardAvoidingView>
       </View>
+
+      {/* Admin Action Modal — kick or ban a user */}
+      <Modal
+        visible={adminActionModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAdminActionModal({ visible: false, user: null })}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setAdminActionModal({ visible: false, user: null })}
+        >
+          <Pressable
+            style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => {}}
+          >
+            {adminActionModal.user && (() => {
+              const u = adminActionModal.user!;
+              const uColor = ACCENT_COLORS[u.name.length % ACCENT_COLORS.length];
+              return (
+                <>
+                  <View style={styles.actionAvatarRow}>
+                    <View style={[styles.actionAvatar, { backgroundColor: `${uColor}33` }]}>
+                      {u.avatar ? (
+                        <Image source={{ uri: u.avatar }} style={{ width: "100%", height: "100%", borderRadius: 16 }} />
+                      ) : (
+                        <Text style={{ color: uColor, fontSize: 20, fontFamily: "Inter_700Bold" }}>{u.name[0]?.toUpperCase()}</Text>
+                      )}
+                    </View>
+                    <Text style={[styles.actionName, { color: colors.text }]}>{u.name}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: `${colors.warning}18`, borderColor: `${colors.warning}44` }]}
+                    onPress={() => {
+                      setAdminActionModal({ visible: false, user: null });
+                      kickFromRoom(room.id, u.id);
+                      showToast("تم طرد المستخدم من الغرفة", "info");
+                    }}
+                  >
+                    <Ionicons name="exit-outline" size={18} color={colors.warning} />
+                    <Text style={[styles.actionBtnText, { color: colors.warning }]}>{t("kickUser")}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: `${colors.danger}18`, borderColor: `${colors.danger}44` }]}
+                    onPress={() => {
+                      setAdminActionModal({ visible: false, user: null });
+                      banFromRoom(room.id, u.id);
+                      showToast("تم حظر المستخدم", "error");
+                    }}
+                  >
+                    <Ionicons name="ban-outline" size={18} color={colors.danger} />
+                    <Text style={[styles.actionBtnText, { color: colors.danger }]}>{t("banUser")}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+                    onPress={() => setAdminActionModal({ visible: false, user: null })}
+                  >
+                    <Ionicons name="close" size={18} color={colors.textSecondary} />
+                    <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>{t("cancel")}</Text>
+                  </TouchableOpacity>
+                </>
+              );
+            })()}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Delete Room Confirmation Modal */}
+      <Modal visible={deleteModal} transparent animationType="fade" onRequestClose={() => setDeleteModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setDeleteModal(false)}>
+          <Pressable style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => {}}>
+            <View style={[styles.modalIconWrap, { backgroundColor: `${colors.danger}18` }]}>
+              <Ionicons name="trash-outline" size={32} color={colors.danger} />
+            </View>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>حذف الغرفة</Text>
+            <Text style={[styles.modalDesc, { color: colors.textSecondary }]}>
+              هل أنت متأكد من حذف غرفة "{room.name}"؟ لا يمكن التراجع عن هذا الإجراء.
+            </Text>
+            <View style={styles.modalBtns}>
+              <TouchableOpacity
+                onPress={() => setDeleteModal(false)}
+                style={[styles.modalCancelBtn, { borderColor: colors.border }]}
+              >
+                <Text style={{ color: colors.textSecondary, fontFamily: "Inter_500Medium", fontSize: 15 }}>
+                  {t("cancel")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={confirmDeleteRoom} style={{ flex: 1 }}>
+                <LinearGradient
+                  colors={[colors.danger, "#c0392b"]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.modalConfirmBtn}
+                >
+                  <Ionicons name="trash-outline" size={18} color="#fff" />
+                  <Text style={styles.modalConfirmText}>حذف</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Join Seat Confirmation Modal */}
       <Modal
@@ -686,4 +781,31 @@ const styles = StyleSheet.create({
     flexDirection: "row", gap: 8,
   },
   modalConfirmText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 },
+  adminDotBtn: {
+    paddingHorizontal: 10, paddingVertical: 3,
+    borderRadius: 8, alignItems: "center", justifyContent: "center",
+  },
+  actionOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center", justifyContent: "center",
+  },
+  actionCard: {
+    width: "78%", maxWidth: 300,
+    borderRadius: 24, borderWidth: 1,
+    padding: 20, gap: 10,
+    alignItems: "stretch",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25, shadowRadius: 30, elevation: 20,
+  },
+  actionAvatarRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 4 },
+  actionAvatar: {
+    width: 44, height: 44, borderRadius: 14,
+    alignItems: "center", justifyContent: "center", overflow: "hidden",
+  },
+  actionName: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  actionBtn: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    borderRadius: 14, borderWidth: 1, paddingVertical: 12, paddingHorizontal: 14,
+  },
+  actionBtnText: { fontSize: 15, fontFamily: "Inter_500Medium" },
 });

@@ -477,17 +477,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     setCurrentUser(null);
-    setUsers([]);
-    setRooms([]);
-    setConversations([]);
-    setRestaurants([]);
-    setPasswords({});
-    setBlockedUsers([]);
-    try {
-      await AsyncStorage.clear();
-    } catch {
-      // If AsyncStorage clear fails, we still want to complete logout.
-    }
+    await AsyncStorage.removeItem("currentUser");
   }, []);
 
   const updateProfile = useCallback(

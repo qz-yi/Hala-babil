@@ -133,6 +133,7 @@ interface AppContextValue {
   deleteRestaurant: (id: string) => void;
   banUser: (userId: string) => void;
   unbanUser: (userId: string) => void;
+  resetUserPassword: (userId: string, newPassword: string) => void;
   t: (key: string) => string;
 }
 
@@ -224,6 +225,16 @@ const translations: Record<Language, Record<string, string>> = {
     mic: "الميكروفون",
     chat: "الدردشة",
     users: "المستخدمون",
+    sendMessage: "مراسلة",
+    resetPassword: "إعادة تعيين كلمة المرور",
+    newPassword: "كلمة المرور الجديدة",
+    resetPasswordTitle: "إعادة تعيين كلمة المرور",
+    resetPasswordSuccess: "تم تغيير كلمة المرور بنجاح",
+    presenceCount: "متصل الآن",
+    roomMembers: "أعضاء الغرفة",
+    noMembers: "لا يوجد أعضاء في المقاعد",
+    userActions: "خيارات المستخدم",
+    kickFromRoom: "طرد من الغرفة",
   },
   en: {
     home: "Home",
@@ -309,6 +320,16 @@ const translations: Record<Language, Record<string, string>> = {
     mic: "Microphone",
     chat: "Chat",
     users: "Users",
+    sendMessage: "Message",
+    resetPassword: "Reset Password",
+    newPassword: "New Password",
+    resetPasswordTitle: "Reset Password",
+    resetPasswordSuccess: "Password changed successfully",
+    presenceCount: "Online Now",
+    roomMembers: "Room Members",
+    noMembers: "No members in seats",
+    userActions: "User Actions",
+    kickFromRoom: "Kick from Room",
   },
 };
 
@@ -763,6 +784,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [users]
   );
 
+  const resetUserPassword = useCallback(
+    (userId: string, newPassword: string) => {
+      const newPasswords = { ...passwords, [userId]: newPassword };
+      setPasswords(newPasswords);
+      AsyncStorage.setItem("passwords", JSON.stringify(newPasswords));
+    },
+    [passwords]
+  );
+
   const t = useCallback(
     (key: string) => translations[language][key] ?? key,
     [language]
@@ -800,6 +830,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       deleteRestaurant,
       banUser,
       unbanUser,
+      resetUserPassword,
       t,
     }),
     [
@@ -832,6 +863,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       deleteRestaurant,
       banUser,
       unbanUser,
+      resetUserPassword,
       t,
     ]
   );

@@ -103,17 +103,20 @@ Arabic-first social communication Expo React Native app.
 
 ### Features
 - **Auth**: Login, Register, Forgot Password. Super Admin: `07719820537` / `1w2q3r4eSATHA2026$`
-- **Voice Rooms**: 6-seat grid with modern seat cards, animated speaking rings, confirmation modal for joining, mute/leave, kick/ban by owner
+- **Voice Rooms**: 6-seat grid with modern seat cards, animated speaking rings, confirmation modal for joining, mute/leave. Clicking any user opens UserActionsModal (message/block/kick).
+- **Presence Counter**: Eye icon + live count of members in seats. Clicking opens full member list. Clicking any member opens UserActionsModal.
+- **User Actions Modal**: `components/UserActionsModal.tsx` — reusable modal with: مراسلة (open/create chat), حظر (block user), طرد (kick from room — room owner/super admin only).
 - **Private Messaging**: Conversation list + real-time chat
-- **Restaurants**: Directory with menu display, call & WhatsApp buttons
+- **Restaurants**: Directory with menu display, call & WhatsApp buttons. Restaurant images shown via `<Image>` with fallback placeholder.
 - **Profile**: Avatar upload (expo-image-picker), name editing via modal, theme toggle, language toggle (AR/EN)
-- **Super Admin Panel**: Manage restaurants (full CRUD), ban/unban users, delete rooms — gold crown theme
+- **Super Admin Panel**: Manage restaurants (full CRUD), ban/unban users, delete rooms, **reset any user's password** (key icon button in users tab) — gold crown theme
 - **Toast System**: In-app animated toast notifications (success/error/info) throughout all actions
 - **Agora Integration**: Backend generates RTC tokens at `POST /api/agora/token` (AGORA_APP_ID + AGORA_APP_CERTIFICATE set as env vars)
 
 ### Key Files
-- `context/AppContext.tsx` — All state, auth, rooms, messaging, restaurants, `updateProfile`
+- `context/AppContext.tsx` — All state, auth, rooms, messaging, restaurants, `updateProfile`, `resetUserPassword`
 - `components/Toast.tsx` — In-app toast provider + hook `useToast`
+- `components/UserActionsModal.tsx` — Reusable user action sheet (message, block, kick)
 - `app/(auth)/` — Login, Register (Field component extracted to avoid keyboard focus bug), Forgot Password
 - `app/(tabs)/` — Home, Messages, Restaurants, Profile
 - `app/room/[id].tsx` — Modern voice room with animated seats, confirmation modal, delete button

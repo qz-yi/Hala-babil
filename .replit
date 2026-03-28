@@ -26,6 +26,10 @@ author = "agent"
 task = "workflow.run"
 args = "Start Backend"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Hilla Connect"
+
 [[workflows.workflow]]
 name = "Start Backend"
 author = "agent"
@@ -37,6 +41,18 @@ waitForPort = 3000
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow]]
+name = "Start Hilla Connect"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=19064 pnpm --filter @workspace/hilla-connect run dev"
+waitForPort = 19064
 
 [agent]
 stack = "PNPM_WORKSPACE"

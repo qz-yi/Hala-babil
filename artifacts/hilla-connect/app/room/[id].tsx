@@ -23,16 +23,11 @@ import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { User } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
+import UserActionsModal from "@/components/UserActionsModal";
 
 const SUPER_ADMIN_PHONE = "07719820537";
 
-function SpeakingRing({
-  color,
-  speaking,
-}: {
-  color: string;
-  speaking: boolean;
-}) {
+function SpeakingRing({ color, speaking }: { color: string; speaking: boolean }) {
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -56,10 +51,7 @@ function SpeakingRing({
       style={[
         StyleSheet.absoluteFillObject,
         styles.speakRing,
-        {
-          borderColor: color,
-          transform: [{ scale: pulse }],
-        },
+        { borderColor: color, transform: [{ scale: pulse }] },
       ]}
     />
   );
@@ -73,14 +65,13 @@ function SeatCard({
   currentUser,
   accentColor,
   onPress,
-  onManage,
+  onUserPress,
   colors,
   t,
   isMuted,
 }: any) {
   const isMe = user?.id === currentUser?.id;
   const isSuperAdminUser = user?.phone === SUPER_ADMIN_PHONE;
-  const canManage = (isOwner || isSuperAdmin) && !!user && !isMe;
   const userColor = user
     ? ACCENT_COLORS[user.name.length % ACCENT_COLORS.length]
     : accentColor;
@@ -96,8 +87,15 @@ function SeatCard({
 
   return (
     <TouchableOpacity
-      onPress={() => !user && onPress(index)}
-      activeOpacity={user ? 1 : 0.8}
+      onPress={() => {
+        if (!user) {
+          onPress(index);
+        } else if (!isMe) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          onUserPress(user);
+        }
+      }}
+      activeOpacity={user && !isMe ? 0.8 : user ? 1 : 0.8}
       style={[
         styles.seat,
         {
@@ -129,20 +127,13 @@ function SeatCard({
             <View
               style={[
                 styles.seatAvatarLg,
-                {
-                  backgroundColor: isSuperAdminUser ? "#FFD700" : `${userColor}40`,
-                },
+                { backgroundColor: isSuperAdminUser ? "#FFD700" : `${userColor}40` },
               ]}
             >
               {user.avatar ? (
                 <Image source={{ uri: user.avatar }} style={styles.seatAvatarImg} />
               ) : (
-                <Text
-                  style={[
-                    styles.seatAvatarText,
-                    { color: isSuperAdminUser ? "#000" : userColor },
-                  ]}
-                >
+                <Text style={[styles.seatAvatarText, { color: isSuperAdminUser ? "#000" : userColor }]}>
                   {user.name[0]?.toUpperCase()}
                 </Text>
               )}
@@ -154,10 +145,7 @@ function SeatCard({
           <>
             <View style={styles.seatNameRow}>
               {isSuperAdminUser && <Text style={{ fontSize: 10 }}>👑</Text>}
-              <Text
-                style={[styles.seatName, { color: colors.text }]}
-                numberOfLines={1}
-              >
+              <Text style={[styles.seatName, { color: colors.text }]} numberOfLines={1}>
                 {isMe ? "أنا" : user.name.split(" ")[0]}
               </Text>
             </View>
@@ -168,16 +156,10 @@ function SeatCard({
                 color={speaking && !isMuted ? userColor : colors.textSecondary}
               />
             </View>
-            {canManage && (
-              <TouchableOpacity
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  onManage(user);
-                }}
-                style={[styles.adminDotBtn, { backgroundColor: `${colors.danger}22` }]}
-              >
-                <Ionicons name="ellipsis-horizontal" size={12} color={colors.danger} />
-              </TouchableOpacity>
+            {!isMe && (
+              <View style={[styles.tapHint, { backgroundColor: `${userColor}22` }]}>
+                <Ionicons name="ellipsis-horizontal" size={10} color={userColor} />
+              </View>
             )}
           </>
         ) : (
@@ -244,10 +226,8 @@ export default function RoomScreen() {
     seatIndex: -1,
   });
   const [deleteModal, setDeleteModal] = useState(false);
-  const [adminActionModal, setAdminActionModal] = useState<{ visible: boolean; user: User | null }>({
-    visible: false,
-    user: null,
-  });
+  const [userActionsTarget, setUserActionsTarget] = useState<User | null>(null);
+  const [presenceModal, setPresenceModal] = useState(false);
   const flatRef = useRef<FlatList>(null);
 
   const topPad = Platform.OS === "web" ? 30 : insets.top;
@@ -276,6 +256,9 @@ export default function RoomScreen() {
   const effectiveMuted = !isInRoom || muted;
   const isSuperAdminUser = currentUser?.phone === SUPER_ADMIN_PHONE;
 
+  const presentMembers = (room.seatUsers ?? []).filter(Boolean) as User[];
+  const presenceCount = presentMembers.length;
+
   const handleLeave = () => {
     setMuted(true);
     leaveRoomSeat(room.id);
@@ -289,7 +272,6 @@ export default function RoomScreen() {
   };
 
   const confirmJoinSeat = () => {
-    // Audio (or voice UI) should start only after explicit seat confirmation.
     setMuted(false);
     joinRoomSeat(room.id, joinModal.seatIndex);
     setJoinModal({ visible: false, seatIndex: -1 });
@@ -304,15 +286,10 @@ export default function RoomScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  const handleDeleteRoom = () => {
-    setDeleteModal(true);
-  };
-
-  const confirmDeleteRoom = () => {
-    setDeleteModal(false);
-    deleteRoom(room.id);
-    showToast("تم حذف الغرفة", "success");
-    router.back();
+  const handleUserPress = (user: User) => {
+    if (user.id === currentUser?.id) return;
+    setUserActionsTarget(user);
+    setPresenceModal(false);
   };
 
   return (
@@ -349,6 +326,18 @@ export default function RoomScreen() {
             </Text>
           </View>
 
+          {/* Presence counter */}
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setPresenceModal(true);
+            }}
+            style={[styles.presenceBtn, { backgroundColor: `${accentColor}18`, borderColor: `${accentColor}44` }]}
+          >
+            <Ionicons name="eye-outline" size={16} color={accentColor} />
+            <Text style={[styles.presenceCount, { color: accentColor }]}>{presenceCount}</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             onPress={() => {
               if (!isInRoom) {
@@ -373,7 +362,7 @@ export default function RoomScreen() {
 
           {(isOwner || isSuperAdmin) && (
             <TouchableOpacity
-              onPress={handleDeleteRoom}
+              onPress={() => setDeleteModal(true)}
               style={[styles.headerBtn, { backgroundColor: `${colors.danger}22`, borderColor: `${colors.danger}44` }]}
             >
               <Ionicons name="trash-outline" size={18} color={colors.danger} />
@@ -394,7 +383,7 @@ export default function RoomScreen() {
         )}
       </LinearGradient>
 
-      {/* Seats — modern 2×3 grid */}
+      {/* Seats — 2×3 grid */}
       <View style={styles.seatsSection}>
         <View style={styles.seatsGrid}>
           {Array(6).fill(null).map((_, i) => (
@@ -407,9 +396,7 @@ export default function RoomScreen() {
               currentUser={currentUser}
               accentColor={accentColor}
               onPress={handleSeatPress}
-              onManage={(user: User) => {
-                setAdminActionModal({ visible: true, user });
-              }}
+              onUserPress={handleUserPress}
               colors={colors}
               t={t}
               isMuted={effectiveMuted}
@@ -444,9 +431,7 @@ export default function RoomScreen() {
           }
         />
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <View
             style={[
               styles.inputRow,
@@ -483,70 +468,90 @@ export default function RoomScreen() {
         </KeyboardAvoidingView>
       </View>
 
-      {/* Admin Action Modal — kick or ban a user */}
+      {/* User Actions Modal */}
+      <UserActionsModal
+        visible={!!userActionsTarget}
+        targetUser={userActionsTarget}
+        roomId={room.id}
+        isRoomOwner={isOwner || isSuperAdmin}
+        onClose={() => setUserActionsTarget(null)}
+      />
+
+      {/* Presence List Modal */}
       <Modal
-        visible={adminActionModal.visible}
+        visible={presenceModal}
         transparent
-        animationType="fade"
-        onRequestClose={() => setAdminActionModal({ visible: false, user: null })}
+        animationType="slide"
+        onRequestClose={() => setPresenceModal(false)}
       >
         <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setAdminActionModal({ visible: false, user: null })}
-        >
-          <Pressable
-            style={[styles.actionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => {}}
-          >
-            {adminActionModal.user && (() => {
-              const u = adminActionModal.user!;
-              const uColor = ACCENT_COLORS[u.name.length % ACCENT_COLORS.length];
-              return (
-                <>
-                  <View style={styles.actionAvatarRow}>
-                    <View style={[styles.actionAvatar, { backgroundColor: `${uColor}33` }]}>
-                      {u.avatar ? (
-                        <Image source={{ uri: u.avatar }} style={{ width: "100%", height: "100%", borderRadius: 16 }} />
+          style={styles.presenceOverlay}
+          onPress={() => setPresenceModal(false)}
+        />
+        <View style={[styles.presenceSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.sheetHandle} />
+          <View style={styles.presenceHeader}>
+            <Ionicons name="eye" size={18} color={accentColor} />
+            <Text style={[styles.presenceTitle, { color: colors.text }]}>
+              {t("roomMembers")}
+            </Text>
+            <View style={[styles.presenceBadge, { backgroundColor: `${accentColor}22` }]}>
+              <Text style={[styles.presenceBadgeText, { color: accentColor }]}>{presenceCount}</Text>
+            </View>
+          </View>
+
+          {presentMembers.length === 0 ? (
+            <View style={styles.noMembersContainer}>
+              <Ionicons name="people-outline" size={40} color={colors.border} />
+              <Text style={[styles.noMembersText, { color: colors.textSecondary }]}>{t("noMembers")}</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={presentMembers}
+              keyExtractor={(u) => u.id}
+              contentContainerStyle={styles.membersList}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => {
+                const isMe = item.id === currentUser?.id;
+                const uColor = ACCENT_COLORS[item.name.length % ACCENT_COLORS.length];
+                const isSA = item.phone === SUPER_ADMIN_PHONE;
+                return (
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (!isMe) handleUserPress(item);
+                    }}
+                    activeOpacity={isMe ? 1 : 0.8}
+                    style={[styles.memberItem, { borderColor: colors.border }]}
+                  >
+                    <View style={[styles.memberAvatar, { backgroundColor: isSA ? "#FFD70030" : `${uColor}33` }]}>
+                      {item.avatar ? (
+                        <Image source={{ uri: item.avatar }} style={styles.memberAvatarImg} />
                       ) : (
-                        <Text style={{ color: uColor, fontSize: 20, fontFamily: "Inter_700Bold" }}>{u.name[0]?.toUpperCase()}</Text>
+                        <Text style={[styles.memberAvatarText, { color: isSA ? "#FFD700" : uColor }]}>
+                          {item.name[0]?.toUpperCase()}
+                        </Text>
                       )}
                     </View>
-                    <Text style={[styles.actionName, { color: colors.text }]}>{u.name}</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: `${colors.warning}18`, borderColor: `${colors.warning}44` }]}
-                    onPress={() => {
-                      setAdminActionModal({ visible: false, user: null });
-                      kickFromRoom(room.id, u.id);
-                      showToast("تم طرد المستخدم من الغرفة", "info");
-                    }}
-                  >
-                    <Ionicons name="exit-outline" size={18} color={colors.warning} />
-                    <Text style={[styles.actionBtnText, { color: colors.warning }]}>{t("kickUser")}</Text>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        {isSA && <Text>👑</Text>}
+                        <Text style={[styles.memberName, { color: colors.text }]}>
+                          {isMe ? `${item.name} (أنا)` : item.name}
+                        </Text>
+                      </View>
+                      {item.id === room.ownerId && (
+                        <Text style={[styles.memberRole, { color: accentColor }]}>{t("owner")}</Text>
+                      )}
+                    </View>
+                    {!isMe && (
+                      <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                    )}
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: `${colors.danger}18`, borderColor: `${colors.danger}44` }]}
-                    onPress={() => {
-                      setAdminActionModal({ visible: false, user: null });
-                      banFromRoom(room.id, u.id);
-                      showToast("تم حظر المستخدم", "error");
-                    }}
-                  >
-                    <Ionicons name="ban-outline" size={18} color={colors.danger} />
-                    <Text style={[styles.actionBtnText, { color: colors.danger }]}>{t("banUser")}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
-                    onPress={() => setAdminActionModal({ visible: false, user: null })}
-                  >
-                    <Ionicons name="close" size={18} color={colors.textSecondary} />
-                    <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>{t("cancel")}</Text>
-                  </TouchableOpacity>
-                </>
-              );
-            })()}
-          </Pressable>
-        </Pressable>
+                );
+              }}
+            />
+          )}
+        </View>
       </Modal>
 
       {/* Delete Room Confirmation Modal */}
@@ -569,7 +574,15 @@ export default function RoomScreen() {
                   {t("cancel")}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={confirmDeleteRoom} style={{ flex: 1 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  setDeleteModal(false);
+                  deleteRoom(room.id);
+                  showToast("تم حذف الغرفة", "success");
+                  router.back();
+                }}
+                style={{ flex: 1 }}
+              >
                 <LinearGradient
                   colors={[colors.danger, "#c0392b"]}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -619,12 +632,12 @@ export default function RoomScreen() {
               </TouchableOpacity>
               <TouchableOpacity onPress={confirmJoinSeat} style={{ flex: 1 }}>
                 <LinearGradient
-                  colors={[accentColor, `${accentColor}cc`]}
+                  colors={[accentColor, accentColor + "cc"]}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                   style={styles.modalConfirmBtn}
                 >
                   <Ionicons name="mic" size={18} color="#fff" />
-                  <Text style={styles.modalConfirmText}>صعود</Text>
+                  <Text style={styles.modalConfirmText}>انضم</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -640,78 +653,48 @@ const SEAT_SIZE = 100;
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingHorizontal: 16, paddingBottom: 12 },
-  headerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   headerBtn: {
     width: 42, height: 42, borderRadius: 13,
     alignItems: "center", justifyContent: "center", borderWidth: 1,
   },
   headerAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
+    width: 42, height: 42, borderRadius: 14,
+    alignItems: "center", justifyContent: "center", overflow: "hidden",
   },
-  headerAvatarImg: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 14,
-    resizeMode: "cover",
-  },
+  headerAvatarImg: { width: "100%", height: "100%", borderRadius: 14, resizeMode: "cover" },
   headerAvatarText: { fontSize: 16, fontFamily: "Inter_700Bold" },
   headerInfo: { flex: 1 },
-  roomTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  roomOwner: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
+  roomTitle: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  roomOwner: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
+  presenceBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 8,
+    borderRadius: 12, borderWidth: 1,
+  },
+  presenceCount: { fontSize: 14, fontFamily: "Inter_700Bold" },
   royalBanner: {
-    borderRadius: 14, paddingVertical: 8, paddingHorizontal: 16,
-    alignItems: "center",
+    borderRadius: 14, paddingVertical: 8, paddingHorizontal: 16, alignItems: "center",
   },
   royalText: { color: "#000", fontFamily: "Inter_700Bold", fontSize: 14, letterSpacing: 1 },
   seatsSection: { padding: 16 },
-  seatsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    justifyContent: "center",
-  },
+  seatsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "center" },
   seat: {
-    width: SEAT_SIZE,
-    height: SEAT_SIZE + 20,
-    borderRadius: 22,
-    overflow: "visible",
-    position: "relative",
+    width: SEAT_SIZE, height: SEAT_SIZE + 20,
+    borderRadius: 22, overflow: "visible", position: "relative",
   },
-  seatInner: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    padding: 8,
-  },
+  seatInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6, padding: 8 },
   avatarRingWrap: {
-    position: "relative",
-    width: 54,
-    height: 54,
-    alignItems: "center",
-    justifyContent: "center",
+    position: "relative", width: 54, height: 54,
+    alignItems: "center", justifyContent: "center",
   },
   speakRing: {
-    borderRadius: 30,
-    borderWidth: 2.5,
-    position: "absolute",
-    top: -4,
-    left: -4,
-    right: -4,
-    bottom: -4,
+    borderRadius: 30, borderWidth: 2.5, position: "absolute",
+    top: -4, left: -4, right: -4, bottom: -4,
   },
   seatAvatarLg: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
+    width: 54, height: 54, borderRadius: 18,
+    alignItems: "center", justifyContent: "center", overflow: "hidden",
   },
   seatAvatarImg: { width: "100%", height: "100%", borderRadius: 18 },
   seatAvatarText: { fontSize: 20, fontFamily: "Inter_700Bold" },
@@ -720,6 +703,9 @@ const styles = StyleSheet.create({
   micIndicator: {
     borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2,
     flexDirection: "row", alignItems: "center", gap: 2,
+  },
+  tapHint: {
+    borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2,
   },
   emptyAvatarCircle: {
     width: 52, height: 52, borderRadius: 18,
@@ -744,68 +730,68 @@ const styles = StyleSheet.create({
     gap: 10, paddingHorizontal: 12,
     paddingTop: 10, borderTopWidth: 1,
   },
-  roundBtn: {
-    width: 42, height: 42, borderRadius: 14,
-    alignItems: "center", justifyContent: "center",
+  roundBtn: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  inputWrap: { flex: 1, borderRadius: 22, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10 },
+  input: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  presenceOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
+  presenceSheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderTopWidth: 1, paddingTop: 12, maxHeight: "65%",
   },
-  inputWrap: {
-    flex: 1, borderRadius: 14, borderWidth: 1,
-    paddingHorizontal: 14, height: 44, justifyContent: "center",
+  sheetHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: "#ccc", alignSelf: "center", marginBottom: 12,
   },
-  input: { fontSize: 15, height: "100%" },
+  presenceHeader: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 20, paddingBottom: 12,
+  },
+  presenceTitle: { fontSize: 18, fontFamily: "Inter_700Bold", flex: 1 },
+  presenceBadge: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10,
+  },
+  presenceBadgeText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  noMembersContainer: { alignItems: "center", paddingVertical: 40, gap: 12 },
+  noMembersText: { fontSize: 15, fontFamily: "Inter_400Regular" },
+  membersList: { paddingHorizontal: 16, paddingBottom: 32, gap: 4 },
+  memberItem: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingVertical: 12, paddingHorizontal: 4,
+    borderBottomWidth: 1,
+  },
+  memberAvatar: {
+    width: 46, height: 46, borderRadius: 14,
+    alignItems: "center", justifyContent: "center", overflow: "hidden",
+  },
+  memberAvatarImg: { width: "100%", height: "100%", borderRadius: 14 },
+  memberAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  memberName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  memberRole: { fontSize: 12, fontFamily: "Inter_500Medium", marginTop: 2 },
   modalOverlay: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center", justifyContent: "center",
+    justifyContent: "center", alignItems: "center", padding: 24,
   },
   modalCard: {
-    width: "85%", maxWidth: 340,
-    borderRadius: 28, borderWidth: 1,
-    padding: 28, alignItems: "center", gap: 14,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.3, shadowRadius: 40, elevation: 30,
+    width: "100%", maxWidth: 340,
+    borderRadius: 24, borderWidth: 1,
+    padding: 24, alignItems: "center", gap: 12,
   },
   modalIconWrap: {
-    width: 72, height: 72, borderRadius: 22,
+    width: 64, height: 64, borderRadius: 20,
     alignItems: "center", justifyContent: "center",
   },
   modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
-  modalDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
+  modalDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
   modalBtns: { flexDirection: "row", gap: 12, width: "100%", marginTop: 4 },
   modalCancelBtn: {
-    flex: 1, height: 50, borderRadius: 14, borderWidth: 1,
-    alignItems: "center", justifyContent: "center",
+    flex: 1, borderRadius: 16, borderWidth: 1,
+    paddingVertical: 14, alignItems: "center",
   },
   modalConfirmBtn: {
-    height: 50, borderRadius: 14,
+    borderRadius: 16, paddingVertical: 14,
     alignItems: "center", justifyContent: "center",
     flexDirection: "row", gap: 8,
   },
   modalConfirmText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 },
-  adminDotBtn: {
-    paddingHorizontal: 10, paddingVertical: 3,
-    borderRadius: 8, alignItems: "center", justifyContent: "center",
-  },
-  actionOverlay: {
-    flex: 1, backgroundColor: "rgba(0,0,0,0.6)",
-    alignItems: "center", justifyContent: "center",
-  },
-  actionCard: {
-    width: "78%", maxWidth: 300,
-    borderRadius: 24, borderWidth: 1,
-    padding: 20, gap: 10,
-    alignItems: "stretch",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.25, shadowRadius: 30, elevation: 20,
-  },
-  actionAvatarRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 4 },
-  actionAvatar: {
-    width: 44, height: 44, borderRadius: 14,
-    alignItems: "center", justifyContent: "center", overflow: "hidden",
-  },
-  actionName: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  actionBtn: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderRadius: 14, borderWidth: 1, paddingVertical: 12, paddingHorizontal: 14,
-  },
-  actionBtnText: { fontSize: 15, fontFamily: "Inter_500Medium" },
 });

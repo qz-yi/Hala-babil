@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import React from "react";
 import {
   FlatList,
+  Image,
   Platform,
   StyleSheet,
   Text,
@@ -16,9 +17,9 @@ import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { Restaurant } from "@/context/AppContext";
 
-const CATEGORIES = ["🍖 مشاوي", "🍕 بيتزا", "🍔 برغر", "🥗 صحي", "🍜 شرقي", "🧃 عصائر"];
+const DEFAULT_RESTAURANT_PLACEHOLDER = "🍽️";
 
-function RestaurantCard({ restaurant, onPress, colors }: any) {
+function RestaurantCard({ restaurant, onPress, colors }: { restaurant: Restaurant; onPress: () => void; colors: any }) {
   const color = ACCENT_COLORS[restaurant.name.length % ACCENT_COLORS.length];
 
   return (
@@ -31,10 +32,20 @@ function RestaurantCard({ restaurant, onPress, colors }: any) {
         colors={[`${color}18`, "transparent"]}
         style={StyleSheet.absoluteFill}
       />
-      <View style={[styles.cardImage, { backgroundColor: `${color}25` }]}>
-        <Text style={styles.cardEmoji}>🍽️</Text>
-        <View style={[styles.categoryBadge, { backgroundColor: `${color}33` }]}>
-          <Text style={[styles.categoryText, { color }]}>{restaurant.category}</Text>
+      <View style={[styles.cardImageContainer, { backgroundColor: `${color}25` }]}>
+        {restaurant.image ? (
+          <Image
+            source={{ uri: restaurant.image }}
+            style={styles.cardImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.cardImagePlaceholder}>
+            <Text style={styles.cardEmoji}>{DEFAULT_RESTAURANT_PLACEHOLDER}</Text>
+          </View>
+        )}
+        <View style={[styles.categoryBadge, { backgroundColor: `${color}dd` }]}>
+          <Text style={styles.categoryText}>{restaurant.category}</Text>
         </View>
       </View>
       <View style={styles.cardBody}>
@@ -144,16 +155,22 @@ const styles = StyleSheet.create({
   card: {
     flex: 1, borderRadius: 20, borderWidth: 1, overflow: "hidden",
   },
+  cardImageContainer: {
+    height: 110, position: "relative", overflow: "hidden",
+  },
   cardImage: {
-    height: 110, alignItems: "center", justifyContent: "center",
-    position: "relative",
+    width: "100%", height: "100%",
+  },
+  cardImagePlaceholder: {
+    width: "100%", height: "100%",
+    alignItems: "center", justifyContent: "center",
   },
   cardEmoji: { fontSize: 44 },
   categoryBadge: {
     position: "absolute", bottom: 8, right: 8,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
   },
-  categoryText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  categoryText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#fff" },
   cardBody: { padding: 12, gap: 6 },
   cardName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   cardMenuCount: { fontSize: 12, fontFamily: "Inter_400Regular" },

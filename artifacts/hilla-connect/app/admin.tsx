@@ -278,7 +278,7 @@ function AddRestaurantForm({ onSave, onClose, colors, t, showToast }: any) {
 }
 
 export default function AdminScreen() {
-  const { users, rooms, restaurants, addRestaurant, deleteRoom, deleteRestaurant, banUser, unbanUser, t, theme } = useApp();
+  const { users, rooms, restaurants, addRestaurant, deleteRoom, deleteRestaurant, banUser, unbanUser, resetUserPassword, t, theme } = useApp();
   const { showToast } = useToast();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
@@ -291,6 +291,12 @@ export default function AdminScreen() {
     title: "",
     onConfirm: () => {},
   });
+  const [resetPwModal, setResetPwModal] = useState<{ visible: boolean; userId: string; userName: string }>({
+    visible: false,
+    userId: "",
+    userName: "",
+  });
+  const [newPassword, setNewPassword] = useState("");
 
   const tabs: { key: Tab; icon: string; label: string }[] = [
     { key: "restaurants", icon: "restaurant-outline", label: t("restaurants") },
@@ -420,23 +426,34 @@ export default function AdminScreen() {
                     <Text style={[styles.listTitle, { color: colors.text }]}>{u.name}</Text>
                     <Text style={[styles.listSub, { color: colors.textSecondary }]}>{u.phone}</Text>
                   </View>
-                  {u.isBanned ? (
-                    <TouchableOpacity onPress={() => { unbanUser(u.id); showToast("تم رفع الحظر", "success"); }} style={[styles.actionTag, { backgroundColor: "#10B98122" }]}>
-                      <Text style={{ color: "#10B981", fontFamily: "Inter_500Medium", fontSize: 12 }}>{t("unbanUser")}</Text>
-                    </TouchableOpacity>
-                  ) : (
+                  <View style={{ flexDirection: "row", gap: 6 }}>
                     <TouchableOpacity
-                      onPress={() =>
-                        askConfirm(`حظر ${u.name}؟`, () => {
-                          banUser(u.id);
-                          showToast("تم حظر المستخدم", "error");
-                        })
-                      }
-                      style={[styles.actionTag, { backgroundColor: `${colors.danger}22` }]}
+                      onPress={() => {
+                        setNewPassword("");
+                        setResetPwModal({ visible: true, userId: u.id, userName: u.name });
+                      }}
+                      style={[styles.actionTag, { backgroundColor: "#F59E0B22" }]}
                     >
-                      <Text style={{ color: colors.danger, fontFamily: "Inter_500Medium", fontSize: 12 }}>{t("banUser")}</Text>
+                      <Ionicons name="key-outline" size={13} color="#F59E0B" />
                     </TouchableOpacity>
-                  )}
+                    {u.isBanned ? (
+                      <TouchableOpacity onPress={() => { unbanUser(u.id); showToast("تم رفع الحظر", "success"); }} style={[styles.actionTag, { backgroundColor: "#10B98122" }]}>
+                        <Text style={{ color: "#10B981", fontFamily: "Inter_500Medium", fontSize: 12 }}>{t("unbanUser")}</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={() =>
+                          askConfirm(`حظر ${u.name}؟`, () => {
+                            banUser(u.id);
+                            showToast("تم حظر المستخدم", "error");
+                          })
+                        }
+                        style={[styles.actionTag, { backgroundColor: `${colors.danger}22` }]}
+                      >
+                        <Text style={{ color: colors.danger, fontFamily: "Inter_500Medium", fontSize: 12 }}>{t("banUser")}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               );
             })}
@@ -475,6 +492,74 @@ export default function AdminScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Reset Password Modal */}
+      <Modal
+        visible={resetPwModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setResetPwModal((p) => ({ ...p, visible: false }))}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setResetPwModal((p) => ({ ...p, visible: false }))}
+        >
+          <Pressable
+            style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => {}}
+          >
+            <View style={[styles.modalIcon, { backgroundColor: "#F59E0B18" }]}>
+              <Ionicons name="key-outline" size={28} color="#F59E0B" />
+            </View>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              {t("resetPasswordTitle")}
+            </Text>
+            <Text style={[{ color: colors.textSecondary, fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center" }]}>
+              {resetPwModal.userName}
+            </Text>
+            <View style={[styles.fInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, width: "100%", marginTop: 8 }]}>
+              <Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} />
+              <TextInput
+                style={[styles.fInputText, { color: colors.text, fontFamily: "Inter_400Regular" }]}
+                placeholder={t("newPassword")}
+                placeholderTextColor={colors.textSecondary}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                textAlign="right"
+              />
+            </View>
+            <View style={{ flexDirection: "row", gap: 12, width: "100%", marginTop: 4 }}>
+              <TouchableOpacity
+                onPress={() => setResetPwModal((p) => ({ ...p, visible: false }))}
+                style={[styles.modalCancelBtn, { borderColor: colors.border }]}
+              >
+                <Text style={{ color: colors.textSecondary, fontFamily: "Inter_500Medium" }}>{t("cancel")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1 }}
+                onPress={() => {
+                  if (!newPassword.trim()) {
+                    showToast(t("fillAll"), "error");
+                    return;
+                  }
+                  resetUserPassword(resetPwModal.userId, newPassword.trim());
+                  setResetPwModal((p) => ({ ...p, visible: false }));
+                  showToast(t("resetPasswordSuccess"), "success");
+                }}
+              >
+                <LinearGradient
+                  colors={["#F59E0B", "#D97706"]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.modalConfirmBtn}
+                >
+                  <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>{t("save")}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Confirm Modal */}
       <Modal

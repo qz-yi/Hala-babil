@@ -19,6 +19,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>{t("home")}</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="reels">
+        <Icon sf={{ default: "film", selected: "film.fill" }} />
+        <Label>{t("reels")}</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="messages">
         <Icon sf={{ default: "message", selected: "message.fill" }} />
         <Label>{t("messages")}</Label>
@@ -73,7 +77,7 @@ function ClassicTabLayout() {
           ) : null,
         tabBarLabelStyle: {
           fontFamily: "Inter_500Medium",
-          fontSize: 11,
+          fontSize: 10,
         },
       }}
     >
@@ -86,6 +90,18 @@ function ClassicTabLayout() {
               <SymbolView name="house.fill" tintColor={color} size={24} />
             ) : (
               <Feather name="home" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="reels"
+        options={{
+          title: t("reels"),
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="film.fill" tintColor={color} size={24} />
+            ) : (
+              <Ionicons name="film-outline" size={22} color={color} />
             ),
         }}
       />

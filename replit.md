@@ -116,10 +116,11 @@ Arabic-first social communication Expo React Native app.
 ### Key Files
 - `context/AppContext.tsx` — All state, auth, rooms, messaging, restaurants, `updateProfile`, `resetUserPassword`
 - `components/Toast.tsx` — In-app toast provider + hook `useToast`
-- `components/UserActionsModal.tsx` — Reusable user action sheet (message, block, kick)
+- `components/UserActionsModal.tsx` — Reusable user action sheet (view profile, message, block, kick)
 - `app/(auth)/` — Login, Register (Field component extracted to avoid keyboard focus bug), Forgot Password
-- `app/(tabs)/` — Home, Messages, Restaurants, Profile
+- `app/(tabs)/` — Home (+ search bar), Reels, Messages, Restaurants, Profile
 - `app/room/[id].tsx` — Modern voice room with animated seats, confirmation modal, delete button
+- `app/profile/[id].tsx` — Public user profile with stats + reels grid + مراسلة button
 - `app/admin.tsx` — Super Admin panel
 - `constants/colors.ts` — Full light/dark theme + `ACCENT_COLORS` array
 

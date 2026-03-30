@@ -10,6 +10,7 @@ import React, {
 
 export type Language = "ar" | "en";
 export type Theme = "light" | "dark";
+export type ReelFilter = "none" | "grayscale" | "warm" | "cool" | "vintage";
 
 export interface User {
   id: string;
@@ -83,6 +84,30 @@ export interface MenuItem {
   image?: string;
 }
 
+export interface Reel {
+  id: string;
+  videoUrl: string;
+  title: string;
+  creatorId: string;
+  filter: ReelFilter;
+  createdAt: number;
+}
+
+export interface ReelLike {
+  reelId: string;
+  userId: string;
+}
+
+export interface ReelComment {
+  id: string;
+  reelId: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  content: string;
+  createdAt: number;
+}
+
 const SUPER_ADMIN_PHONE = "07719820537";
 const SUPER_ADMIN_PASSWORD = "1w2q3r4eSATHA2026$";
 
@@ -98,6 +123,9 @@ interface AppContextValue {
   rooms: Room[];
   conversations: Conversation[];
   restaurants: Restaurant[];
+  reels: Reel[];
+  reelLikes: ReelLike[];
+  reelComments: ReelComment[];
   login: (phone: string, password: string) => Promise<boolean>;
   register: (
     name: string,
@@ -134,6 +162,15 @@ interface AppContextValue {
   banUser: (userId: string) => void;
   unbanUser: (userId: string) => void;
   resetUserPassword: (userId: string, newPassword: string) => void;
+  addReel: (videoUrl: string, title: string, filter: ReelFilter) => void;
+  deleteReel: (reelId: string) => void;
+  likeReel: (reelId: string) => void;
+  isReelLiked: (reelId: string) => boolean;
+  getReelLikesCount: (reelId: string) => number;
+  addReelComment: (reelId: string, content: string) => void;
+  getReelComments: (reelId: string) => ReelComment[];
+  shareReelToConversation: (reelId: string, receiverId: string) => void;
+  searchUsers: (query: string) => User[];
   t: (key: string) => string;
 }
 
@@ -145,6 +182,7 @@ const translations: Record<Language, Record<string, string>> = {
     messages: "الرسائل",
     restaurants: "المطاعم",
     profile: "الملف",
+    reels: "الريلز",
     createRoom: "إنشاء غرفة",
     roomName: "اسم الغرفة",
     joinSeat: "انضم للمقعد",
@@ -218,8 +256,7 @@ const translations: Record<Language, Record<string, string>> = {
     phoneExists: "رقم الهاتف مسجل مسبقاً",
     fillAll: "يرجى ملء جميع الحقول",
     userBanned: "تم حظر هذا الحساب",
-    noRoomSlot:
-      "يمكنك إنشاء غرفة واحدة فقط. لديك غرفة بالفعل!",
+    noRoomSlot: "يمكنك إنشاء غرفة واحدة فقط. لديك غرفة بالفعل!",
     myRoom: "غرفتي",
     publicRooms: "الغرف العامة",
     mic: "الميكروفون",
@@ -235,12 +272,41 @@ const translations: Record<Language, Record<string, string>> = {
     noMembers: "لا يوجد أعضاء في المقاعد",
     userActions: "خيارات المستخدم",
     kickFromRoom: "طرد من الغرفة",
+    noReels: "لا توجد مقاطع بعد",
+    beFirst: "كن أول من ينشر مقطعاً!",
+    publishReel: "نشر مقطع",
+    reelTitle: "وصف المقطع...",
+    pickVideo: "اختر مقطعاً",
+    filters: "الفلاتر",
+    filterNone: "بدون",
+    filterGrayscale: "أبيض وأسود",
+    filterWarm: "دافئ",
+    filterCool: "بارد",
+    filterVintage: "كلاسيكي",
+    publish: "نشر",
+    like: "إعجاب",
+    comment: "تعليق",
+    share: "مشاركة",
+    comments: "التعليقات",
+    noComments: "لا توجد تعليقات بعد",
+    addComment: "أضف تعليقاً...",
+    shareReel: "مشاركة المقطع",
+    selectUser: "اختر مستخدماً",
+    reelShared: "تم مشاركة المقطع",
+    deleteReel: "حذف المقطع",
+    myReels: "مقاطعي",
+    searchUsers: "ابحث بالاسم أو الرقم...",
+    search: "بحث",
+    noResults: "لا توجد نتائج",
+    userProfile: "الملف الشخصي",
+    joinedAt: "انضم في",
   },
   en: {
     home: "Home",
     messages: "Messages",
     restaurants: "Restaurants",
     profile: "Profile",
+    reels: "Reels",
     createRoom: "Create Room",
     roomName: "Room Name",
     joinSeat: "Join Seat",
@@ -330,6 +396,34 @@ const translations: Record<Language, Record<string, string>> = {
     noMembers: "No members in seats",
     userActions: "User Actions",
     kickFromRoom: "Kick from Room",
+    noReels: "No reels yet",
+    beFirst: "Be the first to post!",
+    publishReel: "Publish Reel",
+    reelTitle: "Describe your reel...",
+    pickVideo: "Pick a video",
+    filters: "Filters",
+    filterNone: "None",
+    filterGrayscale: "B&W",
+    filterWarm: "Warm",
+    filterCool: "Cool",
+    filterVintage: "Vintage",
+    publish: "Publish",
+    like: "Like",
+    comment: "Comment",
+    share: "Share",
+    comments: "Comments",
+    noComments: "No comments yet",
+    addComment: "Add a comment...",
+    shareReel: "Share Reel",
+    selectUser: "Select user",
+    reelShared: "Reel shared",
+    deleteReel: "Delete Reel",
+    myReels: "My Reels",
+    searchUsers: "Search by name or phone...",
+    search: "Search",
+    noResults: "No results found",
+    userProfile: "User Profile",
+    joinedAt: "Joined",
   },
 };
 
@@ -347,6 +441,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [passwords, setPasswords] = useState<Record<string, string>>({});
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
+  const [reels, setReels] = useState<Reel[]>([]);
+  const [reelLikes, setReelLikes] = useState<ReelLike[]>([]);
+  const [reelComments, setReelComments] = useState<ReelComment[]>([]);
 
   useEffect(() => {
     loadData();
@@ -364,6 +461,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         storedRestaurants,
         storedPasswords,
         storedBlocked,
+        storedReels,
+        storedLikes,
+        storedComments,
       ] = await Promise.all([
         AsyncStorage.getItem("language"),
         AsyncStorage.getItem("theme"),
@@ -374,6 +474,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.getItem("restaurants"),
         AsyncStorage.getItem("passwords"),
         AsyncStorage.getItem("blockedUsers"),
+        AsyncStorage.getItem("reels"),
+        AsyncStorage.getItem("reelLikes"),
+        AsyncStorage.getItem("reelComments"),
       ]);
 
       if (storedLang) setLanguageState(storedLang as Language);
@@ -385,6 +488,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (storedRestaurants) setRestaurants(JSON.parse(storedRestaurants));
       if (storedPasswords) setPasswords(JSON.parse(storedPasswords));
       if (storedBlocked) setBlockedUsers(JSON.parse(storedBlocked));
+      if (storedReels) setReels(JSON.parse(storedReels));
+      if (storedLikes) setReelLikes(JSON.parse(storedLikes));
+      if (storedComments) setReelComments(JSON.parse(storedComments));
     } catch (e) {}
   };
 
@@ -404,6 +510,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setRestaurants(r);
     AsyncStorage.setItem("restaurants", JSON.stringify(r));
   };
+  const saveReels = (r: Reel[]) => {
+    setReels(r);
+    AsyncStorage.setItem("reels", JSON.stringify(r));
+  };
+  const saveLikes = (l: ReelLike[]) => {
+    setReelLikes(l);
+    AsyncStorage.setItem("reelLikes", JSON.stringify(l));
+  };
+  const saveComments = (c: ReelComment[]) => {
+    setReelComments(c);
+    AsyncStorage.setItem("reelComments", JSON.stringify(c));
+  };
 
   const setLanguage = useCallback((lang: Language) => {
     setLanguageState(lang);
@@ -418,15 +536,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const isSuperAdmin =
-    currentUser?.phone === SUPER_ADMIN_PHONE;
+  const isSuperAdmin = currentUser?.phone === SUPER_ADMIN_PHONE;
 
   const login = useCallback(
     async (phone: string, password: string): Promise<boolean> => {
-      if (
-        phone === SUPER_ADMIN_PHONE &&
-        password === SUPER_ADMIN_PASSWORD
-      ) {
+      if (phone === SUPER_ADMIN_PHONE && password === SUPER_ADMIN_PASSWORD) {
         let adminUser = users.find((u) => u.phone === SUPER_ADMIN_PHONE);
         if (!adminUser) {
           adminUser = {
@@ -524,8 +638,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ),
       }));
       saveRooms(updatedRooms);
-
-      // Keep avatars in conversations in sync too.
       const updatedConversations = conversations.map((c) => ({
         ...c,
         participantUsers: c.participantUsers.map((pu) =>
@@ -533,8 +645,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ),
       }));
       saveConversations(updatedConversations);
+      const updatedComments = reelComments.map((c) =>
+        c.userId === updated.id
+          ? { ...c, userName: updated.name, userAvatar: updated.avatar }
+          : c
+      );
+      saveComments(updatedComments);
     },
-    [currentUser, users, rooms, conversations]
+    [currentUser, users, rooms, conversations, reelComments]
   );
 
   const createRoom = useCallback(
@@ -566,13 +684,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const deleteRoom = useCallback(
     async (roomId: string) => {
-      // Requirement: deleteRoom must call the API.
-      // The server might not persist rooms yet, but the request is made.
       try {
         await fetch(`/api/rooms/${roomId}`, { method: "DELETE" });
-      } catch {
-        // If API call fails, we still remove locally to keep UI responsive.
-      }
+      } catch {}
       saveRooms(rooms.filter((r) => r.id !== roomId));
     },
     [rooms]
@@ -625,7 +739,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const sendRoomMessage = useCallback(
-    (roomId: string, content: string, type: "text" | "image" | "gif" = "text") => {
+    (
+      roomId: string,
+      content: string,
+      type: "text" | "image" | "gif" = "text"
+    ) => {
       if (!currentUser) return;
       const msg: Message = {
         id: generateId(),
@@ -752,7 +870,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const updateRestaurant = useCallback(
     (id: string, data: Partial<Restaurant>) => {
-      saveRestaurants(restaurants.map((r) => (r.id === id ? { ...r, ...data } : r)));
+      saveRestaurants(
+        restaurants.map((r) => (r.id === id ? { ...r, ...data } : r))
+      );
     },
     [restaurants]
   );
@@ -793,6 +913,157 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [passwords]
   );
 
+  const addReel = useCallback(
+    (videoUrl: string, title: string, filter: ReelFilter) => {
+      if (!currentUser) return;
+      const reel: Reel = {
+        id: generateId(),
+        videoUrl,
+        title,
+        creatorId: currentUser.id,
+        filter,
+        createdAt: Date.now(),
+      };
+      saveReels([reel, ...reels]);
+    },
+    [currentUser, reels]
+  );
+
+  const deleteReel = useCallback(
+    (reelId: string) => {
+      saveReels(reels.filter((r) => r.id !== reelId));
+      saveLikes(reelLikes.filter((l) => l.reelId !== reelId));
+      saveComments(reelComments.filter((c) => c.reelId !== reelId));
+    },
+    [reels, reelLikes, reelComments]
+  );
+
+  const likeReel = useCallback(
+    (reelId: string) => {
+      if (!currentUser) return;
+      const alreadyLiked = reelLikes.some(
+        (l) => l.reelId === reelId && l.userId === currentUser.id
+      );
+      if (alreadyLiked) {
+        saveLikes(
+          reelLikes.filter(
+            (l) => !(l.reelId === reelId && l.userId === currentUser.id)
+          )
+        );
+      } else {
+        saveLikes([...reelLikes, { reelId, userId: currentUser.id }]);
+      }
+    },
+    [currentUser, reelLikes]
+  );
+
+  const isReelLiked = useCallback(
+    (reelId: string) => {
+      if (!currentUser) return false;
+      return reelLikes.some(
+        (l) => l.reelId === reelId && l.userId === currentUser.id
+      );
+    },
+    [currentUser, reelLikes]
+  );
+
+  const getReelLikesCount = useCallback(
+    (reelId: string) => reelLikes.filter((l) => l.reelId === reelId).length,
+    [reelLikes]
+  );
+
+  const addReelComment = useCallback(
+    (reelId: string, content: string) => {
+      if (!currentUser || !content.trim()) return;
+      const comment: ReelComment = {
+        id: generateId(),
+        reelId,
+        userId: currentUser.id,
+        userName: currentUser.name,
+        userAvatar: currentUser.avatar,
+        content: content.trim(),
+        createdAt: Date.now(),
+      };
+      saveComments([...reelComments, comment]);
+    },
+    [currentUser, reelComments]
+  );
+
+  const getReelComments = useCallback(
+    (reelId: string) =>
+      reelComments
+        .filter((c) => c.reelId === reelId)
+        .sort((a, b) => a.createdAt - b.createdAt),
+    [reelComments]
+  );
+
+  const shareReelToConversation = useCallback(
+    (reelId: string, receiverId: string) => {
+      if (!currentUser) return;
+      const convo = (() => {
+        const existing = conversations.find(
+          (c) =>
+            c.participants.includes(currentUser.id) &&
+            c.participants.includes(receiverId)
+        );
+        if (existing) return existing;
+        const otherUser = users.find((u) => u.id === receiverId);
+        const newConvo: Conversation = {
+          id: generateId(),
+          participants: [currentUser.id, receiverId],
+          participantUsers: [currentUser, otherUser!].filter(Boolean),
+          updatedAt: Date.now(),
+        };
+        saveConversations([...conversations, newConvo]);
+        return newConvo;
+      })();
+
+      const reel = reels.find((r) => r.id === reelId);
+      const msg: PrivateMessage = {
+        id: generateId(),
+        senderId: currentUser.id,
+        receiverId,
+        content: `🎬 ${reel?.title || "مقطع فيديو"}\n${reel?.videoUrl || ""}`,
+        type: "text",
+        timestamp: Date.now(),
+        read: false,
+      };
+      const updated = conversations.map((c) => {
+        if (c.id !== convo.id) return c;
+        const msgs = (c as any).messages || [];
+        return {
+          ...c,
+          messages: [...msgs, msg],
+          lastMessage: msg,
+          updatedAt: Date.now(),
+        };
+      });
+      const alreadyInList = updated.find((c) => c.id === convo.id);
+      if (!alreadyInList) {
+        saveConversations([
+          ...updated,
+          { ...convo, messages: [msg], lastMessage: msg, updatedAt: Date.now() },
+        ]);
+      } else {
+        saveConversations(updated);
+      }
+    },
+    [currentUser, conversations, reels, users]
+  );
+
+  const searchUsers = useCallback(
+    (query: string): User[] => {
+      if (!query.trim()) return [];
+      const q = query.trim().toLowerCase();
+      return users.filter(
+        (u) =>
+          u.id !== currentUser?.id &&
+          (u.name.toLowerCase().includes(q) || u.phone.includes(q))
+      );
+    },
+    [users, currentUser]
+  );
+
   const t = useCallback(
     (key: string) => translations[language][key] ?? key,
     [language]
@@ -811,6 +1082,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       rooms,
       conversations,
       restaurants,
+      reels,
+      reelLikes,
+      reelComments,
       login,
       register,
       logout,
@@ -831,6 +1105,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       banUser,
       unbanUser,
       resetUserPassword,
+      addReel,
+      deleteReel,
+      likeReel,
+      isReelLiked,
+      getReelLikesCount,
+      addReelComment,
+      getReelComments,
+      shareReelToConversation,
+      searchUsers,
       t,
     }),
     [
@@ -844,6 +1127,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       rooms,
       conversations,
       restaurants,
+      reels,
+      reelLikes,
+      reelComments,
       login,
       register,
       logout,
@@ -864,6 +1150,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       banUser,
       unbanUser,
       resetUserPassword,
+      addReel,
+      deleteReel,
+      likeReel,
+      isReelLiked,
+      getReelLikesCount,
+      addReelComment,
+      getReelComments,
+      shareReelToConversation,
+      searchUsers,
       t,
     ]
   );

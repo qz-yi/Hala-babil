@@ -44,6 +44,11 @@ export default function UserActionsModal({
   const uColor = ACCENT_COLORS[targetUser.name.length % ACCENT_COLORS.length];
   const canKick = (isRoomOwner || isSuperAdmin) && !!roomId;
 
+  const handleViewProfile = () => {
+    onClose();
+    router.push(`/profile/${targetUser.id}`);
+  };
+
   const handleMessage = () => {
     onClose();
     const convo = getConversation(targetUser.id);
@@ -92,6 +97,17 @@ export default function UserActionsModal({
           </View>
 
           <View style={styles.divider} />
+
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: "#8B5CF618", borderColor: "#8B5CF633" }]}
+            onPress={handleViewProfile}
+          >
+            <View style={[styles.actionIconCircle, { backgroundColor: "#8B5CF622" }]}>
+              <Ionicons name="person-outline" size={18} color="#8B5CF6" />
+            </View>
+            <Text style={[styles.actionLabel, { color: "#8B5CF6" }]}>عرض الملف الشخصي</Text>
+            <Ionicons name="chevron-forward" size={16} color="#8B5CF6" />
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: "#3B82F618", borderColor: "#3B82F633" }]}

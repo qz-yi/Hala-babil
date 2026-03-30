@@ -1,12 +1,12 @@
-import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useState, useRef } from "react";
+import React, { useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
   FlatList,
   Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
-import type { Post, Story, User } from "@/context/AppContext";
+import type { Post, PostComment, Story, User } from "@/context/AppContext";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -49,13 +49,24 @@ function StoryAvatar({
         {user.avatar ? (
           <Image source={{ uri: user.avatar }} style={styles.storyAvatar} />
         ) : (
-          <View style={[styles.storyAvatar, { backgroundColor: `${accentColor}44`, alignItems: "center", justifyContent: "center" }]}>
-            <Text style={[styles.storyInitial, { color: accentColor }]}>{user.name[0]?.toUpperCase()}</Text>
+          <View
+            style={[
+              styles.storyAvatar,
+              {
+                backgroundColor: `${accentColor}44`,
+                alignItems: "center",
+                justifyContent: "center",
+              },
+            ]}
+          >
+            <Text style={[styles.storyInitial, { color: accentColor }]}>
+              {user.name[0]?.toUpperCase()}
+            </Text>
           </View>
         )}
         {isMe && (
           <View style={[styles.storyAddBtn, { backgroundColor: colors.tint }]}>
-            <Ionicons name="add" size={12} color="#fff" />
+            <Text style={{ color: "#fff", fontSize: 12, fontFamily: "Inter_700Bold" }}>+</Text>
           </View>
         )}
       </View>
@@ -66,15 +77,198 @@ function StoryAvatar({
   );
 }
 
+// ───── Comment Bottom Sheet ─────
+function CommentSheet({
+  postId,
+  visible,
+  onClose,
+  colors,
+}: {
+  postId: string;
+  visible: boolean;
+  onClose: () => void;
+  colors: any;
+}) {
+  const { getPostComments, addPostComment, users } = useApp();
+  const [text, setText] = useState("");
+  const comments = getPostComments(postId);
+
+  const handleSend = () => {
+    if (!text.trim()) return;
+    addPostComment(postId, text.trim());
+    setText("");
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose} />
+      <View style={[styles.commentSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>التعليقات</Text>
+        <FlatList
+          data={comments}
+          keyExtractor={(c) => c.id}
+          style={{ maxHeight: 320 }}
+          ListEmptyComponent={
+            <Text style={[styles.emptyComments, { color: colors.textSecondary }]}>
+              لا توجد تعليقات بعد — كن أول من يعلق!
+            </Text>
+          }
+          renderItem={({ item }: { item: PostComment }) => {
+            const commenter = users.find((u) => u.id === item.userId);
+            const color = ACCENT_COLORS[(item.userId.length) % ACCENT_COLORS.length];
+            return (
+              <View style={styles.commentItem}>
+                <View style={[styles.commentAvatar, { backgroundColor: `${color}33` }]}>
+                  {commenter?.avatar ? (
+                    <Image source={{ uri: commenter.avatar }} style={styles.commentAvatarImg} />
+                  ) : (
+                    <Text style={[styles.commentAvatarText, { color }]}>
+                      {item.userName[0]?.toUpperCase()}
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.commentBody}>
+                  <Text style={[styles.commentUser, { color: colors.tint }]}>{item.userName}</Text>
+                  <Text style={[styles.commentText, { color: colors.text }]}>{item.content}</Text>
+                </View>
+              </View>
+            );
+          }}
+        />
+        <View
+          style={[
+            styles.commentInput,
+            { backgroundColor: colors.inputBackground, borderColor: colors.border },
+          ]}
+        >
+          <TextInput
+            style={[styles.commentInputField, { color: colors.text, fontFamily: "Inter_400Regular" }]}
+            value={text}
+            onChangeText={setText}
+            placeholder="أضف تعليقاً..."
+            placeholderTextColor={colors.textSecondary}
+            textAlign="right"
+            multiline
+          />
+          <TouchableOpacity onPress={handleSend} style={styles.sendCommentBtn}>
+            <Text style={{ fontSize: 20, color: colors.tint }}>↑</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ───── Share Post Sheet ─────
+function SharePostSheet({
+  post,
+  visible,
+  onClose,
+  colors,
+}: {
+  post: Post;
+  visible: boolean;
+  onClose: () => void;
+  colors: any;
+}) {
+  const { users, currentUser, getConversation, sendPrivateMessage } = useApp();
+  const others = users.filter((u) => u.id !== currentUser?.id);
+
+  const handleShare = (user: User) => {
+    const convo = getConversation(user.id);
+    const snippet = post.content
+      ? post.content.substring(0, 50)
+      : post.mediaType !== "none"
+      ? "وسائط"
+      : "منشور";
+    sendPrivateMessage(convo.id, user.id, `📸 شارك منشوراً: "${snippet}"`, "text");
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose} />
+      <View style={[styles.commentSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>مشاركة مع</Text>
+        <FlatList
+          data={others}
+          keyExtractor={(u) => u.id}
+          style={{ maxHeight: 320 }}
+          ListEmptyComponent={
+            <Text style={[styles.emptyComments, { color: colors.textSecondary }]}>
+              لا يوجد أصدقاء للمشاركة معهم
+            </Text>
+          }
+          renderItem={({ item }: { item: User }) => {
+            const color = ACCENT_COLORS[(item.name?.length ?? 0) % ACCENT_COLORS.length];
+            return (
+              <TouchableOpacity style={styles.shareUser} onPress={() => handleShare(item)}>
+                <View style={[styles.commentAvatar, { backgroundColor: `${color}33` }]}>
+                  {item.avatar ? (
+                    <Image source={{ uri: item.avatar }} style={styles.commentAvatarImg} />
+                  ) : (
+                    <Text style={[styles.commentAvatarText, { color }]}>
+                      {item.name[0]?.toUpperCase()}
+                    </Text>
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.commentUser, { color: colors.text }]}>{item.name}</Text>
+                  <Text style={[styles.commentText, { color: colors.textSecondary, fontSize: 12 }]}>
+                    {item.phone}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 18, color: colors.tint }}>↗</Text>
+              </TouchableOpacity>
+            );
+          }}
+        />
+      </View>
+    </Modal>
+  );
+}
+
 // ───── Post Card ─────
 function PostCard({ post, colors, theme }: { post: Post; colors: any; theme: string }) {
-  const { users, currentUser, isPostLiked, likePost, getPostLikesCount, getPostComments, t } = useApp();
+  const { users, currentUser, isPostLiked, likePost, getPostLikesCount, getPostComments, t } =
+    useApp();
   const creator = users.find((u) => u.id === post.creatorId);
   const liked = isPostLiked(post.id);
   const likesCount = getPostLikesCount(post.id);
   const commentsCount = getPostComments(post.id).length;
   const accentColor = ACCENT_COLORS[(creator?.name?.length ?? 0) % ACCENT_COLORS.length];
   const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const [showComments, setShowComments] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+
+  // Double tap heart
+  const lastTapRef = useRef(0);
+  const heartAnim = useRef(new Animated.Value(0)).current;
+  const heartScale = useRef(new Animated.Value(0.4)).current;
+
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (!liked) likePost(post.id);
+      heartAnim.setValue(1);
+      heartScale.setValue(0.4);
+      Animated.parallel([
+        Animated.spring(heartScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          friction: 4,
+        }),
+        Animated.sequence([
+          Animated.delay(600),
+          Animated.timing(heartAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+        ]),
+      ]).start();
+    }
+    lastTapRef.current = now;
+  };
 
   const handleLike = () => {
     Animated.sequence([
@@ -108,19 +302,34 @@ function PostCard({ post, colors, theme }: { post: Post; colors: any; theme: str
           {creator.avatar ? (
             <Image source={{ uri: creator.avatar }} style={StyleSheet.absoluteFill as any} />
           ) : (
-            <Text style={[styles.postAvatarText, { color: accentColor }]}>{creator.name[0]?.toUpperCase()}</Text>
+            <Text style={[styles.postAvatarText, { color: accentColor }]}>
+              {creator.name[0]?.toUpperCase()}
+            </Text>
           )}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.postCreatorName, { color: colors.text }]}>{creator.name}</Text>
-          <Text style={[styles.postTime, { color: colors.textSecondary }]}>{formatTime(post.createdAt)}</Text>
+          <Text style={[styles.postTime, { color: colors.textSecondary }]}>
+            {formatTime(post.createdAt)}
+          </Text>
         </View>
-        <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
+        <Text style={{ fontSize: 18, color: colors.textSecondary }}>⋯</Text>
       </TouchableOpacity>
 
-      {/* Media */}
+      {/* Media with double tap */}
       {post.mediaUrl && post.mediaType === "image" && (
-        <Image source={{ uri: post.mediaUrl }} style={styles.postMedia} resizeMode="cover" />
+        <Pressable onPress={handleDoubleTap} style={{ position: "relative" }}>
+          <Image source={{ uri: post.mediaUrl }} style={styles.postMedia} resizeMode="cover" />
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.heartOverlay,
+              { opacity: heartAnim, transform: [{ scale: heartScale }] },
+            ]}
+          >
+            <Text style={{ fontSize: 90 }}>❤️</Text>
+          </Animated.View>
+        </Pressable>
       )}
 
       {/* Caption */}
@@ -132,26 +341,47 @@ function PostCard({ post, colors, theme }: { post: Post; colors: any; theme: str
       <View style={styles.postActions}>
         <TouchableOpacity style={styles.postActionBtn} onPress={handleLike}>
           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-            <Ionicons
-              name={liked ? "heart" : "heart-outline"}
-              size={26}
-              color={liked ? "#E1306C" : colors.textSecondary}
-            />
+            <Text style={{ fontSize: 24, color: liked ? "#E1306C" : colors.textSecondary }}>
+              {liked ? "❤️" : "🤍"}
+            </Text>
           </Animated.View>
           {likesCount > 0 && (
-            <Text style={[styles.postActionCount, { color: colors.textSecondary }]}>{likesCount}</Text>
+            <Text style={[styles.postActionCount, { color: colors.textSecondary }]}>
+              {likesCount}
+            </Text>
           )}
         </TouchableOpacity>
-        <TouchableOpacity style={styles.postActionBtn}>
-          <Ionicons name="chatbubble-outline" size={24} color={colors.textSecondary} />
+
+        <TouchableOpacity
+          style={styles.postActionBtn}
+          onPress={() => setShowComments(true)}
+        >
+          <Text style={{ fontSize: 22, color: colors.textSecondary }}>💬</Text>
           {commentsCount > 0 && (
-            <Text style={[styles.postActionCount, { color: colors.textSecondary }]}>{commentsCount}</Text>
+            <Text style={[styles.postActionCount, { color: colors.textSecondary }]}>
+              {commentsCount}
+            </Text>
           )}
         </TouchableOpacity>
-        <TouchableOpacity style={styles.postActionBtn}>
-          <Ionicons name="paper-plane-outline" size={24} color={colors.textSecondary} />
+
+        <TouchableOpacity style={styles.postActionBtn} onPress={() => setShowShare(true)}>
+          <Text style={{ fontSize: 22, color: colors.textSecondary }}>📤</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Modals */}
+      <CommentSheet
+        postId={post.id}
+        visible={showComments}
+        onClose={() => setShowComments(false)}
+        colors={colors}
+      />
+      <SharePostSheet
+        post={post}
+        visible={showShare}
+        onClose={() => setShowShare(false)}
+        colors={colors}
+      />
     </View>
   );
 }
@@ -167,7 +397,6 @@ export default function HomeScreen() {
     hasUnseenStory,
     getUnreadNotificationsCount,
     conversations,
-    getConversation,
     t,
     theme,
   } = useApp();
@@ -179,20 +408,26 @@ export default function HomeScreen() {
   const feedPosts = getFeedPosts();
   const activeStories = getActiveStories();
 
-  // بناء قائمة Stories - أنا أولاً ثم المستخدمون الذين لديهم ستوري
   const storyUsers: User[] = [];
   const seenIds = new Set<string>();
-  if (currentUser) { storyUsers.push(currentUser); seenIds.add(currentUser.id); }
+  if (currentUser) {
+    storyUsers.push(currentUser);
+    seenIds.add(currentUser.id);
+  }
   activeStories.forEach((s) => {
     if (!seenIds.has(s.creatorId)) {
       const u = users.find((u) => u.id === s.creatorId);
-      if (u) { storyUsers.push(u); seenIds.add(u.id); }
+      if (u) {
+        storyUsers.push(u);
+        seenIds.add(u.id);
+      }
     }
   });
 
   const unreadNotifs = getUnreadNotificationsCount();
   const unreadMessages = conversations.filter(
-    (c) => c.participants.includes(currentUser?.id || "") &&
+    (c) =>
+      c.participants.includes(currentUser?.id || "") &&
       c.messages?.some((m) => m.receiverId === currentUser?.id && !m.read)
   ).length;
 
@@ -208,18 +443,35 @@ export default function HomeScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* ── Header ── */}
       <LinearGradient
-        colors={theme === "dark" ? ["rgba(79,70,229,0.18)", "transparent"] : ["rgba(79,70,229,0.07)", "transparent"]}
+        colors={
+          theme === "dark"
+            ? ["rgba(79,70,229,0.18)", "transparent"]
+            : ["rgba(79,70,229,0.07)", "transparent"]
+        }
         style={[styles.headerGrad, { paddingTop: topPad + 8 }]}
       >
         <View style={styles.headerRow}>
           <Text style={[styles.headerLogo, { color: colors.text }]}>هلا بابل</Text>
           <View style={styles.headerIcons}>
+            {/* Create Post FAB in header */}
+            <TouchableOpacity
+              style={[
+                styles.headerIconBtn,
+                { backgroundColor: colors.tint },
+              ]}
+              onPress={() => router.push("/create-post")}
+            >
+              <Text style={{ color: "#fff", fontSize: 22, fontFamily: "Inter_700Bold" }}>+</Text>
+            </TouchableOpacity>
             {/* Messages */}
             <TouchableOpacity
-              style={[styles.headerIconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              style={[
+                styles.headerIconBtn,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
               onPress={() => router.push("/(tabs)/messages" as any)}
             >
-              <Ionicons name="chatbubbles-outline" size={22} color={colors.text} />
+              <Text style={{ fontSize: 20 }}>💬</Text>
               {unreadMessages > 0 && (
                 <View style={[styles.badge, { backgroundColor: "#3B82F6" }]}>
                   <Text style={styles.badgeText}>{unreadMessages}</Text>
@@ -228,10 +480,13 @@ export default function HomeScreen() {
             </TouchableOpacity>
             {/* Notifications */}
             <TouchableOpacity
-              style={[styles.headerIconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              style={[
+                styles.headerIconBtn,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
               onPress={() => router.push("/notifications")}
             >
-              <Ionicons name="notifications-outline" size={22} color={colors.text} />
+              <Text style={{ fontSize: 20 }}>🔔</Text>
               {unreadNotifs > 0 && (
                 <View style={[styles.badge, { backgroundColor: "#E1306C" }]}>
                   <Text style={styles.badgeText}>{unreadNotifs > 9 ? "9+" : unreadNotifs}</Text>
@@ -279,43 +534,25 @@ export default function HomeScreen() {
                 />
               )}
             </ScrollView>
-
-            {/* ── Create Post Button ── */}
-            <TouchableOpacity
-              style={[styles.createPostBar, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push("/create-post")}
-              activeOpacity={0.85}
-            >
-              {currentUser?.avatar ? (
-                <Image source={{ uri: currentUser.avatar }} style={styles.createPostAvatar} />
-              ) : (
-                <View style={[styles.createPostAvatar, { backgroundColor: colors.backgroundTertiary, alignItems: "center", justifyContent: "center" }]}>
-                  <Text style={{ color: colors.tint, fontFamily: "Inter_600SemiBold", fontSize: 16 }}>
-                    {currentUser?.name[0]?.toUpperCase()}
-                  </Text>
-                </View>
-              )}
-              <View style={[styles.createPostInput, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
-                <Text style={{ color: colors.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14 }}>
-                  ماذا يدور في ذهنك؟
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => router.push("/create-post")}
-                style={[styles.createPostMediaBtn, { backgroundColor: `${colors.tint}22` }]}
-              >
-                <Ionicons name="image-outline" size={20} color={colors.tint} />
-              </TouchableOpacity>
-            </TouchableOpacity>
           </View>
         }
         ListEmptyComponent={
           <View style={styles.emptyFeed}>
-            <Ionicons name="people-outline" size={64} color={colors.border} />
-            <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>لا توجد منشورات</Text>
+            <Text style={{ fontSize: 56 }}>👥</Text>
+            <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>
+              لا توجد منشورات
+            </Text>
             <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
               تابع أشخاصاً لترى منشوراتهم هنا
             </Text>
+            <TouchableOpacity
+              onPress={() => router.push("/create-post")}
+              style={[styles.createFirstPost, { backgroundColor: colors.tint }]}
+            >
+              <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
+                + أنشئ أول منشور
+              </Text>
+            </TouchableOpacity>
           </View>
         }
         renderItem={({ item }) => <PostCard post={item} colors={colors} theme={theme} />}
@@ -327,18 +564,32 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   headerGrad: { paddingHorizontal: 16, paddingBottom: 12 },
-  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
   headerLogo: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  headerIcons: { flexDirection: "row", gap: 10 },
+  headerIcons: { flexDirection: "row", gap: 8 },
   headerIconBtn: {
-    width: 40, height: 40, borderRadius: 13,
-    alignItems: "center", justifyContent: "center", borderWidth: 1,
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
     position: "relative",
   },
   badge: {
-    position: "absolute", top: -4, right: -4,
-    minWidth: 18, height: 18, borderRadius: 9,
-    alignItems: "center", justifyContent: "center",
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 3,
   },
   badgeText: { color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold" },
@@ -346,43 +597,129 @@ const styles = StyleSheet.create({
   storiesBar: { paddingHorizontal: 12, paddingVertical: 14, gap: 16 },
   storyItem: { alignItems: "center", gap: 6, width: 68 },
   storyRing: {
-    width: 64, height: 64, borderRadius: 22,
-    borderWidth: 2.5, padding: 2,
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    borderWidth: 2.5,
+    padding: 2,
     position: "relative",
   },
   storyAvatar: { width: "100%", height: "100%", borderRadius: 19, overflow: "hidden" },
   storyInitial: { fontSize: 22, fontFamily: "Inter_700Bold" },
   storyAddBtn: {
-    position: "absolute", bottom: -2, right: -2,
-    width: 20, height: 20, borderRadius: 6,
-    alignItems: "center", justifyContent: "center",
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
   },
   storyName: { fontSize: 11, fontFamily: "Inter_500Medium", textAlign: "center", width: 68 },
-  createPostBar: {
-    flexDirection: "row", alignItems: "center",
-    margin: 12, borderRadius: 18, borderWidth: 1,
-    padding: 12, gap: 10,
-  },
-  createPostAvatar: { width: 40, height: 40, borderRadius: 13, overflow: "hidden" },
-  createPostInput: { flex: 1, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
-  createPostMediaBtn: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   postCard: {
-    marginHorizontal: 12, marginBottom: 14,
-    borderRadius: 20, borderWidth: 1, overflow: "hidden",
+    marginHorizontal: 12,
+    marginBottom: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    overflow: "hidden",
   },
   postHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12 },
-  postAvatar: { width: 42, height: 42, borderRadius: 14, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  postAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   postAvatarText: { fontSize: 17, fontFamily: "Inter_700Bold" },
   postCreatorName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   postTime: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
   postMedia: { width: "100%", aspectRatio: 1 },
-  postCaption: { paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
-  postActions: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 12, gap: 20 },
+  heartOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  postCaption: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 22,
+  },
+  postActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    gap: 20,
+  },
   postActionBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
   postActionCount: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  emptyFeed: { alignItems: "center", justifyContent: "center", paddingVertical: 60, gap: 16, paddingHorizontal: 40 },
+  emptyFeed: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    gap: 16,
+    paddingHorizontal: 40,
+  },
   emptyTitle: { fontSize: 20, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   emptyDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
-  // Messages tab redirect
-  messages: {},
+  createFirstPost: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 14,
+    marginTop: 8,
+  },
+  // Comment Sheet
+  sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
+  commentSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    padding: 20,
+    paddingBottom: 32,
+    gap: 12,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 4,
+  },
+  sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
+  emptyComments: { textAlign: "center", fontFamily: "Inter_400Regular", padding: 24 },
+  commentItem: { flexDirection: "row", gap: 10, paddingVertical: 8, alignItems: "flex-start" },
+  commentAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  commentAvatarImg: { width: "100%", height: "100%" },
+  commentAvatarText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 14 },
+  commentBody: { flex: 1 },
+  commentUser: { fontFamily: "Inter_600SemiBold", fontSize: 13, marginBottom: 2 },
+  commentText: { fontFamily: "Inter_400Regular", fontSize: 14 },
+  commentInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    minHeight: 48,
+    gap: 10,
+  },
+  commentInputField: { flex: 1, fontSize: 15, maxHeight: 80 },
+  sendCommentBtn: { padding: 4 },
+  shareUser: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
 });

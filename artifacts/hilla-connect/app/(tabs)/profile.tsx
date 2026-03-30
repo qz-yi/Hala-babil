@@ -198,7 +198,11 @@ function ProfileDrawer({
 // ───── Grid Item ─────
 function PostGridItem({ post, colors }: { post: Post; colors: any }) {
   return (
-    <View style={styles.gridItem}>
+    <TouchableOpacity
+      style={styles.gridItem}
+      onPress={() => router.push(`/post/${post.id}` as any)}
+      activeOpacity={0.85}
+    >
       {post.mediaUrl && post.mediaType === "image" ? (
         <Image source={{ uri: post.mediaUrl }} style={StyleSheet.absoluteFill as any} resizeMode="cover" />
       ) : post.mediaUrl && post.mediaType === "video" ? (
@@ -212,20 +216,24 @@ function PostGridItem({ post, colors }: { post: Post; colors: any }) {
           </Text>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
 function ReelGridItem({ reel, colors }: { reel: Reel; colors: any }) {
   return (
-    <View style={styles.gridItem}>
+    <TouchableOpacity
+      style={styles.gridItem}
+      onPress={() => router.push("/(tabs)/reels")}
+      activeOpacity={0.85}
+    >
       <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111", alignItems: "center", justifyContent: "center" }]}>
         <Ionicons name="play-circle" size={32} color="rgba(255,255,255,0.8)" />
       </View>
       <View style={[styles.gridOverlay]}>
         <Ionicons name="play" size={18} color="rgba(255,255,255,0.9)" />
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -303,7 +311,7 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
-        data={gridTab === "posts" ? myPosts : myReels}
+        data={(gridTab === "posts" ? myPosts : myReels) as (Post | Reel)[]}
         keyExtractor={(item) => item.id}
         numColumns={3}
         showsVerticalScrollIndicator={false}
@@ -423,9 +431,9 @@ export default function ProfileScreen() {
         }
         renderItem={({ item }) =>
           gridTab === "posts" ? (
-            <PostGridItem post={item as Post} colors={colors} />
+            <PostGridItem post={item as unknown as Post} colors={colors} />
           ) : (
-            <ReelGridItem reel={item as Reel} colors={colors} />
+            <ReelGridItem reel={item as unknown as Reel} colors={colors} />
           )
         }
       />

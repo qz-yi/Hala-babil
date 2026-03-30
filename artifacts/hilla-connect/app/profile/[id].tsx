@@ -120,7 +120,7 @@ export default function UserProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
-        data={canViewContent ? gridData : []}
+        data={(canViewContent ? gridData : []) as any[]}
         keyExtractor={(item) => item.id}
         numColumns={3}
         columnWrapperStyle={{ gap: 1.5 }}

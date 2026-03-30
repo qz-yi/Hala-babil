@@ -19,13 +19,13 @@ function NativeTabLayout() {
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>{t("home")}</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="rooms">
+        <Icon sf={{ default: "mic", selected: "mic.fill" }} />
+        <Label>{t("rooms")}</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="reels">
         <Icon sf={{ default: "film", selected: "film.fill" }} />
         <Label>{t("reels")}</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="messages">
-        <Icon sf={{ default: "message", selected: "message.fill" }} />
-        <Label>{t("messages")}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="restaurants">
         <Icon sf={{ default: "fork.knife", selected: "fork.knife" }} />
@@ -94,6 +94,18 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="rooms"
+        options={{
+          title: t("rooms"),
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="mic.fill" tintColor={color} size={24} />
+            ) : (
+              <Ionicons name="mic" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
         name="reels"
         options={{
           title: t("reels"),
@@ -102,18 +114,6 @@ function ClassicTabLayout() {
               <SymbolView name="film.fill" tintColor={color} size={24} />
             ) : (
               <Ionicons name="film-outline" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="messages"
-        options={{
-          title: t("messages"),
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="message.fill" tintColor={color} size={24} />
-            ) : (
-              <Ionicons name="chatbubbles" size={22} color={color} />
             ),
         }}
       />
@@ -139,6 +139,15 @@ function ClassicTabLayout() {
             ) : (
               <Ionicons name="person" size={22} color={color} />
             ),
+        }}
+      />
+      {/* Messages: متاح عبر الهيدر، مخفي من شريط التبويب */}
+      <Tabs.Screen
+        name="messages"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+          tabBarItemStyle: { display: "none" },
         }}
       />
     </Tabs>

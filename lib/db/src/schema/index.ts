@@ -9,6 +9,8 @@ export const users = pgTable("users", {
   age: integer("age"),
   image: text("image"),
   bio: text("bio"),
+  accountType: text("account_type").default("public"), // public | private
+  pushToken: text("push_token"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -43,7 +45,7 @@ export const rooms = pgTable("rooms", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// 5. الدردشات الخاصة (اتصال - فيديو - محادثة)
+// 5. الدردشات الخاصة
 export const privateChats = pgTable("private_chats", {
   id: serial("id").primaryKey(),
   user1Id: integer("user1_id").references(() => users.id),
@@ -51,13 +53,14 @@ export const privateChats = pgTable("private_chats", {
   lastActivity: timestamp("last_activity").defaultNow(),
 });
 
-// 6. رسائل الدردشة الخاصة وسجل المكالمات
+// 6. رسائل الدردشة الخاصة - مع دعم الوسائط الكاملة
 export const privateMessages = pgTable("private_messages", {
   id: serial("id").primaryKey(),
   chatId: integer("chat_id").references(() => privateChats.id),
   senderId: integer("sender_id").references(() => users.id),
   content: text("content"),
-  type: text("type").default("text"), // (text, audio_call, video_call)
+  mediaUrl: text("media_url"),
+  type: text("type").default("text"), // text | image | video | audio | audio_call | video_call
   duration: integer("duration"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -72,7 +75,7 @@ export const reels = pgTable("reels", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// 8. جدول الإعجابات (Likes)
+// 8. جدول الإعجابات على الريلز
 export const likes = pgTable("likes", {
   id: serial("id").primaryKey(),
   reelId: integer("reel_id").references(() => reels.id),
@@ -80,11 +83,79 @@ export const likes = pgTable("likes", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// 9. جدول التعليقات (Comments)
+// 9. جدول التعليقات على الريلز
 export const comments = pgTable("comments", {
   id: serial("id").primaryKey(),
   reelId: integer("reel_id").references(() => reels.id),
   userId: integer("user_id").references(() => users.id),
   content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 10. جدول المنشورات (Posts)
+export const posts = pgTable("posts", {
+  id: serial("id").primaryKey(),
+  creatorId: integer("creator_id").references(() => users.id),
+  content: text("content"),
+  mediaUrl: text("media_url"),
+  mediaType: text("media_type").default("none"), // none | image | video
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 11. إعجابات المنشورات
+export const postLikes = pgTable("post_likes", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id").references(() => posts.id),
+  userId: integer("user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 12. تعليقات المنشورات
+export const postComments = pgTable("post_comments", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id").references(() => posts.id),
+  userId: integer("user_id").references(() => users.id),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 13. جدول القصص (Stories) - تختفي بعد 24 ساعة
+export const stories = pgTable("stories", {
+  id: serial("id").primaryKey(),
+  creatorId: integer("creator_id").references(() => users.id),
+  mediaUrl: text("media_url").notNull(),
+  mediaType: text("media_type").default("image"), // image | video
+  caption: text("caption"),
+  filter: text("filter").default("none"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 14. مشاهدات القصص
+export const storyViews = pgTable("story_views", {
+  id: serial("id").primaryKey(),
+  storyId: integer("story_id").references(() => stories.id),
+  viewerId: integer("viewer_id").references(() => users.id),
+  viewedAt: timestamp("viewed_at").defaultNow(),
+});
+
+// 15. جدول المتابعة (Follows)
+export const follows = pgTable("follows", {
+  id: serial("id").primaryKey(),
+  followerId: integer("follower_id").references(() => users.id),
+  followingId: integer("following_id").references(() => users.id),
+  status: text("status").default("accepted"), // accepted | pending
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 16. جدول الإشعارات (Notifications)
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  recipientId: integer("recipient_id").references(() => users.id),
+  senderId: integer("sender_id").references(() => users.id),
+  type: text("type").notNull(), // follow_request | follow_accept | like | comment | post | story | message
+  referenceId: text("reference_id"),
+  message: text("message"),
+  isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });

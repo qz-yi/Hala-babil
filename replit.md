@@ -21,114 +21,108 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 ```text
 artifacts-monorepo/
 ├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
+│   ├── api-server/         # Express API server
+│   └── hilla-connect/      # Expo React Native mobile app (main product)
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+├── scripts/                # Utility scripts
+└── pnpm-workspace.yaml
 ```
-
-## TypeScript & Composite Projects
-
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
-
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
-
-## Root Scripts
-
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
-
-## Packages
-
-### `artifacts/api-server` (`@workspace/api-server`)
-
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
-
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
-
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
-
-### `lib/api-spec` (`@workspace/api-spec`)
-
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
 
 ---
 
-## Hilla Connect Mobile App (`artifacts/hilla-connect`)
+## Hilla Connect Mobile App (`artifacts/hilla-connect`) — v2.0
 
-Arabic-first social communication Expo React Native app.
+Arabic-first social communication platform built with Expo React Native.
 
-### Features
-- **Auth**: Login, Register, Forgot Password. Super Admin: `07719820537` / `1w2q3r4eSATHA2026$`
-- **Voice Rooms**: 6-seat grid with modern seat cards, animated speaking rings, confirmation modal for joining, mute/leave. Clicking any user opens UserActionsModal (message/block/kick).
-- **Presence Counter**: Eye icon + live count of members in seats. Clicking opens full member list. Clicking any member opens UserActionsModal.
-- **User Actions Modal**: `components/UserActionsModal.tsx` — reusable modal with: مراسلة (open/create chat), حظر (block user), طرد (kick from room — room owner/super admin only).
-- **Private Messaging**: Conversation list + real-time chat
-- **Restaurants**: Directory with menu display, call & WhatsApp buttons. Restaurant images shown via `<Image>` with fallback placeholder.
-- **Profile**: Avatar upload (expo-image-picker), name editing via modal, theme toggle, language toggle (AR/EN)
-- **Super Admin Panel**: Manage restaurants (full CRUD), ban/unban users, delete rooms, **reset any user's password** (key icon button in users tab) — gold crown theme
-- **Toast System**: In-app animated toast notifications (success/error/info) throughout all actions
-- **Agora Integration**: Backend generates RTC tokens at `POST /api/agora/token` (AGORA_APP_ID + AGORA_APP_CERTIFICATE set as env vars)
+### Auth
+- Login / Register / Forgot Password
+- Super Admin: `07719820537` / `1w2q3r4eSATHA2026$`
 
-### Key Files
-- `context/AppContext.tsx` — All state, auth, rooms, messaging, restaurants, `updateProfile`, `resetUserPassword`
-- `components/Toast.tsx` — In-app toast provider + hook `useToast`
-- `components/UserActionsModal.tsx` — Reusable user action sheet (view profile, message, block, kick)
-- `app/(auth)/` — Login, Register (Field component extracted to avoid keyboard focus bug), Forgot Password
-- `app/(tabs)/` — Home (+ search bar), Reels, Messages, Restaurants, Profile
-- `app/room/[id].tsx` — Modern voice room with animated seats, confirmation modal, delete button
-- `app/profile/[id].tsx` — Public user profile with stats + reels grid + مراسلة button
-- `app/admin.tsx` — Super Admin panel
-- `constants/colors.ts` — Full light/dark theme + `ACCENT_COLORS` array
+### Tab Navigation (v2.0)
+1. **الرئيسية (Home)** — Instagram-like feed with stories bar + post cards + header icons (messages + notifications)
+2. **الغرف (Rooms)** — Voice Rooms (moved from old home tab); includes user search bar
+3. **الريلز (Reels)** — Short video reels feed
+4. **المطاعم (Restaurants)** — Restaurant directory with menu + call/WhatsApp
+5. **الملف (Profile)** — Personal profile with grid (posts/reels), right-side drawer (settings/activity/follow-requests)
+
+### New v2.0 Features
+
+#### Feed & Posts
+- Home feed shows posts from followed users (+ own posts)
+- Post creation (`/create-post`) with image/video/text
+- Like, comment on posts with notifications
+- Post grid in profile screen
+
+#### Stories (24hr expiry)
+- Stories bar at top of home feed — my story first, then followed users
+- Create story (`/create-story`) — image/video + caption + filters
+- Story viewer (`/story/[userId]`) — progress bar animation, tap left/right navigation
+- Unread story ring highlighted in pink/red
+
+#### Follow System
+- Follow/unfollow any user
+- Private accounts: follow requests + approval flow
+- Follow requests shown in profile drawer ("الطلبات" tab)
+- Pending request status shown on profile/[id] screen
+
+#### Notifications (`/notifications`)
+- Full notification center with type icons (follow, like, comment, post, message)
+- Mark individual or all as read
+- Badge count on home header
+
+#### Multimedia DMs
+- Chat screen (`/chat/[id]`) supports: text, image (picker), video (picker), audio (simulated mic)
+- Attachment menu with image/video/audio buttons
+- Voice call + video call buttons (UI ready, "coming soon" alert)
+- Image preview in chat bubble
+
+#### Profile Redesign (`/profile`)
+- Avatar with camera overlay (tap to change)
+- Bio + account type badge (public/private)
+- Follow stats: posts / followers / following
+- Posts grid tab + Reels grid tab
+- Right-side drawer with 3 sub-tabs:
+  - الإعدادات: account type, dark mode toggle, language, admin panel, logout
+  - نشاطي: liked reels + recent comments
+  - الطلبات: pending follow requests with accept/reject
+
+#### Other User Profile (`/profile/[id]`)
+- Follow button (follow / pending / following / unfollow)
+- Story ring (tap to view story)
+- Message button
+- Private account lock screen for non-followers
+- Posts + Reels grid tabs
+
+### Key Files (v2.0)
+- `context/AppContext.tsx` — Full state: auth, rooms, posts, stories, follows, notifications, feed, activity
+- `app/(tabs)/_layout.tsx` — 5 tabs (home, rooms, reels, restaurants, profile); messages hidden from bar
+- `app/(tabs)/index.tsx` — Home feed with stories bar + create post bar + post cards
+- `app/(tabs)/rooms.tsx` — Voice rooms (moved here from old home)
+- `app/(tabs)/profile.tsx` — Full profile with grid, drawer, edit modal
+- `app/profile/[id].tsx` — Other user profile with follow system
+- `app/notifications.tsx` — Notification center
+- `app/create-post.tsx` — Post creation studio (image/video/text)
+- `app/create-story.tsx` — Story creation (image/video + filters)
+- `app/story/[userId].tsx` — Story viewer with progress bars
+- `app/chat/[id].tsx` — Chat with multimedia DM support (image/video/audio)
+- `constants/colors.ts` — Full light/dark theme + ACCENT_COLORS array
+- `lib/db/src/schema/index.ts` — Full DB schema: posts, postLikes, postComments, stories, storyViews, follows, notifications
 
 ### Data Persistence
-All data stored in AsyncStorage (no backend DB). The API server handles Agora token generation only.
+All data stored in AsyncStorage (no live backend DB from mobile). The API server handles Agora token generation only.
+
+### Super Admin
+- Phone: `07719820537`, Password: `1w2q3r4eSATHA2026$`
+- Crown badge on profile, gold theme, access to admin panel from drawer
 
 ### Important Notes
 - Never define components inside other components (causes keyboard focus loss)
 - Use `Date.now().toString() + Math.random()` for IDs (no uuid package)
 - FlatList with `inverted` prop for chat (not scrollToEnd)
 - Use `useToast()` hook from `@/components/Toast` for all user feedback
+- Stories expire after 24 hours (checked via `expiresAt` timestamp)
+- Follow status: none → pending (private accounts) → accepted

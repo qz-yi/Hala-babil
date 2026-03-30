@@ -61,6 +61,13 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="profile/[id]"
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
         name="restaurant/[id]"
         options={{
           headerShown: false,
@@ -72,6 +79,37 @@ function RootLayoutNav() {
         options={{
           headerShown: false,
           animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="notifications"
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="create-post"
+        options={{
+          presentation: "modal",
+          headerShown: false,
+          animation: "slide_from_bottom",
+        }}
+      />
+      <Stack.Screen
+        name="create-story"
+        options={{
+          presentation: "modal",
+          headerShown: false,
+          animation: "slide_from_bottom",
+        }}
+      />
+      <Stack.Screen
+        name="story/[userId]"
+        options={{
+          presentation: "fullScreenModal",
+          headerShown: false,
+          animation: "fade",
         }}
       />
     </Stack>

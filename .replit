@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-20", "web", "bash"]
 
 [[artifacts]]
 id = "artifacts/api-server"
@@ -64,3 +64,4 @@ timeoutMs = 20000
 
 [nix]
 packages = ["zip", "nano"]
+channel = "stable-25_05"

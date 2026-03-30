@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -41,7 +42,7 @@ function SharePostSheet({
   const handleShare = (userId: string) => {
     const convo = getConversation(userId);
     const snippet = postContent ? postContent.substring(0, 50) : "منشور";
-    sendPrivateMessage(convo.id, userId, `📸 شارك منشوراً: "${snippet}"`, "text");
+    sendPrivateMessage(convo.id, userId, `شارك منشوراً: "${snippet}"`, "text");
     onClose();
   };
 
@@ -82,7 +83,7 @@ function SharePostSheet({
                     {item.phone}
                   </Text>
                 </View>
-                <Text style={{ fontSize: 18, color: colors.tint }}>↗</Text>
+                <Ionicons name="paper-plane-outline" size={18} color={colors.tint} />
               </TouchableOpacity>
             );
           }}
@@ -124,7 +125,7 @@ export default function PostDetailScreen() {
   if (!post) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Text style={{ fontSize: 36 }}>😕</Text>
+        <Ionicons name="alert-circle-outline" size={64} color={colors.border} />
         <Text style={[styles.notFoundText, { color: colors.textSecondary }]}>المنشور غير موجود</Text>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn2, { backgroundColor: colors.tint }]}>
           <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>رجوع</Text>
@@ -191,18 +192,18 @@ export default function PostDetailScreen() {
           onPress={() => router.back()}
           style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
         >
-          <Text style={{ fontSize: 18, color: colors.text }}>←</Text>
+          <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: colors.text }]}>المنشور</Text>
         <TouchableOpacity
           onPress={() => setShowShare(true)}
           style={[styles.shareBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
         >
-          <Text style={{ fontSize: 16 }}>📤</Text>
+          <Ionicons name="paper-plane-outline" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
       </LinearGradient>
 
-      {/* ── Post Header ── */}
+      {/* ── Post Card ── */}
       <View style={[styles.postCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <TouchableOpacity
           style={styles.postHeader}
@@ -234,7 +235,7 @@ export default function PostDetailScreen() {
               pointerEvents="none"
               style={[styles.heartOverlay, { opacity: heartAnim, transform: [{ scale: heartScale }] }]}
             >
-              <Text style={{ fontSize: 90 }}>❤️</Text>
+              <Ionicons name="heart" size={90} color="#E1306C" />
             </Animated.View>
           </Pressable>
         )}
@@ -247,19 +248,25 @@ export default function PostDetailScreen() {
         {/* Actions */}
         <View style={styles.actions}>
           <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
-            <Animated.Text style={{ fontSize: 26, transform: [{ scale: scaleAnim }] }}>
-              {liked ? "❤️" : "🤍"}
-            </Animated.Text>
+            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+              <Ionicons
+                name={liked ? "heart" : "heart-outline"}
+                size={26}
+                color={liked ? "#E1306C" : colors.textSecondary}
+              />
+            </Animated.View>
             <Text style={[styles.actionCount, { color: colors.textSecondary }]}>{likesCount}</Text>
           </TouchableOpacity>
+
           <View style={styles.actionBtn}>
-            <Text style={{ fontSize: 24 }}>💬</Text>
+            <Ionicons name="chatbubble-outline" size={24} color={colors.textSecondary} />
             <Text style={[styles.actionCount, { color: colors.textSecondary }]}>
               {comments.length}
             </Text>
           </View>
+
           <TouchableOpacity style={styles.actionBtn} onPress={() => setShowShare(true)}>
-            <Text style={{ fontSize: 24 }}>📤</Text>
+            <Ionicons name="paper-plane-outline" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -285,7 +292,7 @@ export default function PostDetailScreen() {
         ListHeaderComponent={header}
         ListEmptyComponent={
           <View style={styles.emptyComments}>
-            <Text style={{ fontSize: 36 }}>💬</Text>
+            <Ionicons name="chatbubble-outline" size={40} color={colors.border} />
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
               لا توجد تعليقات بعد — كن أول من يعلق!
             </Text>
@@ -353,7 +360,7 @@ export default function PostDetailScreen() {
           onPress={handleSendComment}
           style={[styles.sendBtn, { backgroundColor: colors.tint }]}
         >
-          <Text style={{ fontSize: 18, color: "#fff" }}>↑</Text>
+          <Ionicons name="send" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
 

@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect } from "expo-router";
@@ -123,7 +124,7 @@ function ReelPlayerItem({
           pointerEvents="none"
         >
           <View style={styles.pauseIcon}>
-            <Text style={{ fontSize: 40, color: "#fff" }}>▶</Text>
+            <Ionicons name="play" size={36} color="#fff" />
           </View>
         </View>
       )}
@@ -158,25 +159,27 @@ function ReelPlayerItem({
       {/* Action buttons - must be on top, so use onPress to stop propagation */}
       <View style={[styles.reelActions, { paddingBottom: insets.bottom + 90 }]}>
         <TouchableOpacity style={styles.actionBtn} onPress={onLike}>
-          <Text style={{ fontSize: 30, color: isLiked ? "#FF3B5C" : "#fff" }}>
-            {isLiked ? "❤️" : "🤍"}
-          </Text>
+          <Ionicons
+            name={isLiked ? "heart" : "heart-outline"}
+            size={32}
+            color={isLiked ? "#FF3B5C" : "#fff"}
+          />
           <Text style={styles.actionCount}>{likesCount}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={onComment}>
-          <Text style={{ fontSize: 28, color: "#fff" }}>💬</Text>
+          <Ionicons name="chatbubble-outline" size={29} color="#fff" />
           <Text style={styles.actionCount}>{commentsCount}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={onShare}>
-          <Text style={{ fontSize: 28, color: "#fff" }}>📤</Text>
+          <Ionicons name="paper-plane-outline" size={29} color="#fff" />
           <Text style={styles.actionCount}>مشاركة</Text>
         </TouchableOpacity>
 
         {isOwner && (
           <TouchableOpacity style={styles.actionBtn} onPress={onDelete}>
-            <Text style={{ fontSize: 24, color: "#FF3B5C" }}>🗑️</Text>
+            <Ionicons name="trash-outline" size={26} color="#FF3B5C" />
           </TouchableOpacity>
         )}
       </View>
@@ -261,7 +264,7 @@ function CommentSheet({
             multiline
           />
           <TouchableOpacity onPress={handleSend} style={styles.sendCommentBtn}>
-            <Text style={{ fontSize: 20, color: colors.tint }}>↑</Text>
+            <Ionicons name="send" size={20} color={colors.tint} />
           </TouchableOpacity>
         </View>
       </View>
@@ -326,7 +329,7 @@ function ShareSheet({
                   {item.phone}
                 </Text>
               </View>
-              <Text style={{ marginLeft: "auto" as any, fontSize: 18, color: colors.tint }}>↗</Text>
+              <Ionicons name="paper-plane-outline" size={18} color={colors.tint} style={{ marginLeft: "auto" as any }} />
             </TouchableOpacity>
           )}
         />
@@ -421,9 +424,13 @@ function PublishModal({
             },
           ]}
         >
-          <Text style={{ fontSize: 28 }}>{videoUri ? "✅" : "🎬"}</Text>
+          <Ionicons
+            name={videoUri ? "checkmark-circle" : "film-outline"}
+            size={30}
+            color={videoUri ? colors.tint : colors.textSecondary}
+          />
           <Text style={[styles.videoPickText, { color: videoUri ? colors.tint : colors.textSecondary }]}>
-            {videoUri ? "تم اختيار المقطع ✓" : "اختر مقطعاً من المعرض"}
+            {videoUri ? "تم اختيار المقطع" : "اختر مقطعاً من المعرض"}
           </Text>
         </TouchableOpacity>
 
@@ -562,14 +569,15 @@ export default function ReelsScreen() {
           { backgroundColor: colors.background, paddingTop: insets.top },
         ]}
       >
-        <Text style={{ fontSize: 72 }}>🎬</Text>
+        <Ionicons name="film-outline" size={72} color={colors.border} />
         <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>لا توجد مقاطع بعد</Text>
         <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
           كن أول من ينشر مقطعاً!
         </Text>
         <TouchableOpacity onPress={() => setShowPublish(true)}>
           <LinearGradient colors={["#7C3AED", "#4F46E5"]} style={styles.emptyBtn}>
-            <Text style={[styles.emptyBtnText, { color: "#fff" }]}>+ نشر أول مقطع</Text>
+            <Ionicons name="add" size={18} color="#fff" />
+            <Text style={[styles.emptyBtnText, { color: "#fff" }]}>نشر أول مقطع</Text>
           </LinearGradient>
         </TouchableOpacity>
         <PublishModal
@@ -636,7 +644,7 @@ export default function ReelsScreen() {
         ]}
         onPress={() => setShowPublish(true)}
       >
-        <Text style={{ fontSize: 26, color: "#fff" }}>+</Text>
+        <Ionicons name="add" size={26} color="#fff" />
       </TouchableOpacity>
 
       {commentReel && (

@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
@@ -58,7 +59,7 @@ function MediaFullscreenModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={mediaStyles.overlay}>
         <TouchableOpacity style={mediaStyles.closeBtn} onPress={onClose}>
-          <Text style={mediaStyles.closeText}>✕</Text>
+          <Ionicons name="close" size={20} color="#fff" />
         </TouchableOpacity>
         {type === "image" ? (
           <Image source={{ uri }} style={mediaStyles.fullImage} resizeMode="contain" />
@@ -154,9 +155,11 @@ function AudioBubble({ msg, isMe, colors }: { msg: PrivateMessage; isMe: boolean
           { backgroundColor: isMe ? "rgba(255,255,255,0.25)" : `${colors.tint}22` },
         ]}
       >
-        <Text style={{ fontSize: 14, color: isMe ? "#fff" : colors.tint }}>
-          {playing ? "⏸" : "▶"}
-        </Text>
+        <Ionicons
+          name={playing ? "pause" : "play"}
+          size={14}
+          color={isMe ? "#fff" : colors.tint}
+        />
       </View>
       <View style={styles.audioWave}>
         {waveHeights.map((h, i) => (
@@ -228,7 +231,7 @@ function MessageBubble({
           >
             <Image source={{ uri: msg.mediaUrl }} style={styles.msgImage} resizeMode="cover" />
             <View style={styles.mediaExpandIcon}>
-              <Text style={{ color: "#fff", fontSize: 16 }}>⛶</Text>
+              <Ionicons name="expand-outline" size={14} color="#fff" />
             </View>
           </TouchableOpacity>
         ) : msg.type === "video" && msg.mediaUrl ? (
@@ -243,10 +246,10 @@ function MessageBubble({
                 { backgroundColor: "#000", alignItems: "center", justifyContent: "center" },
               ]}
             >
-              <Text style={{ fontSize: 44, color: "rgba(255,255,255,0.9)" }}>▶</Text>
+              <Ionicons name="play" size={44} color="rgba(255,255,255,0.9)" />
             </View>
             <View style={styles.mediaExpandIcon}>
-              <Text style={{ color: "#fff", fontSize: 14 }}>⛶</Text>
+              <Ionicons name="expand-outline" size={14} color="#fff" />
             </View>
           </TouchableOpacity>
         ) : msg.type === "audio" ? (
@@ -477,7 +480,7 @@ export default function ChatScreen() {
             onPress={() => router.back()}
             style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
-            <Text style={{ fontSize: 20, color: colors.text }}>←</Text>
+            <Ionicons name="arrow-back" size={20} color={colors.text} />
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => otherUser && router.push(`/profile/${otherUser.id}`)}>
@@ -505,19 +508,19 @@ export default function ChatScreen() {
               style={[styles.callBtn, { backgroundColor: `${accentColor}22` }]}
               onPress={() => Alert.alert(t("voiceCall"), "قريباً")}
             >
-              <Text style={{ fontSize: 16 }}>📞</Text>
+              <Ionicons name="call-outline" size={18} color={accentColor} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.callBtn, { backgroundColor: `${accentColor}22` }]}
               onPress={() => Alert.alert(t("videoCall"), "قريباً")}
             >
-              <Text style={{ fontSize: 16 }}>📹</Text>
+              <Ionicons name="videocam-outline" size={18} color={accentColor} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleOptions}
               style={[styles.callBtn, { backgroundColor: colors.backgroundTertiary }]}
             >
-              <Text style={{ fontSize: 16, color: colors.textSecondary }}>⋮</Text>
+              <Ionicons name="ellipsis-vertical" size={18} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -538,7 +541,7 @@ export default function ChatScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyChat}>
-              <Text style={{ fontSize: 36 }}>💬</Text>
+              <Ionicons name="chatbubble-outline" size={40} color={colors.border} />
               <Text
                 style={[
                   { color: colors.textSecondary, fontFamily: "Inter_400Regular", marginTop: 8 },
@@ -568,14 +571,14 @@ export default function ChatScreen() {
               onPress={handlePickImage}
               style={[styles.attachItem, { backgroundColor: `${colors.tint}18` }]}
             >
-              <Text style={{ fontSize: 20 }}>🖼️</Text>
+              <Ionicons name="image-outline" size={22} color={colors.tint} />
               <Text style={[styles.attachLabel, { color: colors.tint }]}>صورة</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handlePickVideo}
               style={[styles.attachItem, { backgroundColor: "#E1306C18" }]}
             >
-              <Text style={{ fontSize: 20 }}>🎬</Text>
+              <Ionicons name="videocam-outline" size={22} color="#E1306C" />
               <Text style={[styles.attachLabel, { color: "#E1306C" }]}>فيديو</Text>
             </TouchableOpacity>
           </View>
@@ -601,9 +604,11 @@ export default function ChatScreen() {
                   { backgroundColor: showAttach ? `${colors.tint}22` : colors.backgroundTertiary },
                 ]}
               >
-                <Text style={{ fontSize: 20, color: showAttach ? colors.tint : colors.textSecondary }}>
-                  {showAttach ? "✕" : "📎"}
-                </Text>
+                <Ionicons
+                  name={showAttach ? "close" : "attach"}
+                  size={22}
+                  color={showAttach ? colors.tint : colors.textSecondary}
+                />
               </TouchableOpacity>
 
               <View
@@ -630,7 +635,7 @@ export default function ChatScreen() {
                   onPress={handleSend}
                   style={[styles.sendBtn, { backgroundColor: accentColor }]}
                 >
-                  <Text style={{ fontSize: 18, color: "#fff" }}>↑</Text>
+                  <Ionicons name="send" size={18} color="#fff" />
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
@@ -638,7 +643,7 @@ export default function ChatScreen() {
                   delayLongPress={200}
                   style={[styles.sendBtn, { backgroundColor: colors.backgroundTertiary }]}
                 >
-                  <Text style={{ fontSize: 20, color: colors.textSecondary }}>🎤</Text>
+                  <Ionicons name="mic-outline" size={22} color={colors.textSecondary} />
                 </TouchableOpacity>
               )}
             </>
@@ -649,7 +654,7 @@ export default function ChatScreen() {
                 onPress={handleStopRecording}
                 style={[styles.sendBtn, { backgroundColor: "#E1306C" }]}
               >
-                <Text style={{ fontSize: 18, color: "#fff" }}>⏹</Text>
+                <Ionicons name="stop-circle" size={22} color="#fff" />
               </TouchableOpacity>
             </>
           )}

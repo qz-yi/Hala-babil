@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -52,11 +53,7 @@ function StoryAvatar({
           <View
             style={[
               styles.storyAvatar,
-              {
-                backgroundColor: `${accentColor}44`,
-                alignItems: "center",
-                justifyContent: "center",
-              },
+              { backgroundColor: `${accentColor}44`, alignItems: "center", justifyContent: "center" },
             ]}
           >
             <Text style={[styles.storyInitial, { color: accentColor }]}>
@@ -66,7 +63,7 @@ function StoryAvatar({
         )}
         {isMe && (
           <View style={[styles.storyAddBtn, { backgroundColor: colors.tint }]}>
-            <Text style={{ color: "#fff", fontSize: 12, fontFamily: "Inter_700Bold" }}>+</Text>
+            <Ionicons name="add" size={12} color="#fff" />
           </View>
         )}
       </View>
@@ -116,7 +113,7 @@ function CommentSheet({
           }
           renderItem={({ item }: { item: PostComment }) => {
             const commenter = users.find((u) => u.id === item.userId);
-            const color = ACCENT_COLORS[(item.userId.length) % ACCENT_COLORS.length];
+            const color = ACCENT_COLORS[item.userId.length % ACCENT_COLORS.length];
             return (
               <View style={styles.commentItem}>
                 <View style={[styles.commentAvatar, { backgroundColor: `${color}33` }]}>
@@ -137,10 +134,7 @@ function CommentSheet({
           }}
         />
         <View
-          style={[
-            styles.commentInput,
-            { backgroundColor: colors.inputBackground, borderColor: colors.border },
-          ]}
+          style={[styles.commentInput, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
         >
           <TextInput
             style={[styles.commentInputField, { color: colors.text, fontFamily: "Inter_400Regular" }]}
@@ -152,7 +146,7 @@ function CommentSheet({
             multiline
           />
           <TouchableOpacity onPress={handleSend} style={styles.sendCommentBtn}>
-            <Text style={{ fontSize: 20, color: colors.tint }}>↑</Text>
+            <Ionicons name="send" size={20} color={colors.tint} />
           </TouchableOpacity>
         </View>
       </View>
@@ -177,11 +171,7 @@ function SharePostSheet({
 
   const handleShare = (user: User) => {
     const convo = getConversation(user.id);
-    const snippet = post.content
-      ? post.content.substring(0, 50)
-      : post.mediaType !== "none"
-      ? "وسائط"
-      : "منشور";
+    const snippet = post.content ? post.content.substring(0, 50) : post.mediaType !== "none" ? "وسائط" : "منشور";
     sendPrivateMessage(convo.id, user.id, `📸 شارك منشوراً: "${snippet}"`, "text");
     onClose();
   };
@@ -220,7 +210,7 @@ function SharePostSheet({
                     {item.phone}
                   </Text>
                 </View>
-                <Text style={{ fontSize: 18, color: colors.tint }}>↗</Text>
+                <Ionicons name="paper-plane-outline" size={18} color={colors.tint} />
               </TouchableOpacity>
             );
           }}
@@ -232,8 +222,7 @@ function SharePostSheet({
 
 // ───── Post Card ─────
 function PostCard({ post, colors, theme }: { post: Post; colors: any; theme: string }) {
-  const { users, currentUser, isPostLiked, likePost, getPostLikesCount, getPostComments, t } =
-    useApp();
+  const { users, isPostLiked, likePost, getPostLikesCount, getPostComments } = useApp();
   const creator = users.find((u) => u.id === post.creatorId);
   const liked = isPostLiked(post.id);
   const likesCount = getPostLikesCount(post.id);
@@ -256,11 +245,7 @@ function PostCard({ post, colors, theme }: { post: Post; colors: any; theme: str
       heartAnim.setValue(1);
       heartScale.setValue(0.4);
       Animated.parallel([
-        Animated.spring(heartScale, {
-          toValue: 1,
-          useNativeDriver: true,
-          friction: 4,
-        }),
+        Animated.spring(heartScale, { toValue: 1, useNativeDriver: true, friction: 4 }),
         Animated.sequence([
           Animated.delay(600),
           Animated.timing(heartAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
@@ -313,7 +298,7 @@ function PostCard({ post, colors, theme }: { post: Post; colors: any; theme: str
             {formatTime(post.createdAt)}
           </Text>
         </View>
-        <Text style={{ fontSize: 18, color: colors.textSecondary }}>⋯</Text>
+        <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
       </TouchableOpacity>
 
       {/* Media with double tap */}
@@ -322,12 +307,9 @@ function PostCard({ post, colors, theme }: { post: Post; colors: any; theme: str
           <Image source={{ uri: post.mediaUrl }} style={styles.postMedia} resizeMode="cover" />
           <Animated.View
             pointerEvents="none"
-            style={[
-              styles.heartOverlay,
-              { opacity: heartAnim, transform: [{ scale: heartScale }] },
-            ]}
+            style={[styles.heartOverlay, { opacity: heartAnim, transform: [{ scale: heartScale }] }]}
           >
-            <Text style={{ fontSize: 90 }}>❤️</Text>
+            <Ionicons name="heart" size={90} color="#E1306C" />
           </Animated.View>
         </Pressable>
       )}
@@ -341,35 +323,29 @@ function PostCard({ post, colors, theme }: { post: Post; colors: any; theme: str
       <View style={styles.postActions}>
         <TouchableOpacity style={styles.postActionBtn} onPress={handleLike}>
           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-            <Text style={{ fontSize: 24, color: liked ? "#E1306C" : colors.textSecondary }}>
-              {liked ? "❤️" : "🤍"}
-            </Text>
+            <Ionicons
+              name={liked ? "heart" : "heart-outline"}
+              size={26}
+              color={liked ? "#E1306C" : colors.textSecondary}
+            />
           </Animated.View>
           {likesCount > 0 && (
-            <Text style={[styles.postActionCount, { color: colors.textSecondary }]}>
-              {likesCount}
-            </Text>
+            <Text style={[styles.postActionCount, { color: colors.textSecondary }]}>{likesCount}</Text>
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.postActionBtn}
-          onPress={() => setShowComments(true)}
-        >
-          <Text style={{ fontSize: 22, color: colors.textSecondary }}>💬</Text>
+        <TouchableOpacity style={styles.postActionBtn} onPress={() => setShowComments(true)}>
+          <Ionicons name="chatbubble-outline" size={24} color={colors.textSecondary} />
           {commentsCount > 0 && (
-            <Text style={[styles.postActionCount, { color: colors.textSecondary }]}>
-              {commentsCount}
-            </Text>
+            <Text style={[styles.postActionCount, { color: colors.textSecondary }]}>{commentsCount}</Text>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.postActionBtn} onPress={() => setShowShare(true)}>
-          <Text style={{ fontSize: 22, color: colors.textSecondary }}>📤</Text>
+          <Ionicons name="paper-plane-outline" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
-      {/* Modals */}
       <CommentSheet
         postId={post.id}
         visible={showComments}
@@ -397,7 +373,6 @@ export default function HomeScreen() {
     hasUnseenStory,
     getUnreadNotificationsCount,
     conversations,
-    t,
     theme,
   } = useApp();
 
@@ -410,17 +385,11 @@ export default function HomeScreen() {
 
   const storyUsers: User[] = [];
   const seenIds = new Set<string>();
-  if (currentUser) {
-    storyUsers.push(currentUser);
-    seenIds.add(currentUser.id);
-  }
+  if (currentUser) { storyUsers.push(currentUser); seenIds.add(currentUser.id); }
   activeStories.forEach((s) => {
     if (!seenIds.has(s.creatorId)) {
       const u = users.find((u) => u.id === s.creatorId);
-      if (u) {
-        storyUsers.push(u);
-        seenIds.add(u.id);
-      }
+      if (u) { storyUsers.push(u); seenIds.add(u.id); }
     }
   });
 
@@ -453,25 +422,19 @@ export default function HomeScreen() {
         <View style={styles.headerRow}>
           <Text style={[styles.headerLogo, { color: colors.text }]}>هلا بابل</Text>
           <View style={styles.headerIcons}>
-            {/* Create Post FAB in header */}
+            {/* Create Post */}
             <TouchableOpacity
-              style={[
-                styles.headerIconBtn,
-                { backgroundColor: colors.tint },
-              ]}
+              style={[styles.headerIconBtn, styles.headerIconBtnPrimary, { backgroundColor: colors.tint }]}
               onPress={() => router.push("/create-post")}
             >
-              <Text style={{ color: "#fff", fontSize: 22, fontFamily: "Inter_700Bold" }}>+</Text>
+              <Ionicons name="add" size={24} color="#fff" />
             </TouchableOpacity>
             {/* Messages */}
             <TouchableOpacity
-              style={[
-                styles.headerIconBtn,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
+              style={[styles.headerIconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => router.push("/(tabs)/messages" as any)}
             >
-              <Text style={{ fontSize: 20 }}>💬</Text>
+              <Ionicons name="chatbubble-outline" size={22} color={colors.text} />
               {unreadMessages > 0 && (
                 <View style={[styles.badge, { backgroundColor: "#3B82F6" }]}>
                   <Text style={styles.badgeText}>{unreadMessages}</Text>
@@ -480,13 +443,10 @@ export default function HomeScreen() {
             </TouchableOpacity>
             {/* Notifications */}
             <TouchableOpacity
-              style={[
-                styles.headerIconBtn,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
+              style={[styles.headerIconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => router.push("/notifications")}
             >
-              <Text style={{ fontSize: 20 }}>🔔</Text>
+              <Ionicons name="notifications-outline" size={22} color={colors.text} />
               {unreadNotifs > 0 && (
                 <View style={[styles.badge, { backgroundColor: "#E1306C" }]}>
                   <Text style={styles.badgeText}>{unreadNotifs > 9 ? "9+" : unreadNotifs}</Text>
@@ -503,45 +463,40 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         ListHeaderComponent={
-          <View>
-            {/* ── Stories Bar ── */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.storiesBar}
-              style={[styles.storiesContainer, { borderBottomColor: colors.border }]}
-            >
-              {storyUsers.map((user) => (
-                <StoryAvatar
-                  key={user.id}
-                  user={user}
-                  stories={getUserStories(user.id)}
-                  hasUnseen={hasUnseenStory(user.id)}
-                  onPress={() => handleStoryPress(user)}
-                  colors={colors}
-                  isMe={user.id === currentUser?.id}
-                />
-              ))}
-              {storyUsers.length === 0 && (
-                <StoryAvatar
-                  key="me-placeholder"
-                  user={currentUser!}
-                  stories={[]}
-                  hasUnseen={false}
-                  onPress={() => router.push("/create-story")}
-                  colors={colors}
-                  isMe
-                />
-              )}
-            </ScrollView>
-          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.storiesBar}
+            style={[styles.storiesContainer, { borderBottomColor: colors.border }]}
+          >
+            {storyUsers.map((user) => (
+              <StoryAvatar
+                key={user.id}
+                user={user}
+                stories={getUserStories(user.id)}
+                hasUnseen={hasUnseenStory(user.id)}
+                onPress={() => handleStoryPress(user)}
+                colors={colors}
+                isMe={user.id === currentUser?.id}
+              />
+            ))}
+            {storyUsers.length === 0 && (
+              <StoryAvatar
+                key="me-placeholder"
+                user={currentUser!}
+                stories={[]}
+                hasUnseen={false}
+                onPress={() => router.push("/create-story")}
+                colors={colors}
+                isMe
+              />
+            )}
+          </ScrollView>
         }
         ListEmptyComponent={
           <View style={styles.emptyFeed}>
-            <Text style={{ fontSize: 56 }}>👥</Text>
-            <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>
-              لا توجد منشورات
-            </Text>
+            <Ionicons name="people-outline" size={64} color={colors.border} />
+            <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>لا توجد منشورات</Text>
             <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
               تابع أشخاصاً لترى منشوراتهم هنا
             </Text>
@@ -549,8 +504,9 @@ export default function HomeScreen() {
               onPress={() => router.push("/create-post")}
               style={[styles.createFirstPost, { backgroundColor: colors.tint }]}
             >
+              <Ionicons name="add" size={18} color="#fff" />
               <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
-                + أنشئ أول منشور
+                أنشئ أول منشور
               </Text>
             </TouchableOpacity>
           </View>
@@ -581,6 +537,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     position: "relative",
   },
+  headerIconBtnPrimary: { borderWidth: 0 },
   badge: {
     position: "absolute",
     top: -4,
@@ -672,6 +629,9 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 20, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   emptyDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
   createFirstPost: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 14,
@@ -687,13 +647,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     gap: 12,
   },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 4,
-  },
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
   sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
   emptyComments: { textAlign: "center", fontFamily: "Inter_400Regular", padding: 24 },
   commentItem: { flexDirection: "row", gap: 10, paddingVertical: 8, alignItems: "flex-start" },

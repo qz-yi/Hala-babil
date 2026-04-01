@@ -317,6 +317,110 @@ function CommentsSheet({
   );
 }
 
+// ─── Custom Post Options Modal ─────
+function PostOptionsModal({
+  visible,
+  onClose,
+  isHidden,
+  onHide,
+  onDelete,
+  colors,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  isHidden: boolean;
+  onHide: () => void;
+  onDelete: () => void;
+  colors: any;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const handleClose = () => {
+    setConfirmDelete(false);
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+      <Pressable style={modalStyles.backdrop} onPress={handleClose} />
+      <View style={[modalStyles.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[modalStyles.handle, { backgroundColor: colors.border }]} />
+
+        {!confirmDelete ? (
+          <>
+            <Text style={[modalStyles.title, { color: colors.text }]}>خيارات المنشور</Text>
+
+            <TouchableOpacity
+              onPress={() => { onHide(); handleClose(); }}
+              style={[modalStyles.optionBtn, { backgroundColor: `${colors.tint}12`, borderColor: `${colors.tint}22` }]}
+            >
+              <Ionicons name={isHidden ? "eye-outline" : "eye-off-outline"} size={20} color={colors.tint} />
+              <Text style={[modalStyles.optionText, { color: colors.tint }]}>
+                {isHidden ? "إظهار المنشور" : "إخفاء المنشور"}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setConfirmDelete(true)}
+              style={[modalStyles.optionBtn, { backgroundColor: "#FF3B5C18", borderColor: "#FF3B5C33" }]}
+            >
+              <Ionicons name="trash-outline" size={20} color="#FF3B5C" />
+              <Text style={[modalStyles.optionText, { color: "#FF3B5C" }]}>حذف المنشور</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={handleClose} style={[modalStyles.cancelBtn, { backgroundColor: colors.backgroundSecondary }]}>
+              <Text style={[modalStyles.cancelText, { color: colors.textSecondary }]}>إلغاء</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <View style={modalStyles.confirmIcon}>
+              <Ionicons name="trash" size={36} color="#FF3B5C" />
+            </View>
+            <Text style={[modalStyles.title, { color: colors.text }]}>حذف المنشور</Text>
+            <Text style={[modalStyles.confirmSubtitle, { color: colors.textSecondary }]}>
+              هل أنت متأكد؟ لا يمكن التراجع عن هذه العملية.
+            </Text>
+            <TouchableOpacity
+              onPress={() => { onDelete(); handleClose(); }}
+              style={modalStyles.deleteBtn}
+            >
+              <Text style={modalStyles.deleteBtnText}>نعم، احذف المنشور</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setConfirmDelete(false)} style={[modalStyles.cancelBtn, { backgroundColor: colors.backgroundSecondary }]}>
+              <Text style={[modalStyles.cancelText, { color: colors.textSecondary }]}>رجوع</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+const modalStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
+  sheet: {
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderWidth: 1, padding: 20, paddingBottom: 36, gap: 12,
+  },
+  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 8 },
+  title: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center", marginBottom: 4 },
+  confirmSubtitle: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20, marginBottom: 8 },
+  confirmIcon: { alignItems: "center", marginBottom: 4 },
+  optionBtn: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 16, borderRadius: 20, borderWidth: 1,
+  },
+  optionText: { fontSize: 16, fontFamily: "Inter_600SemiBold", flex: 1 },
+  deleteBtn: {
+    backgroundColor: "#FF3B5C", borderRadius: 20,
+    paddingVertical: 16, alignItems: "center",
+  },
+  deleteBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  cancelBtn: { borderRadius: 20, paddingVertical: 16, alignItems: "center" },
+  cancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+});
+
 // ─── Single Post View ─────
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -342,6 +446,7 @@ export default function PostDetailScreen() {
   const post = posts.find((p) => p.id === id);
   const [showShare, setShowShare] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const [showOptions, setShowOptions] = useState(false);
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const heartAnim = useRef(new Animated.Value(0)).current;
@@ -404,32 +509,7 @@ export default function PostDetailScreen() {
 
   const handlePostOptions = () => {
     if (!isMyPost) return;
-    Alert.alert("خيارات المنشور", "", [
-      {
-        text: post.isHidden ? "إظهار المنشور" : t("hidePost"),
-        onPress: () => {
-          hidePost(post.id);
-          router.back();
-        },
-      },
-      {
-        text: t("deletePost"),
-        style: "destructive",
-        onPress: () =>
-          Alert.alert("حذف المنشور", "هل أنت متأكد من حذف هذا المنشور؟", [
-            { text: t("cancel"), style: "cancel" },
-            {
-              text: "حذف",
-              style: "destructive",
-              onPress: () => {
-                deletePost(post.id);
-                router.back();
-              },
-            },
-          ]),
-      },
-      { text: t("cancel"), style: "cancel" },
-    ]);
+    setShowOptions(true);
   };
 
   const header = (
@@ -576,6 +656,16 @@ export default function PostDetailScreen() {
         postCreatorId={post.creatorId}
         visible={showComments}
         onClose={() => setShowComments(false)}
+        colors={colors}
+      />
+
+      {/* Custom Post Options Modal */}
+      <PostOptionsModal
+        visible={showOptions}
+        onClose={() => setShowOptions(false)}
+        isHidden={post.isHidden ?? false}
+        onHide={() => { hidePost(post.id); router.back(); }}
+        onDelete={() => { deletePost(post.id); router.back(); }}
         colors={colors}
       />
     </View>

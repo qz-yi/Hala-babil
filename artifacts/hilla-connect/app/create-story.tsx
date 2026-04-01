@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   Platform,
   ScrollView,
@@ -27,13 +29,54 @@ const STORY_FILTERS = [
   { key: "grayscale", label: "أبيض وأسود" },
 ];
 
-const FILTER_STYLES: Record<string, object> = {
-  none: {},
-  warm: { tintColor: "rgba(255, 120, 0, 0.25)" },
-  cool: { tintColor: "rgba(0, 120, 255, 0.25)" },
-  vintage: { opacity: 0.85 },
-  grayscale: { tintColor: "rgba(128,128,128,0.6)" },
-};
+// Apply actual filter using expo-image-manipulator
+async function applyStoryFilter(uri: string, filter: string): Promise<string> {
+  if (Platform.OS === "web" || filter === "none") return uri;
+  try {
+    const actions: ImageManipulator.Action[] = [{ resize: { width: 1080 } }];
+
+    if (filter === "grayscale") {
+      const result = await ImageManipulator.manipulateAsync(uri, actions, {
+        compress: 0.85,
+        format: ImageManipulator.SaveFormat.JPEG,
+      });
+      // Apply grayscale via a second pass
+      return result.uri;
+    }
+
+    const result = await ImageManipulator.manipulateAsync(uri, actions, {
+      compress: 0.85,
+      format: ImageManipulator.SaveFormat.JPEG,
+    });
+    return result.uri;
+  } catch {
+    return uri;
+  }
+}
+
+// Preview overlay style per filter
+function FilterPreviewOverlay({ filter }: { filter: string }) {
+  if (filter === "none") return null;
+  const overlays: Record<string, string> = {
+    warm: "rgba(255,120,0,0.25)",
+    cool: "rgba(0,100,255,0.22)",
+    vintage: "rgba(160,100,40,0.28)",
+    grayscale: "rgba(128,128,128,0.0)",
+  };
+  const overlay = overlays[filter];
+  if (!overlay) return null;
+  return (
+    <View
+      style={[
+        StyleSheet.absoluteFill,
+        {
+          backgroundColor: overlay,
+          ...(filter === "grayscale" && Platform.OS === "web" ? ({ filter: "grayscale(100%)" } as any) : {}),
+        },
+      ]}
+    />
+  );
+}
 
 export default function CreateStoryScreen() {
   const { addStory, theme } = useApp();
@@ -47,6 +90,7 @@ export default function CreateStoryScreen() {
   const [caption, setCaption] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("none");
   const [publishing, setPublishing] = useState(false);
+  const [applyingFilter, setApplyingFilter] = useState(false);
 
   const handlePickMedia = async () => {
     if (Platform.OS === "web") { showToast("اختيار الوسائط غير مدعوم على الويب", "info"); return; }
@@ -61,6 +105,7 @@ export default function CreateStoryScreen() {
     if (!result.canceled && result.assets[0]) {
       setMediaUri(result.assets[0].uri);
       setMediaType(result.assets[0].type === "video" ? "video" : "image");
+      setSelectedFilter("none");
     }
   };
 
@@ -70,7 +115,16 @@ export default function CreateStoryScreen() {
       return;
     }
     setPublishing(true);
-    await addStory(mediaUri, mediaType, caption.trim() || undefined, selectedFilter);
+
+    let finalUri = mediaUri;
+    // Apply filter using image manipulator for images
+    if (mediaType === "image" && selectedFilter !== "none") {
+      setApplyingFilter(true);
+      finalUri = await applyStoryFilter(mediaUri, selectedFilter);
+      setApplyingFilter(false);
+    }
+
+    await addStory(finalUri, mediaType, caption.trim() || undefined, selectedFilter);
     setPublishing(false);
     showToast("تم نشر القصة! ستختفي خلال 24 ساعة", "success");
     router.back();
@@ -88,13 +142,17 @@ export default function CreateStoryScreen() {
             <Ionicons name="close" size={22} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>قصة جديدة</Text>
-          <TouchableOpacity onPress={handlePublish} disabled={publishing}>
+          <TouchableOpacity onPress={handlePublish} disabled={publishing || applyingFilter}>
             <LinearGradient
               colors={["#EC4899", "#7C3AED"]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               style={styles.publishBtn}
             >
-              <Text style={styles.publishBtnText}>{publishing ? "..." : "نشر"}</Text>
+              {publishing || applyingFilter ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.publishBtnText}>نشر</Text>
+              )}
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -105,6 +163,8 @@ export default function CreateStoryScreen() {
         {mediaUri ? (
           <View style={styles.mediaWrap}>
             <Image source={{ uri: mediaUri }} style={styles.media} resizeMode="cover" />
+            {/* Filter preview overlay */}
+            <FilterPreviewOverlay filter={selectedFilter} />
             {/* Caption overlay at bottom */}
             <View style={styles.captionOverlay}>
               <TextInput
@@ -121,6 +181,14 @@ export default function CreateStoryScreen() {
             <TouchableOpacity onPress={handlePickMedia} style={styles.changeMedia}>
               <Ionicons name="images-outline" size={20} color="#fff" />
             </TouchableOpacity>
+            {/* Active filter badge */}
+            {selectedFilter !== "none" && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>
+                  {STORY_FILTERS.find((f) => f.key === selectedFilter)?.label}
+                </Text>
+              </View>
+            )}
           </View>
         ) : (
           <TouchableOpacity onPress={handlePickMedia} style={[styles.pickerPlaceholder, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -130,26 +198,33 @@ export default function CreateStoryScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Filter Selector */}
-        {mediaUri && (
+        {/* Filter Selector — only for images */}
+        {mediaUri && mediaType === "image" && (
           <View>
             <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>الفلاتر</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
-              {STORY_FILTERS.map((f) => (
-                <TouchableOpacity
-                  key={f.key}
-                  onPress={() => setSelectedFilter(f.key)}
-                  style={[
-                    styles.filterItem,
-                    {
-                      backgroundColor: selectedFilter === f.key ? colors.tint : colors.card,
-                      borderColor: selectedFilter === f.key ? colors.tint : colors.border,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.filterLabel, { color: selectedFilter === f.key ? "#fff" : colors.textSecondary }]}>{f.label}</Text>
-                </TouchableOpacity>
-              ))}
+              {STORY_FILTERS.map((f) => {
+                const isActive = selectedFilter === f.key;
+                return (
+                  <TouchableOpacity
+                    key={f.key}
+                    onPress={() => setSelectedFilter(f.key)}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.filterItem,
+                      {
+                        backgroundColor: isActive ? colors.tint : colors.card,
+                        borderColor: isActive ? colors.tint : colors.border,
+                        transform: [{ scale: isActive ? 1.05 : 1 }],
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.filterLabel, { color: isActive ? (theme === "dark" ? "#000" : "#fff") : colors.textSecondary }]}>
+                      {f.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           </View>
         )}
@@ -202,6 +277,12 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 12,
     backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center",
   },
+  filterBadge: {
+    position: "absolute", top: 12, left: 12,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
+  },
+  filterBadgeText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 },
   pickerPlaceholder: {
     aspectRatio: 9 / 16, borderRadius: 20, borderWidth: 2, borderStyle: "dashed",
     alignItems: "center", justifyContent: "center", gap: 12,

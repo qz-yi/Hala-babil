@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
+  GestureResponderEvent,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -94,7 +95,7 @@ function ShareStoryModal({
 
 export default function StoryViewerScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
-  const { users, getUserStories, viewStory, currentUser, theme, likeStory, replyToStory } = useApp();
+  const { users, getUserStories, viewStory, currentUser, theme, likeStory, replyToStory, stories: allStories } = useApp();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 20 : insets.top;
@@ -117,6 +118,13 @@ export default function StoryViewerScreen() {
   const currentStory: Story | undefined = stories[currentIndex];
   const accentColor = ACCENT_COLORS[(user?.name?.length ?? 0) % ACCENT_COLORS.length];
   const isMyStory = currentUser?.id === userId;
+
+  // Compute ordered list of users who have active stories (for auto-advance)
+  const usersWithStories = users.filter((u) => {
+    const now = Date.now();
+    return allStories.some((s) => s.creatorId === u.id && s.expiresAt > now);
+  });
+  const currentUserIndex = usersWithStories.findIndex((u) => u.id === userId);
 
   useEffect(() => {
     if (!currentStory || paused) return;
@@ -146,7 +154,14 @@ export default function StoryViewerScreen() {
     if (currentIndex < stories.length - 1) {
       setCurrentIndex((i) => i + 1);
     } else {
-      router.back();
+      // Auto-advance to next user's stories
+      const nextUserIndex = currentUserIndex + 1;
+      if (nextUserIndex < usersWithStories.length) {
+        const nextUser = usersWithStories[nextUserIndex];
+        router.replace(`/story/${nextUser.id}` as any);
+      } else {
+        router.back();
+      }
     }
   };
 
@@ -169,6 +184,16 @@ export default function StoryViewerScreen() {
     replyToStory(currentStory.id, userId!, replyText.trim());
     setReplySent(true);
     setReplyText("");
+    setPaused(false);
+  };
+
+  // Long press handlers for pause/resume
+  const handlePressIn = () => {
+    animRef.current?.stop();
+    setPaused(true);
+  };
+
+  const handlePressOut = () => {
     setPaused(false);
   };
 
@@ -341,9 +366,21 @@ export default function StoryViewerScreen() {
         </View>
       )}
 
-      {/* Tap areas for navigation */}
-      <Pressable style={styles.tapLeft} onPress={handlePrev} />
-      <Pressable style={styles.tapRight} onPress={handleNext} />
+      {/* Tap areas — support long press to pause */}
+      <Pressable
+        style={styles.tapLeft}
+        onPress={handlePrev}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        delayLongPress={200}
+      />
+      <Pressable
+        style={styles.tapRight}
+        onPress={handleNext}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        delayLongPress={200}
+      />
 
       {/* Share modal */}
       <ShareStoryModal

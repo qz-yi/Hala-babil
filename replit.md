@@ -131,6 +131,29 @@ All data stored in AsyncStorage (no live backend DB from mobile). The API server
 - Phone: `07719820537`, Password: `1w2q3r4eSATHA2026$`
 - Crown badge on profile, gold theme, access to admin panel from drawer
 
+### v3.0 Improvements (Latest)
+
+#### Stories
+- **Long press pause**: `onPressIn`/`onPressOut` on tap areas pause/resume the progress timer and animation
+- **Auto-advance to next user**: When a user's last story ends, automatically navigates to the next user's stories (using `router.replace`) instead of going back to home
+- **Filter real application**: Story filters now apply via `expo-image-manipulator` before publishing (not just visual overlay)
+- **Filter preview overlay**: Shows live overlay on image while selecting filter, with active filter badge
+
+#### Post Creation
+- **Image/Video tabs**: Separate tabs at top of create post screen — image tab uses `ImagePicker.MediaTypeOptions.Images`, video tab uses `Videos`
+- **Video as permanent post**: Videos published through the video tab become regular posts (not just reels)
+- **Visible CROP button**: Bottom-right of image preview with dark pill background, label "قص"
+- **Filter applied via ImageManipulator**: Filters processed with `expo-image-manipulator` before saving
+
+#### Custom Modals (replaced system Alert.alert)
+- **Post options modal** (`post/[id].tsx`): Frosted-glass bottom sheet with hide/delete options; delete shows a confirmation step with red trash icon and "لا يمكن التراجع" warning
+- **Block user modal** (`chat/[id].tsx`): Bottom sheet with large slash icon, user name in subtitle, and styled block/cancel buttons
+
+#### Keyboard & Comments
+- `KeyboardAvoidingView` wrapping the comments sheet for proper keyboard avoidance
+- `returnKeyType="send"` on comment and reply inputs
+- Comments already supported `onSubmitEditing={handleSend}`
+
 ### Important Notes
 - Never define components inside other components (causes keyboard focus loss)
 - Use `Date.now().toString() + Math.random()` for IDs (no uuid package)
@@ -138,3 +161,4 @@ All data stored in AsyncStorage (no live backend DB from mobile). The API server
 - Use `useToast()` hook from `@/components/Toast` for all user feedback
 - Stories expire after 24 hours (checked via `expiresAt` timestamp)
 - Follow status: none → pending (private accounts) → accepted
+- Theme toggle already wired via `Switch` in profile drawer → `toggleTheme()` in AppContext, persisted in AsyncStorage

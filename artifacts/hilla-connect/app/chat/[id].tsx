@@ -600,18 +600,10 @@ export default function ChatScreen() {
     setRecordingDuration(0);
   };
 
+  const [showBlockModal, setShowBlockModal] = useState(false);
+
   const handleOptions = () => {
-    Alert.alert(otherUser?.name || "", "خيارات", [
-      {
-        text: t("block"),
-        style: "destructive",
-        onPress: () => {
-          if (otherUser) blockUser(otherUser.id);
-          router.back();
-        },
-      },
-      { text: t("cancel"), style: "cancel" },
-    ]);
+    setShowBlockModal(true);
   };
 
   if (!convo) {
@@ -833,9 +825,64 @@ export default function ChatScreen() {
           onClose={() => setMediaModal(null)}
         />
       )}
+
+      {/* Custom Block Modal */}
+      <Modal visible={showBlockModal} transparent animationType="fade" onRequestClose={() => setShowBlockModal(false)}>
+        <Pressable style={blockModalStyles.backdrop} onPress={() => setShowBlockModal(false)} />
+        <View style={[blockModalStyles.sheet, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View style={[blockModalStyles.handle, { backgroundColor: BORDER }]} />
+          <View style={blockModalStyles.iconWrap}>
+            <Feather name="slash" size={36} color="#FF3B5C" strokeWidth={1.5} />
+          </View>
+          <Text style={[blockModalStyles.title, { color: TEXT }]}>حظر المستخدم</Text>
+          <Text style={[blockModalStyles.subtitle, { color: TEXT2 }]}>
+            هل تريد حظر {otherUser?.name}؟ لن تتلقى منه رسائل أو تفاعلات بعد الآن.
+          </Text>
+          <TouchableOpacity
+            onPress={() => {
+              setShowBlockModal(false);
+              if (otherUser) blockUser(otherUser.id);
+              router.back();
+            }}
+            style={blockModalStyles.blockBtn}
+          >
+            <Text style={blockModalStyles.blockBtnText}>نعم، احظر المستخدم</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setShowBlockModal(false)}
+            style={[blockModalStyles.cancelBtn, { backgroundColor: "#1C1C1C" }]}
+          >
+            <Text style={[blockModalStyles.cancelText, { color: TEXT2 }]}>إلغاء</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 }
+
+const blockModalStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)" },
+  sheet: {
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderWidth: 1, padding: 20, paddingBottom: 40, gap: 12, alignItems: "center",
+  },
+  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+  iconWrap: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: "#FF3B5C22",
+    alignItems: "center", justifyContent: "center",
+    marginVertical: 8,
+  },
+  title: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
+  subtitle: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20, paddingHorizontal: 10 },
+  blockBtn: {
+    width: "100%", backgroundColor: "#FF3B5C",
+    borderRadius: 20, paddingVertical: 16, alignItems: "center", marginTop: 8,
+  },
+  blockBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  cancelBtn: { width: "100%", borderRadius: 20, paddingVertical: 16, alignItems: "center" },
+  cancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

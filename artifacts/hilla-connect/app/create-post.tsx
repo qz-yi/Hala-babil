@@ -7,6 +7,7 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -23,10 +24,11 @@ import { useApp } from "@/context/AppContext";
 import type { PostFilter } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 
+type MediaTab = "image" | "video";
 type MediaType = "none" | "image" | "video";
 
 // Color overlay config per filter
-const FILTER_CONFIG: Record<PostFilter, { label: string; overlay: string; brightness?: number }> = {
+const FILTER_CONFIG: Record<PostFilter, { label: string; overlay: string }> = {
   none: { label: "بدون", overlay: "transparent" },
   grayscale: { label: "أبيض وأسود", overlay: "rgba(0,0,0,0)" },
   warm: { label: "دافئ", overlay: "rgba(255,140,0,0.22)" },
@@ -34,13 +36,11 @@ const FILTER_CONFIG: Record<PostFilter, { label: string; overlay: string; bright
   vintage: { label: "كلاسيكي", overlay: "rgba(160,100,40,0.28)" },
 };
 
-// Apply CSS-style tint for web, or use image manipulator for grayscale on native
+// Apply filter using image manipulator
 async function applyFilterToImage(uri: string, filter: PostFilter): Promise<string> {
   if (Platform.OS === "web") return uri;
   if (filter === "none") return uri;
-
   try {
-    // Resize to reasonable quality
     const result = await ImageManipulator.manipulateAsync(
       uri,
       [{ resize: { width: 1080 } }],
@@ -53,38 +53,16 @@ async function applyFilterToImage(uri: string, filter: PostFilter): Promise<stri
 }
 
 // Image with visual filter overlay
-function FilteredImage({
-  uri,
-  filter,
-  style,
-}: {
-  uri: string;
-  filter: PostFilter;
-  style?: any;
-}) {
+function FilteredImage({ uri, filter, style }: { uri: string; filter: PostFilter; style?: any }) {
   const config = FILTER_CONFIG[filter];
   return (
     <View style={[style, { overflow: "hidden" }]}>
-      <Image
-        source={{ uri }}
-        style={[StyleSheet.absoluteFill, filter === "grayscale" ? { opacity: 1 } : {}]}
-        resizeMode="cover"
-      />
-      {filter === "grayscale" && (
-        <View
-          style={[
-            StyleSheet.absoluteFill,
-            { backgroundColor: "rgba(0,0,0,0)", mixBlendMode: "saturation" as any },
-          ]}
-        />
+      <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      {filter === "grayscale" && Platform.OS === "web" && (
+        <View style={[StyleSheet.absoluteFill, { filter: "grayscale(100%)" } as any]} />
       )}
       {filter !== "none" && filter !== "grayscale" && (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: config.overlay }]} />
-      )}
-      {filter === "grayscale" && Platform.OS === "web" && (
-        <View
-          style={[StyleSheet.absoluteFill, { filter: "grayscale(100%)" } as any]}
-        />
       )}
     </View>
   );
@@ -97,6 +75,7 @@ export default function CreatePostScreen() {
   const { showToast } = useToast();
   const topPad = Platform.OS === "web" ? 20 : insets.top;
 
+  const [activeTab, setActiveTab] = useState<MediaTab>("image");
   const [content, setContent] = useState("");
   const [mediaUri, setMediaUri] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<MediaType>("none");
@@ -109,21 +88,52 @@ export default function CreatePostScreen() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") { showToast("يرجى السماح بالوصول للمعرض", "error"); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 0.8,
+      quality: 0.85,
     });
     if (!result.canceled && result.assets[0]) {
       setMediaUri(result.assets[0].uri);
-      setMediaType(result.assets[0].type === "video" ? "video" : "image");
+      setMediaType("image");
       setSelectedFilter("none");
     }
   };
 
+  const handlePickVideo = async () => {
+    if (Platform.OS === "web") { showToast("اختيار الفيديو غير مدعوم على الويب", "info"); return; }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") { showToast("يرجى السماح بالوصول للمعرض", "error"); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: true,
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setMediaUri(result.assets[0].uri);
+      setMediaType("video");
+      setSelectedFilter("none");
+    }
+  };
+
+  const handleTabPress = (tab: MediaTab) => {
+    setActiveTab(tab);
+    // Clear current media if switching tabs
+    if (tab !== mediaType && mediaUri) {
+      setMediaUri(null);
+      setMediaType("none");
+      setSelectedFilter("none");
+    }
+  };
+
+  const handlePickMedia = () => {
+    if (activeTab === "image") handlePickImage();
+    else handlePickVideo();
+  };
+
   const handlePublish = async () => {
     if (!content.trim() && !mediaUri) {
-      showToast("أضف نصاً أو صورة على الأقل", "error");
+      showToast("أضف نصاً أو وسائط على الأقل", "error");
       return;
     }
     setPublishing(true);
@@ -145,7 +155,10 @@ export default function CreatePostScreen() {
   const filterKeys = Object.keys(FILTER_CONFIG) as PostFilter[];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       {/* Header */}
       <LinearGradient
         colors={theme === "dark" ? ["rgba(79,70,229,0.15)", "transparent"] : ["rgba(79,70,229,0.06)", "transparent"]}
@@ -170,6 +183,30 @@ export default function CreatePostScreen() {
             </LinearGradient>
           </TouchableOpacity>
         </View>
+
+        {/* Media Type Tabs */}
+        <View style={[styles.tabsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {(["image", "video"] as MediaTab[]).map((tab) => {
+            const isActive = activeTab === tab;
+            return (
+              <TouchableOpacity
+                key={tab}
+                onPress={() => handleTabPress(tab)}
+                style={[styles.tab, isActive && styles.tabActive]}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={tab === "image" ? "image-outline" : "videocam-outline"}
+                  size={17}
+                  color={isActive ? "#fff" : colors.textSecondary}
+                />
+                <Text style={[styles.tabText, { color: isActive ? "#fff" : colors.textSecondary }]}>
+                  {tab === "image" ? "صورة" : "فيديو"}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </LinearGradient>
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
@@ -183,9 +220,10 @@ export default function CreatePostScreen() {
           multiline
           textAlignVertical="top"
           textAlign="right"
+          returnKeyType="default"
         />
 
-        {/* Media Preview with filter */}
+        {/* Media Preview */}
         {mediaUri && mediaType === "image" ? (
           <View style={styles.mediaPreviewWrap}>
             <FilteredImage uri={mediaUri} filter={selectedFilter} style={styles.mediaPreviewInner} />
@@ -195,7 +233,13 @@ export default function CreatePostScreen() {
             >
               <Ionicons name="close-circle" size={30} color="#fff" />
             </TouchableOpacity>
-            {/* Filter badge */}
+            {/* Crop / re-pick button */}
+            <TouchableOpacity onPress={handlePickImage} style={styles.cropBtn}>
+              <View style={styles.cropBtnInner}>
+                <Ionicons name="crop-outline" size={16} color="#fff" />
+                <Text style={styles.cropBtnText}>قص</Text>
+              </View>
+            </TouchableOpacity>
             {selectedFilter !== "none" && (
               <View style={styles.filterBadge}>
                 <Text style={styles.filterBadgeText}>{FILTER_CONFIG[selectedFilter].label}</Text>
@@ -204,8 +248,9 @@ export default function CreatePostScreen() {
           </View>
         ) : mediaUri && mediaType === "video" ? (
           <View style={styles.mediaPreviewWrap}>
-            <View style={[styles.mediaPreviewInner, { backgroundColor: "#000", alignItems: "center", justifyContent: "center" }]}>
-              <Ionicons name="play-circle" size={60} color="rgba(255,255,255,0.9)" />
+            <View style={[styles.mediaPreviewInner, { backgroundColor: "#111", alignItems: "center", justifyContent: "center" }]}>
+              <Ionicons name="play-circle" size={64} color="rgba(255,255,255,0.9)" />
+              <Text style={styles.videoLabel}>تم اختيار الفيديو</Text>
             </View>
             <TouchableOpacity
               onPress={() => { setMediaUri(null); setMediaType("none"); }}
@@ -213,14 +258,31 @@ export default function CreatePostScreen() {
             >
               <Ionicons name="close-circle" size={30} color="#fff" />
             </TouchableOpacity>
+            {/* Re-pick button */}
+            <TouchableOpacity onPress={handlePickVideo} style={styles.cropBtn}>
+              <View style={styles.cropBtnInner}>
+                <Ionicons name="videocam-outline" size={16} color="#fff" />
+                <Text style={styles.cropBtnText}>تغيير</Text>
+              </View>
+            </TouchableOpacity>
           </View>
         ) : (
           <TouchableOpacity
-            onPress={handlePickImage}
+            onPress={handlePickMedia}
             style={[styles.mediaPickerBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            activeOpacity={0.8}
           >
-            <Ionicons name="images-outline" size={36} color={colors.textSecondary} />
-            <Text style={[styles.mediaPickerText, { color: colors.textSecondary }]}>اضغط لإضافة صورة أو فيديو</Text>
+            <Ionicons
+              name={activeTab === "image" ? "images-outline" : "videocam-outline"}
+              size={40}
+              color={colors.textSecondary}
+            />
+            <Text style={[styles.mediaPickerText, { color: colors.textSecondary }]}>
+              {activeTab === "image" ? "اضغط لإضافة صورة" : "اضغط لإضافة فيديو"}
+            </Text>
+            <Text style={[styles.mediaPickerHint, { color: colors.textSecondary }]}>
+              {activeTab === "video" ? "سيُنشر كمنشور دائم" : "يمكنك تطبيق فلتر بعد الاختيار"}
+            </Text>
           </TouchableOpacity>
         )}
 
@@ -228,7 +290,7 @@ export default function CreatePostScreen() {
         {mediaUri && mediaType === "image" && (
           <View style={styles.filtersSection}>
             <Text style={[styles.filtersSectionTitle, { color: colors.textSecondary }]}>
-              <Ionicons name="color-filter-outline" size={14} /> الفلاتر
+              الفلاتر
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
               {filterKeys.map((f) => {
@@ -240,16 +302,10 @@ export default function CreatePostScreen() {
                     style={styles.filterItem}
                     activeOpacity={0.8}
                   >
-                    {/* Filter thumbnail */}
                     <View style={[styles.filterThumb, isActive && styles.filterThumbActive]}>
                       <FilteredImage uri={mediaUri} filter={f} style={styles.filterThumbImg} />
                     </View>
-                    <Text
-                      style={[
-                        styles.filterLabel,
-                        { color: isActive ? colors.tint : colors.textSecondary },
-                      ]}
-                    >
+                    <Text style={[styles.filterLabel, { color: isActive ? colors.tint : colors.textSecondary }]}>
                       {FILTER_CONFIG[f].label}
                     </Text>
                     {isActive && (
@@ -261,48 +317,66 @@ export default function CreatePostScreen() {
             </ScrollView>
           </View>
         )}
-
-        {/* Media Picker Row */}
-        {!mediaUri && (
-          <View style={styles.actionRow}>
-            <TouchableOpacity onPress={handlePickImage} style={[styles.actionBtn, { backgroundColor: `${colors.tint}18`, borderColor: `${colors.tint}33` }]}>
-              <Ionicons name="image-outline" size={22} color={colors.tint} />
-              <Text style={[styles.actionBtnText, { color: colors.tint }]}>صورة</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handlePickImage} style={[styles.actionBtn, { backgroundColor: "#E1306C18", borderColor: "#E1306C33" }]}>
-              <Ionicons name="videocam-outline" size={22} color="#E1306C" />
-              <Text style={[styles.actionBtnText, { color: "#E1306C" }]}>فيديو</Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerGrad: { paddingHorizontal: 16, paddingBottom: 12 },
-  headerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 4 },
+  headerGrad: { paddingHorizontal: 16, paddingBottom: 16 },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 4, marginBottom: 16 },
   closeBtn: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", borderWidth: 1 },
   headerTitle: { flex: 1, fontSize: 20, fontFamily: "Inter_700Bold" },
   publishBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 14, minWidth: 70, alignItems: "center" },
   publishBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 },
-  body: { padding: 16, gap: 16 },
+  // Tabs
+  tabsRow: {
+    flexDirection: "row", borderRadius: 16, borderWidth: 1, overflow: "hidden", padding: 4, gap: 4,
+  },
+  tab: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, paddingVertical: 10, borderRadius: 12,
+  },
+  tabActive: {
+    backgroundColor: "#7C3AED",
+  },
+  tabText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  body: { padding: 16, gap: 16, paddingBottom: 40 },
   captionInput: {
     borderRadius: 16, borderWidth: 1, padding: 14,
     fontSize: 16, fontFamily: "Inter_400Regular",
-    minHeight: 120, lineHeight: 24,
+    minHeight: 100, lineHeight: 24,
   },
   mediaPreviewWrap: { borderRadius: 16, overflow: "hidden", position: "relative", aspectRatio: 4 / 3 },
   mediaPreviewInner: { width: "100%", height: "100%" },
   removeMedia: { position: "absolute", top: 10, right: 10 },
+  cropBtn: {
+    position: "absolute", bottom: 12, right: 12,
+  },
+  cropBtnInner: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.3)",
+  },
+  cropBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  videoLabel: {
+    color: "rgba(255,255,255,0.7)", fontFamily: "Inter_400Regular",
+    fontSize: 13, marginTop: 10,
+  },
   filterBadge: {
-    position: "absolute", bottom: 10, left: 10,
+    position: "absolute", bottom: 12, left: 12,
     backgroundColor: "rgba(0,0,0,0.6)",
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
   },
   filterBadgeText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 },
+  mediaPickerBtn: {
+    aspectRatio: 4 / 3, borderRadius: 16, borderWidth: 2, borderStyle: "dashed",
+    alignItems: "center", justifyContent: "center", gap: 10,
+  },
+  mediaPickerText: { fontSize: 15, fontFamily: "Inter_500Medium", textAlign: "center" },
+  mediaPickerHint: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", opacity: 0.7 },
   // Filters
   filtersSection: { gap: 10 },
   filtersSectionTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", paddingHorizontal: 2 },
@@ -316,13 +390,4 @@ const styles = StyleSheet.create({
   filterThumbImg: { width: "100%", height: "100%" },
   filterLabel: { fontSize: 11, fontFamily: "Inter_500Medium" },
   filterActiveDot: { width: 6, height: 6, borderRadius: 3 },
-  // Picker
-  mediaPickerBtn: {
-    aspectRatio: 4 / 3, borderRadius: 16, borderWidth: 2, borderStyle: "dashed",
-    alignItems: "center", justifyContent: "center", gap: 10,
-  },
-  mediaPickerText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
-  actionRow: { flexDirection: "row", gap: 12 },
-  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 52, borderRadius: 16, borderWidth: 1 },
-  actionBtnText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
 });

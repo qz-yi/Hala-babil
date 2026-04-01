@@ -287,14 +287,13 @@ export default function ProfileScreen() {
   const {
     currentUser,
     isSuperAdmin,
-    updateUser,
+    updateProfile,
     logout,
     getFollowers,
     getFollowing,
     getUserPosts,
     getUserReels,
     getFollowRequests,
-    setAccountType,
     theme,
     language,
     t,
@@ -331,7 +330,7 @@ export default function ProfileScreen() {
     if (!perm.granted) { showToast("يجب السماح بالوصول للصور", "error"); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8, allowsEditing: true, aspect: [1, 1] });
     if (!result.canceled && result.assets[0]) {
-      await updateUser({ avatar: result.assets[0].uri });
+      await updateProfile(currentUser!.name, currentUser!.bio, result.assets[0].uri);
       showToast("تم تحديث الصورة", "success");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
@@ -340,7 +339,7 @@ export default function ProfileScreen() {
   const handleSaveProfile = async () => {
     if (!editName.trim()) { showToast(t("fillAll"), "error"); return; }
     setSaving(true);
-    await updateUser({ name: editName.trim(), bio: editBio.trim() });
+    await updateProfile(editName.trim(), editBio.trim());
     setSaving(false);
     setEditModal(false);
     showToast(t("saved"), "success");
@@ -348,7 +347,7 @@ export default function ProfileScreen() {
   };
 
   const handleSetAccountType = async (type: AccountType) => {
-    await setAccountType(type);
+    await updateProfile(currentUser!.name, currentUser!.bio, undefined, type);
     setAccountTypeModal(false);
     showToast(type === "public" ? "الحساب عام الآن" : "الحساب خاص الآن", "success");
   };

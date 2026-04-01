@@ -281,9 +281,13 @@ interface AppContextValue {
   isFollowing: (userId: string) => boolean;
   isFollowedBy: (userId: string) => boolean;
   getFollowStatus: (userId: string) => "none" | "pending" | "following";
+  getFollowers: (userId: string) => Follow[];
+  getFollowing: (userId: string) => Follow[];
   getFollowersCount: (userId: string) => number;
   getFollowingCount: (userId: string) => number;
   getFollowRequests: () => Follow[];
+  getUserPosts: (userId: string) => Post[];
+  getUserReels: (userId: string) => Reel[];
   // Notifications
   markNotificationRead: (notificationId: string) => void;
   markAllNotificationsRead: () => void;
@@ -1837,6 +1841,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [currentUser, follows]
   );
 
+  const getFollowers = useCallback(
+    (userId: string) => follows.filter((f) => f.followingId === userId && f.status === "accepted"),
+    [follows]
+  );
+
+  const getFollowing = useCallback(
+    (userId: string) => follows.filter((f) => f.followerId === userId && f.status === "accepted"),
+    [follows]
+  );
+
   const getFollowersCount = useCallback(
     (userId: string) => follows.filter((f) => f.followingId === userId && f.status === "accepted").length,
     [follows]
@@ -1845,6 +1859,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const getFollowingCount = useCallback(
     (userId: string) => follows.filter((f) => f.followerId === userId && f.status === "accepted").length,
     [follows]
+  );
+
+  const getUserPosts = useCallback(
+    (userId: string) => posts.filter((p) => p.creatorId === userId).sort((a, b) => b.createdAt - a.createdAt),
+    [posts]
+  );
+
+  const getUserReels = useCallback(
+    (userId: string) => reels.filter((r) => r.creatorId === userId).sort((a, b) => b.createdAt - a.createdAt),
+    [reels]
   );
 
   const getFollowRequests = useCallback(
@@ -1975,9 +1999,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addPostComment, deletePostComment, likePostComment, isPostCommentLiked, pinPostComment, getPostComments,
       addStory, deleteStory, viewStory, likeStory, replyToStory, getActiveStories, getUserStories, hasUnseenStory,
       followUser, unfollowUser, acceptFollowRequest, rejectFollowRequest, isFollowing, isFollowedBy,
-      getFollowStatus, getFollowersCount, getFollowingCount, getFollowRequests,
+      getFollowStatus, getFollowers, getFollowing, getFollowersCount, getFollowingCount, getFollowRequests,
       markNotificationRead, markAllNotificationsRead, getUnreadNotificationsCount,
       getFeedPosts, getFeedReels, getLikedReels, getMyComments, getMyPostComments, getLikedPosts,
+      getUserPosts, getUserReels,
       t,
     }),
     [
@@ -1992,9 +2017,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addPostComment, deletePostComment, likePostComment, isPostCommentLiked, pinPostComment, getPostComments,
       addStory, deleteStory, viewStory, likeStory, replyToStory, getActiveStories, getUserStories, hasUnseenStory,
       followUser, unfollowUser, acceptFollowRequest, rejectFollowRequest, isFollowing, isFollowedBy,
-      getFollowStatus, getFollowersCount, getFollowingCount, getFollowRequests,
+      getFollowStatus, getFollowers, getFollowing, getFollowersCount, getFollowingCount, getFollowRequests,
       markNotificationRead, markAllNotificationsRead, getUnreadNotificationsCount,
-      getFeedPosts, getFeedReels, getLikedReels, getMyComments, getMyPostComments, getLikedPosts, t,
+      getFeedPosts, getFeedReels, getLikedReels, getMyComments, getMyPostComments, getLikedPosts,
+      getUserPosts, getUserReels, t,
     ]
   );
 

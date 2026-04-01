@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
@@ -23,9 +23,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { PrivateMessage, SharedContent, User } from "@/context/AppContext";
+
+const BG = "#000000";
+const CARD = "#121212";
+const BORDER = "#262626";
+const TEXT = "#FFFFFF";
+const TEXT2 = "#8E8E93";
 
 // ───── Media Fullscreen Modal ─────
 function VideoModalPlayer({ uri }: { uri: string }) {
@@ -59,7 +65,7 @@ function MediaFullscreenModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={mediaStyles.overlay}>
         <TouchableOpacity style={mediaStyles.closeBtn} onPress={onClose}>
-          <Ionicons name="close" size={20} color="#fff" />
+          <Feather name="x" size={20} color="#fff" strokeWidth={1.5} />
         </TouchableOpacity>
         {type === "image" ? (
           <Image source={{ uri }} style={mediaStyles.fullImage} resizeMode="contain" />
@@ -108,16 +114,16 @@ function SharedContentPreview({
   colors: any;
 }) {
   const ICONS: Record<string, string> = {
-    post: "images-outline",
-    reel: "play-circle-outline",
-    story: "radio-button-on-outline",
+    post: "image",
+    reel: "play-circle",
+    story: "circle",
   };
   const LABELS: Record<string, string> = {
     post: "منشور",
     reel: "مقطع فيديو",
     story: "قصة",
   };
-  const iconColor = isMe ? "rgba(255,255,255,0.9)" : colors.tint;
+  const iconColor = isMe ? "rgba(255,255,255,0.9)" : "#3D91F4";
   const handleTap = () => {
     if (sharedContent.type === "post") {
       router.push(`/post/${sharedContent.id}` as any);
@@ -133,39 +139,39 @@ function SharedContentPreview({
       style={[
         sharedStyles.card,
         {
-          backgroundColor: isMe ? "rgba(255,255,255,0.18)" : colors.backgroundSecondary,
-          borderColor: isMe ? "rgba(255,255,255,0.3)" : colors.border,
+          backgroundColor: isMe ? "rgba(255,255,255,0.18)" : "#1C1C1C",
+          borderColor: isMe ? "rgba(255,255,255,0.3)" : BORDER,
         },
       ]}
     >
       {/* Thumbnail */}
       <View
-        style={[sharedStyles.thumb, { backgroundColor: isMe ? "rgba(255,255,255,0.12)" : `${colors.tint}22` }]}
+        style={[sharedStyles.thumb, { backgroundColor: isMe ? "rgba(255,255,255,0.12)" : `${"#3D91F4"}22` }]}
       >
         {sharedContent.mediaUrl ? (
           <Image source={{ uri: sharedContent.mediaUrl }} style={StyleSheet.absoluteFill as any} resizeMode="cover" />
         ) : null}
         <View style={sharedStyles.thumbOverlay}>
-          <Ionicons name={ICONS[sharedContent.type] as any} size={24} color={iconColor} />
+          <Feather name={ICONS[sharedContent.type] as any} size={22} color={iconColor} strokeWidth={1.5} />
         </View>
       </View>
       {/* Info */}
       <View style={sharedStyles.info}>
-        <Text style={[sharedStyles.typeLabel, { color: isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary }]}>
+        <Text style={[sharedStyles.typeLabel, { color: isMe ? "rgba(255,255,255,0.7)" : TEXT2 }]}>
           {LABELS[sharedContent.type]}
         </Text>
         {sharedContent.title ? (
-          <Text style={[sharedStyles.title, { color: isMe ? "#fff" : colors.text }]} numberOfLines={2}>
+          <Text style={[sharedStyles.title, { color: isMe ? "#fff" : TEXT }]} numberOfLines={2}>
             {sharedContent.title}
           </Text>
         ) : null}
         {sharedContent.creatorName ? (
-          <Text style={[sharedStyles.creator, { color: isMe ? "rgba(255,255,255,0.65)" : colors.textSecondary }]}>
+          <Text style={[sharedStyles.creator, { color: isMe ? "rgba(255,255,255,0.65)" : TEXT2 }]}>
             {sharedContent.creatorName}
           </Text>
         ) : null}
       </View>
-      <Ionicons name="chevron-forward" size={16} color={isMe ? "rgba(255,255,255,0.5)" : colors.textSecondary} />
+      <Feather name="chevron-right" size={14} color={isMe ? "rgba(255,255,255,0.5)" : TEXT2} strokeWidth={1.5} />
     </TouchableOpacity>
   );
 }
@@ -196,7 +202,7 @@ function StoryReplyRef({ storyId, colors, isMe }: { storyId: string; colors: any
   return (
     <TouchableOpacity
       onPress={() => router.push(`/story/${story.creatorId}` as any)}
-      style={[storyRefStyles.wrap, { borderColor: isMe ? "rgba(255,255,255,0.3)" : colors.border }]}
+      style={[storyRefStyles.wrap, { borderColor: isMe ? "rgba(255,255,255,0.3)" : BORDER }]}
       activeOpacity={0.8}
     >
       <View style={storyRefStyles.thumb}>
@@ -206,7 +212,7 @@ function StoryReplyRef({ storyId, colors, isMe }: { storyId: string; colors: any
           <View style={[StyleSheet.absoluteFill as any, { backgroundColor: "#7C3AED88" }]} />
         )}
       </View>
-      <Text style={[storyRefStyles.label, { color: isMe ? "rgba(255,255,255,0.75)" : colors.textSecondary }]}>
+      <Text style={[storyRefStyles.label, { color: isMe ? "rgba(255,255,255,0.75)" : TEXT2 }]}>
         رد على قصة
       </Text>
     </TouchableOpacity>
@@ -278,13 +284,14 @@ function AudioBubble({ msg, isMe, colors }: { msg: PrivateMessage; isMe: boolean
       <View
         style={[
           styles.audioPlayBtn,
-          { backgroundColor: isMe ? "rgba(255,255,255,0.25)" : `${colors.tint}22` },
+          { backgroundColor: isMe ? "rgba(255,255,255,0.25)" : `${"#3D91F4"}22` },
         ]}
       >
-        <Ionicons
+        <Feather
           name={playing ? "pause" : "play"}
-          size={14}
-          color={isMe ? "#fff" : colors.tint}
+          size={13}
+          color={isMe ? "#fff" : "#3D91F4"}
+          strokeWidth={1.5}
         />
       </View>
       <View style={styles.audioWave}>
@@ -299,10 +306,10 @@ function AudioBubble({ msg, isMe, colors }: { msg: PrivateMessage; isMe: boolean
                   progress > i / waveHeights.length
                     ? isMe
                       ? "#fff"
-                      : colors.tint
+                      : "#3D91F4"
                     : isMe
                     ? "rgba(255,255,255,0.4)"
-                    : `${colors.tint}55`,
+                    : `${"#3D91F4"}55`,
               },
             ]}
           />
@@ -310,7 +317,7 @@ function AudioBubble({ msg, isMe, colors }: { msg: PrivateMessage; isMe: boolean
       </View>
       {msg.duration != null ? (
         <Text
-          style={[styles.audioDuration, { color: isMe ? "rgba(255,255,255,0.8)" : colors.textSecondary }]}
+          style={[styles.audioDuration, { color: isMe ? "rgba(255,255,255,0.8)" : TEXT2 }]}
         >
           {Math.floor(msg.duration / 60)}:{(msg.duration % 60).toString().padStart(2, "0")}
         </Text>
@@ -344,8 +351,8 @@ function MessageBubble({
         style={[
           styles.bubble,
           {
-            backgroundColor: isMe ? accentColor : colors.card,
-            borderColor: isMe ? "transparent" : colors.border,
+            backgroundColor: isMe ? accentColor : CARD,
+            borderColor: isMe ? "transparent" : BORDER,
           },
         ]}
       >
@@ -365,7 +372,7 @@ function MessageBubble({
           >
             <Image source={{ uri: msg.mediaUrl }} style={styles.msgImage} resizeMode="cover" />
             <View style={styles.mediaExpandIcon}>
-              <Ionicons name="expand-outline" size={14} color="#fff" />
+              <Feather name="maximize" size={12} color="#fff" strokeWidth={1.5} />
             </View>
           </TouchableOpacity>
         ) : msg.type === "video" && msg.mediaUrl ? (
@@ -380,10 +387,10 @@ function MessageBubble({
                 { backgroundColor: "#000", alignItems: "center", justifyContent: "center" },
               ]}
             >
-              <Ionicons name="play" size={44} color="rgba(255,255,255,0.9)" />
+              <Feather name="play" size={40} color="rgba(255,255,255,0.9)" strokeWidth={1.5} />
             </View>
             <View style={styles.mediaExpandIcon}>
-              <Ionicons name="expand-outline" size={14} color="#fff" />
+              <Feather name="maximize" size={12} color="#fff" strokeWidth={1.5} />
             </View>
           </TouchableOpacity>
         ) : msg.type === "audio" ? (
@@ -391,13 +398,13 @@ function MessageBubble({
         ) : null}
 
         {msg.content ? (
-          <Text style={[styles.bubbleText, { color: isMe ? "#fff" : colors.text }]}>
+          <Text style={[styles.bubbleText, { color: isMe ? "#fff" : TEXT }]}>
             {msg.content}
           </Text>
         ) : null}
 
         <Text
-          style={[styles.bubbleTime, { color: isMe ? "rgba(255,255,255,0.6)" : colors.textSecondary }]}
+          style={[styles.bubbleTime, { color: isMe ? "rgba(255,255,255,0.6)" : TEXT2 }]}
         >
           {formatTime(msg.timestamp)}
           {isMe && <Text> {msg.read ? "✓✓" : "✓"}</Text>}
@@ -422,12 +429,12 @@ function RecordingIndicator({ duration, colors }: { duration: number; colors: an
   }, []);
 
   return (
-    <View style={[recStyles.container, { backgroundColor: colors.backgroundSecondary }]}>
+    <View style={[recStyles.container, { backgroundColor: "#1C1C1C" }]}>
       <Animated.View style={[recStyles.dot, { transform: [{ scale: pulseAnim }] }]} />
-      <Text style={[recStyles.text, { color: colors.text }]}>
+      <Text style={[recStyles.text, { color: TEXT }]}>
         جاري التسجيل... {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, "0")}
       </Text>
-      <Text style={[recStyles.hint, { color: colors.textSecondary }]}>أفلت للإرسال</Text>
+      <Text style={[recStyles.hint, { color: TEXT2 }]}>أفلت للإرسال</Text>
     </View>
   );
 }
@@ -450,8 +457,7 @@ const recStyles = StyleSheet.create({
 // ───── Chat Screen ─────
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { conversations, currentUser, sendPrivateMessage, blockUser, t, theme } = useApp();
-  const colors = Colors[theme];
+  const { conversations, currentUser, sendPrivateMessage, blockUser, t } = useApp();
   const insets = useSafeAreaInsets();
   const [message, setMessage] = useState("");
   const [showAttach, setShowAttach] = useState(false);
@@ -612,19 +618,19 @@ export default function ChatScreen() {
       <View
         style={[
           styles.container,
-          { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" },
+          { backgroundColor: BG, justifyContent: "center", alignItems: "center" },
         ]}
       >
-        <Text style={{ color: colors.textSecondary }}>المحادثة غير موجودة</Text>
+        <Text style={{ color: TEXT2 }}>المحادثة غير موجودة</Text>
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={{ color: colors.tint, marginTop: 12 }}>رجوع</Text>
+          <Text style={{ color: "#3D91F4", marginTop: 12 }}>رجوع</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: BG }]}>
       {/* Header */}
       <LinearGradient
         colors={[`${accentColor}20`, "transparent"]}
@@ -633,9 +639,9 @@ export default function ChatScreen() {
         <View style={styles.headerRow}>
           <TouchableOpacity
             onPress={() => router.back()}
-            style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[styles.backBtn, { backgroundColor: CARD, borderColor: BORDER }]}
           >
-            <Ionicons name="arrow-back" size={20} color={colors.text} />
+            <Feather name="arrow-left" size={20} color={TEXT} strokeWidth={1.5} />
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => otherUser && router.push(`/profile/${otherUser.id}`)}>
@@ -651,10 +657,10 @@ export default function ChatScreen() {
           </TouchableOpacity>
 
           <View style={styles.headerInfo}>
-            <Text style={[styles.headerName, { color: colors.text }]}>{otherUser?.name}</Text>
+            <Text style={[styles.headerName, { color: TEXT }]}>{otherUser?.name}</Text>
             <View style={styles.onlineRow}>
               <View style={styles.onlineDot} />
-              <Text style={[styles.onlineText, { color: colors.textSecondary }]}>{t("online")}</Text>
+              <Text style={[styles.onlineText, { color: TEXT2 }]}>{t("online")}</Text>
             </View>
           </View>
 
@@ -663,19 +669,19 @@ export default function ChatScreen() {
               style={[styles.callBtn, { backgroundColor: `${accentColor}22` }]}
               onPress={() => Alert.alert(t("voiceCall"), "قريباً")}
             >
-              <Ionicons name="call-outline" size={18} color={accentColor} />
+              <Feather name="phone" size={18} color={accentColor} strokeWidth={1.5} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.callBtn, { backgroundColor: `${accentColor}22` }]}
               onPress={() => Alert.alert(t("videoCall"), "قريباً")}
             >
-              <Ionicons name="videocam-outline" size={18} color={accentColor} />
+              <Feather name="video" size={18} color={accentColor} strokeWidth={1.5} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleOptions}
-              style={[styles.callBtn, { backgroundColor: colors.backgroundTertiary }]}
+              style={[styles.callBtn, { backgroundColor: "#1C1C1C" }]}
             >
-              <Ionicons name="ellipsis-vertical" size={18} color={colors.textSecondary} />
+              <Feather name="more-vertical" size={18} color={TEXT2} strokeWidth={1.5} />
             </TouchableOpacity>
           </View>
         </View>
@@ -696,10 +702,10 @@ export default function ChatScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyChat}>
-              <Ionicons name="chatbubble-outline" size={40} color={colors.border} />
+              <Feather name="message-circle" size={40} color={BORDER} strokeWidth={1} />
               <Text
                 style={[
-                  { color: colors.textSecondary, fontFamily: "Inter_400Regular", marginTop: 8 },
+                  { color: TEXT2, fontFamily: "Inter_400Regular", marginTop: 8 },
                 ]}
               >
                 ابدأ المحادثة
@@ -720,20 +726,20 @@ export default function ChatScreen() {
         {/* Attachment Menu */}
         {showAttach && !isRecording && (
           <View
-            style={[styles.attachMenu, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[styles.attachMenu, { backgroundColor: CARD, borderColor: BORDER }]}
           >
             <TouchableOpacity
               onPress={handlePickImage}
-              style={[styles.attachItem, { backgroundColor: `${colors.tint}18` }]}
+              style={[styles.attachItem, { backgroundColor: `${"#3D91F4"}18` }]}
             >
-              <Ionicons name="image-outline" size={22} color={colors.tint} />
-              <Text style={[styles.attachLabel, { color: colors.tint }]}>صورة</Text>
+              <Feather name="image" size={22} color="#3D91F4" strokeWidth={1.5} />
+              <Text style={[styles.attachLabel, { color: "#3D91F4" }]}>صورة</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handlePickVideo}
               style={[styles.attachItem, { backgroundColor: "#E1306C18" }]}
             >
-              <Ionicons name="videocam-outline" size={22} color="#E1306C" />
+              <Feather name="video" size={22} color="#E1306C" strokeWidth={1.5} />
               <Text style={[styles.attachLabel, { color: "#E1306C" }]}>فيديو</Text>
             </TouchableOpacity>
           </View>
@@ -745,8 +751,8 @@ export default function ChatScreen() {
             styles.inputBar,
             {
               paddingBottom: botPad + 8,
-              backgroundColor: colors.backgroundSecondary,
-              borderTopColor: colors.border,
+              backgroundColor: "#1C1C1C",
+              borderTopColor: BORDER,
             },
           ]}
         >
@@ -756,26 +762,27 @@ export default function ChatScreen() {
                 onPress={() => setShowAttach((v) => !v)}
                 style={[
                   styles.attachBtn,
-                  { backgroundColor: showAttach ? `${colors.tint}22` : colors.backgroundTertiary },
+                  { backgroundColor: showAttach ? "#3D91F422" : "#1C1C1C" },
                 ]}
               >
-                <Ionicons
-                  name={showAttach ? "close" : "attach"}
-                  size={22}
-                  color={showAttach ? colors.tint : colors.textSecondary}
+                <Feather
+                  name={showAttach ? "x" : "paperclip"}
+                  size={20}
+                  color={showAttach ? "#3D91F4" : TEXT2}
+                  strokeWidth={1.5}
                 />
               </TouchableOpacity>
 
               <View
                 style={[
                   styles.inputWrapper,
-                  { backgroundColor: colors.inputBackground, borderColor: colors.border },
+                  { backgroundColor: "#1C1C1C", borderColor: BORDER },
                 ]}
               >
                 <TextInput
-                  style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
+                  style={[styles.input, { color: TEXT, fontFamily: "Inter_400Regular" }]}
                   placeholder={t("typeMessage")}
-                  placeholderTextColor={colors.textSecondary}
+                  placeholderTextColor={TEXT2}
                   value={message}
                   onChangeText={setMessage}
                   multiline
@@ -790,15 +797,15 @@ export default function ChatScreen() {
                   onPress={handleSend}
                   style={[styles.sendBtn, { backgroundColor: accentColor }]}
                 >
-                  <Ionicons name="send" size={18} color="#fff" />
+                  <Feather name="send" size={18} color="#fff" strokeWidth={1.5} />
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
                   onLongPress={handleStartRecording}
                   delayLongPress={200}
-                  style={[styles.sendBtn, { backgroundColor: colors.backgroundTertiary }]}
+                  style={[styles.sendBtn, { backgroundColor: "#1C1C1C" }]}
                 >
-                  <Ionicons name="mic-outline" size={22} color={colors.textSecondary} />
+                  <Feather name="mic" size={22} color={TEXT2} strokeWidth={1.5} />
                 </TouchableOpacity>
               )}
             </>
@@ -809,7 +816,7 @@ export default function ChatScreen() {
                 onPress={handleStopRecording}
                 style={[styles.sendBtn, { backgroundColor: "#E1306C" }]}
               >
-                <Ionicons name="stop-circle" size={22} color="#fff" />
+                <Feather name="stop-circle" size={22} color="#fff" strokeWidth={1.5} />
               </TouchableOpacity>
             </>
           )}

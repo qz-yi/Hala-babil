@@ -1,4 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -19,55 +21,121 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import Colors, { ACCENT_COLORS, STORY_GRADIENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { Post, PostComment, Story, User } from "@/context/AppContext";
+import { PostSkeleton, StorySkeleton } from "@/components/SkeletonLoader";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const BG = "#000000";
+const CARD = "#121212";
+const BORDER = "#262626";
+const TEXT = "#FFFFFF";
+const TEXT2 = "#8E8E93";
+
+// ───── Gradient Story Ring ─────
+function GradientStoryRing({
+  size = 68,
+  hasUnseen,
+  children,
+}: {
+  size?: number;
+  hasUnseen: boolean;
+  children: React.ReactNode;
+}) {
+  if (!hasUnseen) {
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          borderWidth: 1.5,
+          borderColor: BORDER,
+          padding: 2,
+          backgroundColor: BG,
+        }}
+      >
+        {children}
+      </View>
+    );
+  }
+  return (
+    <LinearGradient
+      colors={STORY_GRADIENT_COLORS}
+      start={{ x: 0, y: 1 }}
+      end={{ x: 1, y: 0 }}
+      style={{ width: size, height: size, borderRadius: size / 2, padding: 2.5 }}
+    >
+      <View
+        style={{
+          flex: 1,
+          borderRadius: size / 2,
+          overflow: "hidden",
+          backgroundColor: BG,
+          padding: 2,
+        }}
+      >
+        {children}
+      </View>
+    </LinearGradient>
+  );
+}
 
 // ───── Story Avatar ─────
 function StoryAvatar({
   user,
-  stories,
   hasUnseen,
   onPress,
-  colors,
   isMe,
 }: {
   user: User;
   stories: Story[];
   hasUnseen: boolean;
   onPress: () => void;
-  colors: any;
+  colors?: any;
   isMe?: boolean;
 }) {
   const accentColor = ACCENT_COLORS[(user.name?.length ?? 0) % ACCENT_COLORS.length];
-  const ringColor = hasUnseen ? "#E1306C" : colors.border;
 
   return (
-    <TouchableOpacity onPress={onPress} style={styles.storyItem} activeOpacity={0.8}>
-      <View style={[styles.storyRing, { borderColor: ringColor }]}>
+    <TouchableOpacity
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onPress();
+      }}
+      style={styles.storyItem}
+      activeOpacity={0.85}
+    >
+      <GradientStoryRing size={68} hasUnseen={hasUnseen}>
         {user.avatar ? (
-          <Image source={{ uri: user.avatar }} style={styles.storyAvatar} />
+          <Image
+            source={{ uri: user.avatar }}
+            style={{ width: "100%", height: "100%", borderRadius: 34 }}
+          />
         ) : (
           <View
-            style={[
-              styles.storyAvatar,
-              { backgroundColor: `${accentColor}44`, alignItems: "center", justifyContent: "center" },
-            ]}
+            style={{
+              width: "100%",
+              height: "100%",
+              borderRadius: 34,
+              backgroundColor: `${accentColor}33`,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
-            <Text style={[styles.storyInitial, { color: accentColor }]}>
+            <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: accentColor }}>
               {user.name[0]?.toUpperCase()}
             </Text>
           </View>
         )}
-        {isMe && (
-          <View style={[styles.storyAddBtn, { backgroundColor: colors.tint }]}>
-            <Ionicons name="add" size={12} color="#fff" />
-          </View>
-        )}
-      </View>
-      <Text style={[styles.storyName, { color: colors.text }]} numberOfLines={1}>
+      </GradientStoryRing>
+      {isMe && (
+        <View style={styles.storyAddBtn}>
+          <Feather name="plus" size={10} color="#fff" strokeWidth={2.5} />
+        </View>
+      )}
+      <Text style={styles.storyName} numberOfLines={1}>
         {isMe ? "قصتي" : user.name.split(" ")[0]}
       </Text>
     </TouchableOpacity>
@@ -79,12 +147,10 @@ function CommentSheet({
   postId,
   visible,
   onClose,
-  colors,
 }: {
   postId: string;
   visible: boolean;
   onClose: () => void;
-  colors: any;
 }) {
   const { getPostComments, addPostComment, users } = useApp();
   const [text, setText] = useState("");
@@ -94,22 +160,21 @@ function CommentSheet({
     if (!text.trim()) return;
     addPostComment(postId, text.trim());
     setText("");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
-      <View style={[styles.commentSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>التعليقات</Text>
+      <View style={styles.commentSheet}>
+        <View style={styles.sheetHandle} />
+        <Text style={styles.sheetTitle}>التعليقات</Text>
         <FlatList
           data={comments}
           keyExtractor={(c) => c.id}
           style={{ maxHeight: 320 }}
           ListEmptyComponent={
-            <Text style={[styles.emptyComments, { color: colors.textSecondary }]}>
-              لا توجد تعليقات بعد — كن أول من يعلق!
-            </Text>
+            <Text style={styles.emptyComments}>لا توجد تعليقات بعد — كن أول من يعلق!</Text>
           }
           renderItem={({ item }: { item: PostComment }) => {
             const commenter = users.find((u) => u.id === item.userId);
@@ -126,27 +191,25 @@ function CommentSheet({
                   )}
                 </View>
                 <View style={styles.commentBody}>
-                  <Text style={[styles.commentUser, { color: colors.tint }]}>{item.userName}</Text>
-                  <Text style={[styles.commentText, { color: colors.text }]}>{item.content}</Text>
+                  <Text style={[styles.commentUser, { color: "#3D91F4" }]}>{item.userName}</Text>
+                  <Text style={styles.commentText}>{item.content}</Text>
                 </View>
               </View>
             );
           }}
         />
-        <View
-          style={[styles.commentInput, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
-        >
+        <View style={styles.commentInputRow}>
           <TextInput
-            style={[styles.commentInputField, { color: colors.text, fontFamily: "Inter_400Regular" }]}
+            style={styles.commentInputField}
             value={text}
             onChangeText={setText}
             placeholder="أضف تعليقاً..."
-            placeholderTextColor={colors.textSecondary}
+            placeholderTextColor={TEXT2}
             textAlign="right"
             multiline
           />
-          <TouchableOpacity onPress={handleSend} style={styles.sendCommentBtn}>
-            <Ionicons name="send" size={20} color={colors.tint} />
+          <TouchableOpacity onPress={handleSend} style={styles.sendBtn}>
+            <Feather name="send" size={18} color="#3D91F4" strokeWidth={1.5} />
           </TouchableOpacity>
         </View>
       </View>
@@ -159,37 +222,34 @@ function SharePostSheet({
   post,
   visible,
   onClose,
-  colors,
 }: {
   post: Post;
   visible: boolean;
   onClose: () => void;
-  colors: any;
 }) {
   const { users, currentUser, getConversation, sendPrivateMessage } = useApp();
   const others = users.filter((u) => u.id !== currentUser?.id);
 
   const handleShare = (user: User) => {
     const convo = getConversation(user.id);
-    const snippet = post.content ? post.content.substring(0, 50) : post.mediaType !== "none" ? "وسائط" : "منشور";
+    const snippet = post.content ? post.content.substring(0, 50) : "منشور";
     sendPrivateMessage(convo.id, user.id, `📸 شارك منشوراً: "${snippet}"`, "text");
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onClose();
   };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
-      <View style={[styles.commentSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>مشاركة مع</Text>
+      <View style={styles.commentSheet}>
+        <View style={styles.sheetHandle} />
+        <Text style={styles.sheetTitle}>مشاركة مع</Text>
         <FlatList
           data={others}
           keyExtractor={(u) => u.id}
           style={{ maxHeight: 320 }}
           ListEmptyComponent={
-            <Text style={[styles.emptyComments, { color: colors.textSecondary }]}>
-              لا يوجد أصدقاء للمشاركة معهم
-            </Text>
+            <Text style={styles.emptyComments}>لا يوجد أصدقاء للمشاركة معهم</Text>
           }
           renderItem={({ item }: { item: User }) => {
             const color = ACCENT_COLORS[(item.name?.length ?? 0) % ACCENT_COLORS.length];
@@ -205,12 +265,9 @@ function SharePostSheet({
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.commentUser, { color: colors.text }]}>{item.name}</Text>
-                  <Text style={[styles.commentText, { color: colors.textSecondary, fontSize: 12 }]}>
-                    {item.phone}
-                  </Text>
+                  <Text style={styles.commentUser}>{item.name}</Text>
                 </View>
-                <Ionicons name="paper-plane-outline" size={18} color={colors.tint} />
+                <Feather name="send" size={16} color={TEXT2} strokeWidth={1.5} />
               </TouchableOpacity>
             );
           }}
@@ -220,8 +277,8 @@ function SharePostSheet({
   );
 }
 
-// ───── Post Card ─────
-function PostCard({ post, colors, theme }: { post: Post; colors: any; theme: string }) {
+// ───── Post Card (Instagram-style) ─────
+function PostCard({ post }: { post: Post }) {
   const { users, isPostLiked, likePost, getPostLikesCount, getPostComments } = useApp();
   const creator = users.find((u) => u.id === post.creatorId);
   const liked = isPostLiked(post.id);
@@ -232,8 +289,8 @@ function PostCard({ post, colors, theme }: { post: Post; colors: any; theme: str
 
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
 
-  // Double tap heart
   const lastTapRef = useRef(0);
   const heartAnim = useRef(new Animated.Value(0)).current;
   const heartScale = useRef(new Animated.Value(0.4)).current;
@@ -245,22 +302,24 @@ function PostCard({ post, colors, theme }: { post: Post; colors: any; theme: str
       heartAnim.setValue(1);
       heartScale.setValue(0.4);
       Animated.parallel([
-        Animated.spring(heartScale, { toValue: 1, useNativeDriver: true, friction: 4 }),
+        Animated.spring(heartScale, { toValue: 1.1, useNativeDriver: true, friction: 4 }),
         Animated.sequence([
-          Animated.delay(600),
+          Animated.delay(700),
           Animated.timing(heartAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
         ]),
       ]).start();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     lastTapRef.current = now;
   };
 
   const handleLike = () => {
     Animated.sequence([
-      Animated.timing(scaleAnim, { toValue: 1.3, duration: 100, useNativeDriver: true }),
-      Animated.timing(scaleAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 1.35, duration: 100, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, friction: 4 }),
     ]).start();
     likePost(post.id);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   if (!creator) return null;
@@ -276,8 +335,8 @@ function PostCard({ post, colors, theme }: { post: Post; colors: any; theme: str
   };
 
   return (
-    <View style={[styles.postCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      {/* Header */}
+    <View style={styles.postCard}>
+      {/* ── Header ── */}
       <TouchableOpacity
         style={styles.postHeader}
         onPress={() => router.push(`/profile/${creator.id}`)}
@@ -293,15 +352,15 @@ function PostCard({ post, colors, theme }: { post: Post; colors: any; theme: str
           )}
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.postCreatorName, { color: colors.text }]}>{creator.name}</Text>
-          <Text style={[styles.postTime, { color: colors.textSecondary }]}>
-            {formatTime(post.createdAt)}
-          </Text>
+          <Text style={styles.postCreatorName}>{creator.name}</Text>
+          <Text style={styles.postTime}>{formatTime(post.createdAt)}</Text>
         </View>
-        <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
+        <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Feather name="more-horizontal" size={20} color={TEXT2} strokeWidth={1.5} />
+        </TouchableOpacity>
       </TouchableOpacity>
 
-      {/* Media with double tap */}
+      {/* ── Media ── */}
       {post.mediaUrl && post.mediaType === "image" && (
         <Pressable onPress={handleDoubleTap} style={{ position: "relative" }}>
           <Image source={{ uri: post.mediaUrl }} style={styles.postMedia} resizeMode="cover" />
@@ -309,55 +368,68 @@ function PostCard({ post, colors, theme }: { post: Post; colors: any; theme: str
             pointerEvents="none"
             style={[styles.heartOverlay, { opacity: heartAnim, transform: [{ scale: heartScale }] }]}
           >
-            <Ionicons name="heart" size={90} color="#E1306C" />
+            <Feather name="heart" size={90} color="#FF3B5C" strokeWidth={0} />
           </Animated.View>
         </Pressable>
       )}
 
-      {/* Caption */}
-      {post.content ? (
-        <Text style={[styles.postCaption, { color: colors.text }]}>{post.content}</Text>
-      ) : null}
+      {/* ── Caption ── */}
+      {post.content ? <Text style={styles.postCaption}>{post.content}</Text> : null}
 
-      {/* Actions */}
+      {/* ── Actions ── */}
       <View style={styles.postActions}>
-        <TouchableOpacity style={styles.postActionBtn} onPress={handleLike}>
-          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-            <Ionicons
-              name={liked ? "heart" : "heart-outline"}
-              size={26}
-              color={liked ? "#E1306C" : colors.textSecondary}
-            />
-          </Animated.View>
-          {likesCount > 0 && (
-            <Text style={[styles.postActionCount, { color: colors.textSecondary }]}>{likesCount}</Text>
-          )}
-        </TouchableOpacity>
+        <View style={styles.postActionsLeft}>
+          <TouchableOpacity style={styles.postActionBtn} onPress={handleLike}>
+            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+              <Feather
+                name="heart"
+                size={24}
+                color={liked ? "#FF3B5C" : TEXT}
+                strokeWidth={liked ? 0 : 1.5}
+              />
+            </Animated.View>
+            {likesCount > 0 && <Text style={styles.postActionCount}>{likesCount}</Text>}
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.postActionBtn} onPress={() => setShowComments(true)}>
-          <Ionicons name="chatbubble-outline" size={24} color={colors.textSecondary} />
-          {commentsCount > 0 && (
-            <Text style={[styles.postActionCount, { color: colors.textSecondary }]}>{commentsCount}</Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.postActionBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowComments(true);
+            }}
+          >
+            <Feather name="message-circle" size={24} color={TEXT} strokeWidth={1.5} />
+            {commentsCount > 0 && <Text style={styles.postActionCount}>{commentsCount}</Text>}
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.postActionBtn} onPress={() => setShowShare(true)}>
-          <Ionicons name="paper-plane-outline" size={24} color={colors.textSecondary} />
+          <TouchableOpacity
+            style={styles.postActionBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowShare(true);
+            }}
+          >
+            <Feather name="send" size={22} color={TEXT} strokeWidth={1.5} />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          onPress={() => {
+            setBookmarked(!bookmarked);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }}
+        >
+          <Feather
+            name="bookmark"
+            size={22}
+            color={bookmarked ? TEXT : TEXT}
+            strokeWidth={bookmarked ? 0 : 1.5}
+          />
         </TouchableOpacity>
       </View>
 
-      <CommentSheet
-        postId={post.id}
-        visible={showComments}
-        onClose={() => setShowComments(false)}
-        colors={colors}
-      />
-      <SharePostSheet
-        post={post}
-        visible={showShare}
-        onClose={() => setShowShare(false)}
-        colors={colors}
-      />
+      <CommentSheet postId={post.id} visible={showComments} onClose={() => setShowComments(false)} />
+      <SharePostSheet post={post} visible={showShare} onClose={() => setShowShare(false)} />
     </View>
   );
 }
@@ -376,7 +448,6 @@ export default function HomeScreen() {
     theme,
   } = useApp();
 
-  const colors = Colors[theme];
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 20 : insets.top;
 
@@ -385,11 +456,17 @@ export default function HomeScreen() {
 
   const storyUsers: User[] = [];
   const seenIds = new Set<string>();
-  if (currentUser) { storyUsers.push(currentUser); seenIds.add(currentUser.id); }
+  if (currentUser) {
+    storyUsers.push(currentUser);
+    seenIds.add(currentUser.id);
+  }
   activeStories.forEach((s) => {
     if (!seenIds.has(s.creatorId)) {
       const u = users.find((u) => u.id === s.creatorId);
-      if (u) { storyUsers.push(u); seenIds.add(u.id); }
+      if (u) {
+        storyUsers.push(u);
+        seenIds.add(u.id);
+      }
     }
   });
 
@@ -409,191 +486,189 @@ export default function HomeScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* ── Header ── */}
-      <LinearGradient
-        colors={
-          theme === "dark"
-            ? ["rgba(79,70,229,0.18)", "transparent"]
-            : ["rgba(79,70,229,0.07)", "transparent"]
-        }
-        style={[styles.headerGrad, { paddingTop: topPad + 8 }]}
-      >
+    <View style={styles.container}>
+      {/* ── Header with Blur ── */}
+      <View style={[styles.headerWrap, { paddingTop: topPad }]}>
+        {Platform.OS === "ios" && (
+          <BlurView
+            intensity={60}
+            tint="dark"
+            style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.5)" }]}
+          />
+        )}
+        {Platform.OS !== "ios" && (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.92)" }]} />
+        )}
         <View style={styles.headerRow}>
-          <Text style={[styles.headerLogo, { color: colors.text }]}>هلا بابل</Text>
+          <Text style={styles.headerLogo}>هلا بابل</Text>
           <View style={styles.headerIcons}>
-            {/* Create Post */}
             <TouchableOpacity
-              style={[styles.headerIconBtn, styles.headerIconBtnPrimary, { backgroundColor: colors.tint }]}
-              onPress={() => router.push("/create-post")}
+              style={styles.headerIconBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/create-post");
+              }}
             >
-              <Ionicons name="add" size={24} color="#fff" />
+              <Feather name="plus-square" size={24} color={TEXT} strokeWidth={1.5} />
             </TouchableOpacity>
-            {/* Messages */}
             <TouchableOpacity
-              style={[styles.headerIconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push("/(tabs)/messages" as any)}
+              style={styles.headerIconBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/(tabs)/messages" as any);
+              }}
             >
-              <Ionicons name="chatbubble-outline" size={22} color={colors.text} />
+              <Feather name="send" size={22} color={TEXT} strokeWidth={1.5} />
               {unreadMessages > 0 && (
-                <View style={[styles.badge, { backgroundColor: "#3B82F6" }]}>
+                <View style={styles.badge}>
                   <Text style={styles.badgeText}>{unreadMessages}</Text>
                 </View>
               )}
             </TouchableOpacity>
-            {/* Notifications */}
             <TouchableOpacity
-              style={[styles.headerIconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push("/notifications")}
+              style={styles.headerIconBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/notifications");
+              }}
             >
-              <Ionicons name="notifications-outline" size={22} color={colors.text} />
+              <Feather name="bell" size={22} color={TEXT} strokeWidth={1.5} />
               {unreadNotifs > 0 && (
-                <View style={[styles.badge, { backgroundColor: "#E1306C" }]}>
+                <View style={[styles.badge, { backgroundColor: "#FF3B5C" }]}>
                   <Text style={styles.badgeText}>{unreadNotifs > 9 ? "9+" : unreadNotifs}</Text>
                 </View>
               )}
             </TouchableOpacity>
           </View>
         </View>
-      </LinearGradient>
+      </View>
 
       <FlatList
         data={feedPosts}
         keyExtractor={(p) => p.id}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingTop: topPad + 52 }}
         ListHeaderComponent={
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.storiesBar}
-            style={[styles.storiesContainer, { borderBottomColor: colors.border }]}
+            style={styles.storiesContainer}
           >
-            {storyUsers.map((user) => (
-              <StoryAvatar
-                key={user.id}
-                user={user}
-                stories={getUserStories(user.id)}
-                hasUnseen={hasUnseenStory(user.id)}
-                onPress={() => handleStoryPress(user)}
-                colors={colors}
-                isMe={user.id === currentUser?.id}
-              />
-            ))}
-            {storyUsers.length === 0 && (
+            {storyUsers.length === 0 && currentUser ? (
               <StoryAvatar
                 key="me-placeholder"
-                user={currentUser!}
+                user={currentUser}
                 stories={[]}
                 hasUnseen={false}
                 onPress={() => router.push("/create-story")}
-                colors={colors}
                 isMe
               />
+            ) : (
+              storyUsers.map((user) => (
+                <StoryAvatar
+                  key={user.id}
+                  user={user}
+                  stories={getUserStories(user.id)}
+                  hasUnseen={hasUnseenStory(user.id)}
+                  onPress={() => handleStoryPress(user)}
+                  isMe={user.id === currentUser?.id}
+                />
+              ))
             )}
           </ScrollView>
         }
         ListEmptyComponent={
           <View style={styles.emptyFeed}>
-            <Ionicons name="people-outline" size={64} color={colors.border} />
-            <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>لا توجد منشورات</Text>
-            <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
-              تابع أشخاصاً لترى منشوراتهم هنا
-            </Text>
+            <Feather name="users" size={56} color={BORDER} strokeWidth={1} />
+            <Text style={styles.emptyTitle}>لا توجد منشورات</Text>
+            <Text style={styles.emptyDesc}>تابع أشخاصاً لترى منشوراتهم هنا</Text>
             <TouchableOpacity
               onPress={() => router.push("/create-post")}
-              style={[styles.createFirstPost, { backgroundColor: colors.tint }]}
+              style={styles.createFirstPost}
             >
-              <Ionicons name="add" size={18} color="#fff" />
-              <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
-                أنشئ أول منشور
-              </Text>
+              <Text style={styles.createFirstPostText}>أنشئ أول منشور</Text>
             </TouchableOpacity>
           </View>
         }
-        renderItem={({ item }) => <PostCard post={item} colors={colors} theme={theme} />}
+        renderItem={({ item }) => <PostCard post={item} />}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  headerGrad: { paddingHorizontal: 16, paddingBottom: 12 },
+  container: { flex: 1, backgroundColor: BG },
+
+  // Header
+  headerWrap: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    borderBottomWidth: 0.5,
+    borderBottomColor: BORDER,
+  },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 4,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    paddingTop: 8,
   },
-  headerLogo: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  headerIcons: { flexDirection: "row", gap: 8 },
-  headerIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    position: "relative",
-  },
-  headerIconBtnPrimary: { borderWidth: 0 },
+  headerLogo: { fontSize: 22, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.5 },
+  headerIcons: { flexDirection: "row", gap: 8, alignItems: "center" },
+  headerIconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center", position: "relative" },
   badge: {
     position: "absolute",
-    top: -4,
-    right: -4,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#3D91F4",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 3,
   },
-  badgeText: { color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold" },
-  storiesContainer: { borderBottomWidth: 1 },
-  storiesBar: { paddingHorizontal: 12, paddingVertical: 14, gap: 16 },
-  storyItem: { alignItems: "center", gap: 6, width: 68 },
-  storyRing: {
-    width: 64,
-    height: 64,
-    borderRadius: 22,
-    borderWidth: 2.5,
-    padding: 2,
-    position: "relative",
-  },
-  storyAvatar: { width: "100%", height: "100%", borderRadius: 19, overflow: "hidden" },
-  storyInitial: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  badgeText: { color: "#fff", fontSize: 9, fontFamily: "Inter_700Bold" },
+
+  // Stories
+  storiesContainer: { borderBottomWidth: 0.5, borderBottomColor: BORDER },
+  storiesBar: { paddingHorizontal: 16, paddingVertical: 12, gap: 16 },
+  storyItem: { alignItems: "center", gap: 6, width: 72, position: "relative" },
   storyAddBtn: {
     position: "absolute",
-    bottom: -2,
-    right: -2,
+    bottom: 24,
+    right: 4,
     width: 20,
     height: 20,
-    borderRadius: 6,
+    borderRadius: 10,
+    backgroundColor: "#3D91F4",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: BG,
   },
-  storyName: { fontSize: 11, fontFamily: "Inter_500Medium", textAlign: "center", width: 68 },
-  postCard: {
-    marginHorizontal: 12,
-    marginBottom: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  postHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12 },
+  storyName: { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT, textAlign: "center", width: 72 },
+
+  // Posts (Instagram style - borderless)
+  postCard: { backgroundColor: BG, marginBottom: 2 },
+  postHeader: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
   postAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   },
-  postAvatarText: { fontSize: 17, fontFamily: "Inter_700Bold" },
-  postCreatorName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  postTime: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
-  postMedia: { width: "100%", aspectRatio: 1 },
+  postAvatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  postCreatorName: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT },
+  postTime: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2, marginTop: 1 },
+  postMedia: { width: SCREEN_WIDTH, aspectRatio: 1 },
   heartOverlay: {
     position: "absolute",
     top: 0,
@@ -604,76 +679,73 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   postCaption: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
     fontSize: 14,
     fontFamily: "Inter_400Regular",
+    color: TEXT,
     lineHeight: 22,
   },
   postActions: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-    gap: 20,
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
-  postActionBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
-  postActionCount: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  emptyFeed: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-    gap: 16,
-    paddingHorizontal: 40,
-  },
-  emptyTitle: { fontSize: 20, fontFamily: "Inter_600SemiBold", textAlign: "center" },
-  emptyDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
-  createFirstPost: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 14,
-    marginTop: 8,
-  },
+  postActionsLeft: { flexDirection: "row", alignItems: "center", gap: 16 },
+  postActionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+  postActionCount: { fontSize: 14, fontFamily: "Inter_500Medium", color: TEXT },
+
   // Comment Sheet
-  sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
+  sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
   commentSheet: {
+    backgroundColor: CARD,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    borderWidth: 1,
+    borderTopWidth: 0.5,
+    borderColor: BORDER,
     padding: 20,
-    paddingBottom: 32,
+    paddingBottom: 36,
     gap: 12,
   },
-  sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
-  sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
-  emptyComments: { textAlign: "center", fontFamily: "Inter_400Regular", padding: 24 },
+  sheetHandle: { width: 36, height: 3, borderRadius: 2, backgroundColor: BORDER, alignSelf: "center", marginBottom: 4 },
+  sheetTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: TEXT, textAlign: "center" },
+  emptyComments: { color: TEXT2, textAlign: "center", fontFamily: "Inter_400Regular", paddingVertical: 24 },
   commentItem: { flexDirection: "row", gap: 10, paddingVertical: 8, alignItems: "flex-start" },
-  commentAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  commentAvatarImg: { width: "100%", height: "100%" },
-  commentAvatarText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 14 },
+  commentAvatar: { width: 32, height: 32, borderRadius: 16, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  commentAvatarImg: { width: "100%", height: "100%", borderRadius: 16 },
+  commentAvatarText: { fontSize: 13, fontFamily: "Inter_700Bold" },
   commentBody: { flex: 1 },
-  commentUser: { fontFamily: "Inter_600SemiBold", fontSize: 13, marginBottom: 2 },
-  commentText: { fontFamily: "Inter_400Regular", fontSize: 14 },
-  commentInput: {
+  commentUser: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT },
+  commentText: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT, marginTop: 2 },
+  commentInputRow: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    minHeight: 48,
     gap: 10,
+    backgroundColor: "#1C1C1C",
+    borderRadius: 24,
+    borderWidth: 0.5,
+    borderColor: BORDER,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginTop: 4,
   },
-  commentInputField: { flex: 1, fontSize: 15, maxHeight: 80 },
-  sendCommentBtn: { padding: 4 },
+  commentInputField: { flex: 1, color: TEXT, fontFamily: "Inter_400Regular", fontSize: 14, maxHeight: 80 },
+  sendBtn: { padding: 4 },
   shareUser: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
+
+  // Empty
+  emptyFeed: { alignItems: "center", justifyContent: "center", paddingVertical: 80, gap: 16, paddingHorizontal: 40 },
+  emptyTitle: { fontSize: 20, fontFamily: "Inter_600SemiBold", color: TEXT2, textAlign: "center" },
+  emptyDesc: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center", lineHeight: 22 },
+  createFirstPost: {
+    backgroundColor: TEXT,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 100,
+    marginTop: 8,
+  },
+  createFirstPostText: { color: BG, fontFamily: "Inter_600SemiBold", fontSize: 15 },
 });

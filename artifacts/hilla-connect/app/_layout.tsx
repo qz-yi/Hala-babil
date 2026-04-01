@@ -23,15 +23,13 @@ const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   const { theme } = useApp();
-  const isDark = theme === "dark";
+  const bg = "#000000";
 
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: {
-          backgroundColor: isDark ? "#0A0A14" : "#F8F8FC",
-        },
+        contentStyle: { backgroundColor: bg },
         animation: "fade_from_bottom",
       }}
     >
@@ -137,7 +135,7 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AppProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
+            <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#000000" }}>
               <KeyboardProvider>
                 <ToastProvider>
                   <RootLayoutNav />

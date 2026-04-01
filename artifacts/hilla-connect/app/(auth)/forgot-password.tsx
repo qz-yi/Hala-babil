@@ -1,70 +1,55 @@
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React from "react";
-import {
-  Linking,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 
-export default function ForgotPasswordScreen() {
-  const { t, theme } = useApp();
-  const colors = Colors[theme];
-  const insets = useSafeAreaInsets();
+const BG = "#000000";
+const CARD = "#121212";
+const BORDER = "#262626";
+const TEXT = "#FFFFFF";
+const TEXT2 = "#8E8E93";
 
+export default function ForgotPasswordScreen() {
+  const { t } = useApp();
+  const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const contactAdmin = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Linking.openURL("https://wa.me/9647719820537?text=طلب+إعادة+تعيين+كلمة+المرور");
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad, paddingBottom: botPad }]}>
+    <View style={[styles.container, { paddingTop: topPad, paddingBottom: botPad }]}>
       <TouchableOpacity
         onPress={() => router.back()}
-        style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border, top: topPad + 16 }]}
+        style={[styles.backBtn, { top: topPad + 12 }]}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
-        <Ionicons name="arrow-back" size={22} color={colors.text} />
+        <Feather name="arrow-left" size={22} color={TEXT} strokeWidth={1.5} />
       </TouchableOpacity>
 
       <View style={styles.content}>
-        <LinearGradient colors={["#F59E0B", "#D97706"]} style={styles.iconBox}>
-          <Ionicons name="help-buoy" size={36} color="#fff" />
-        </LinearGradient>
-
-        <Text style={[styles.title, { color: colors.text }]}>
-          {t("forgotPassword")}
-        </Text>
-        <Text style={[styles.desc, { color: colors.textSecondary }]}>
-          لاستعادة كلمة مرورك، يرجى التواصل مع المدير الأعلى عبر واتساب وسيتم المساعدة في إعادة تعيينها.
-        </Text>
-
-        <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Ionicons name="shield-checkmark" size={20} color={colors.warning} />
-          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-            سيتم إعادة تعيين كلمة مرورك بشكل آمن بعد التحقق من هويتك.
-          </Text>
+        <View style={styles.iconBox}>
+          <Feather name="lock" size={36} color="#F59E0B" strokeWidth={1.5} />
         </View>
+        <Text style={styles.title}>{t("forgotPassword")}</Text>
+        <Text style={styles.desc}>
+          لاستعادة كلمة المرور، تواصل مع المشرف عبر واتساب وسيتم مساعدتك في أقرب وقت ممكن.
+        </Text>
 
-        <TouchableOpacity activeOpacity={0.85} onPress={contactAdmin}>
-          <LinearGradient
-            colors={["#25D366", "#128C7E"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.whatsappBtn}
-          >
-            <Ionicons name="logo-whatsapp" size={22} color="#fff" />
-            <Text style={styles.whatsappBtnText}>{t("contactAdmin")}</Text>
-          </LinearGradient>
+        <TouchableOpacity onPress={contactAdmin} style={styles.waBtn} activeOpacity={0.85}>
+          <Feather name="message-circle" size={20} color="#fff" strokeWidth={1.5} />
+          <Text style={styles.waBtnText}>تواصل مع المشرف عبر واتساب</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => router.back()} style={styles.backTextBtn}>
+          <Text style={styles.backTextBtnText}>{t("cancel")}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -72,50 +57,41 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 24 },
+  container: { flex: 1, backgroundColor: BG },
   backBtn: {
     position: "absolute",
-    left: 24,
-    width: 44, height: 44, borderRadius: 14,
-    alignItems: "center", justifyContent: "center", borderWidth: 1,
-    zIndex: 10,
-  },
-  content: {
-    flex: 1,
+    left: 16,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
-    gap: 20,
+    zIndex: 10,
   },
+  content: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, gap: 20 },
   iconBox: {
-    width: 88, height: 88, borderRadius: 28,
-    alignItems: "center", justifyContent: "center",
-    shadowColor: "#F59E0B", shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4, shadowRadius: 16, elevation: 14,
-    marginBottom: 8,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "#F59E0B18",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 0.5,
+    borderColor: "#F59E0B44",
   },
-  title: { fontSize: 28, fontFamily: "Inter_700Bold", textAlign: "center" },
-  desc: {
-    fontSize: 15, fontFamily: "Inter_400Regular",
-    textAlign: "center", lineHeight: 24, maxWidth: 320,
-  },
-  infoCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    maxWidth: 340,
-  },
-  infoText: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
-  whatsappBtn: {
+  title: { fontSize: 26, fontFamily: "Inter_700Bold", color: TEXT, textAlign: "center" },
+  desc: { fontSize: 15, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center", lineHeight: 24 },
+  waBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingVertical: 18, paddingHorizontal: 32,
-    borderRadius: 18,
-    shadowColor: "#25D366", shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4, shadowRadius: 14, elevation: 10,
+    backgroundColor: "#25D366",
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 100,
+    width: "100%",
+    justifyContent: "center",
   },
-  whatsappBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  waBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  backTextBtn: { paddingVertical: 12 },
+  backTextBtnText: { color: TEXT2, fontSize: 15, fontFamily: "Inter_500Medium" },
 });

@@ -1,6 +1,7 @@
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -14,12 +15,18 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 
+const BG = "#000000";
+const CARD = "#121212";
+const BORDER = "#262626";
+const TEXT = "#FFFFFF";
+const TEXT2 = "#8E8E93";
+const INPUT_BG = "#1C1C1C";
+
 interface FieldProps {
-  icon: string;
+  icon: keyof typeof Feather.glyphMap;
   placeholder: string;
   value: string;
   onChangeText: (v: string) => void;
@@ -31,7 +38,6 @@ interface FieldProps {
   onToggleSecure?: () => void;
   last?: boolean;
   onSubmit?: () => void;
-  colors: any;
 }
 
 function RegisterField({
@@ -47,16 +53,15 @@ function RegisterField({
   onToggleSecure,
   last = false,
   onSubmit,
-  colors,
 }: FieldProps) {
   return (
-    <View style={[styles.inputWrapper, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
-      <Ionicons name={icon as any} size={20} color={colors.textSecondary} style={{ flexShrink: 0 }} />
+    <View style={styles.inputWrapper}>
+      <Feather name={icon} size={18} color={TEXT2} strokeWidth={1.5} />
       <TextInput
         ref={inputRef}
-        style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
+        style={styles.input}
         placeholder={placeholder}
-        placeholderTextColor={colors.textSecondary}
+        placeholderTextColor={TEXT2}
         value={value}
         onChangeText={onChangeText}
         keyboardType={keyboardType}
@@ -67,7 +72,7 @@ function RegisterField({
       />
       {secure && onToggleSecure && (
         <TouchableOpacity onPress={onToggleSecure}>
-          <Ionicons name={showSecure ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textSecondary} />
+          <Feather name={showSecure ? "eye-off" : "eye"} size={18} color={TEXT2} strokeWidth={1.5} />
         </TouchableOpacity>
       )}
     </View>
@@ -75,9 +80,8 @@ function RegisterField({
 }
 
 export default function RegisterScreen() {
-  const { register, t, theme } = useApp();
+  const { register, t } = useApp();
   const { showToast } = useToast();
-  const colors = Colors[theme];
   const insets = useSafeAreaInsets();
 
   const [name, setName] = useState("");
@@ -104,7 +108,15 @@ export default function RegisterScreen() {
       return;
     }
     setLoading(true);
-    const success = await register(name.trim(), phone.trim(), email.trim(), parseInt(age), address.trim(), password);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const success = await register(
+      name.trim(),
+      phone.trim(),
+      email.trim(),
+      parseInt(age),
+      address.trim(),
+      password
+    );
     setLoading(false);
     if (success) {
       showToast(t("success") + "! " + t("welcome"), "success");
@@ -112,19 +124,12 @@ export default function RegisterScreen() {
       router.replace("/(tabs)");
     } else {
       showToast(t("phoneExists"), "error");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LinearGradient
-        colors={
-          theme === "dark"
-            ? ["rgba(124,58,237,0.12)", "transparent"]
-            : ["rgba(79,70,229,0.07)", "transparent"]
-        }
-        style={StyleSheet.absoluteFill}
-      />
+    <View style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -132,59 +137,56 @@ export default function RegisterScreen() {
         <ScrollView
           contentContainerStyle={[
             styles.scroll,
-            { paddingTop: topPad + 20, paddingBottom: botPad + 40 },
+            { paddingTop: topPad + 16, paddingBottom: botPad + 40 },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <TouchableOpacity
             onPress={() => router.back()}
-            style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={styles.backBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <Feather name="arrow-left" size={22} color={TEXT} strokeWidth={1.5} />
           </TouchableOpacity>
 
           <View style={styles.headerBlock}>
             <LinearGradient
-              colors={["#10B981", "#059669"]}
-              style={styles.iconBox}
+              colors={["#34D399", "#059669"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.logoRing}
             >
-              <Ionicons name="person-add" size={28} color="#fff" />
+              <View style={styles.logoInner}>
+                <Feather name="user-plus" size={26} color={TEXT} strokeWidth={1.5} />
+              </View>
             </LinearGradient>
-            <Text style={[styles.title, { color: colors.text }]}>
-              {t("register")}
-            </Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              انضم إلى {t("hillaConnect")}
-            </Text>
+            <Text style={styles.title}>{t("register")}</Text>
+            <Text style={styles.subtitle}>انضم إلى هلا بابل</Text>
           </View>
 
           <View style={styles.form}>
-            <RegisterField icon="person-outline" placeholder={t("name")} value={name} onChangeText={setName} nextRef={phoneRef} colors={colors} />
-            <RegisterField icon="call-outline" placeholder={t("phone")} value={phone} onChangeText={setPhone} inputRef={phoneRef} nextRef={emailRef} keyboardType="phone-pad" colors={colors} />
-            <RegisterField icon="mail-outline" placeholder={t("email")} value={email} onChangeText={setEmail} inputRef={emailRef} nextRef={ageRef} keyboardType="email-address" colors={colors} />
-            <RegisterField icon="calendar-outline" placeholder={t("age")} value={age} onChangeText={setAge} inputRef={ageRef} nextRef={addressRef} keyboardType="number-pad" colors={colors} />
-            <RegisterField icon="location-outline" placeholder={t("address")} value={address} onChangeText={setAddress} inputRef={addressRef} nextRef={passRef} colors={colors} />
-            <RegisterField icon="lock-closed-outline" placeholder={t("password")} value={password} onChangeText={setPassword} inputRef={passRef} secure showSecure={showPassword} onToggleSecure={() => setShowPassword(!showPassword)} last onSubmit={handleRegister} colors={colors} />
+            <RegisterField icon="user" placeholder={t("name")} value={name} onChangeText={setName} nextRef={phoneRef} />
+            <RegisterField icon="phone" placeholder={t("phone")} value={phone} onChangeText={setPhone} inputRef={phoneRef} nextRef={emailRef} keyboardType="phone-pad" />
+            <RegisterField icon="mail" placeholder={t("email")} value={email} onChangeText={setEmail} inputRef={emailRef} nextRef={ageRef} keyboardType="email-address" />
+            <RegisterField icon="calendar" placeholder={t("age")} value={age} onChangeText={setAge} inputRef={ageRef} nextRef={addressRef} keyboardType="number-pad" />
+            <RegisterField icon="map-pin" placeholder={t("address")} value={address} onChangeText={setAddress} inputRef={addressRef} nextRef={passRef} />
+            <RegisterField icon="lock" placeholder={t("password")} value={password} onChangeText={setPassword} inputRef={passRef} secure showSecure={showPassword} onToggleSecure={() => setShowPassword(!showPassword)} last onSubmit={handleRegister} />
 
-            <TouchableOpacity activeOpacity={0.85} onPress={handleRegister} disabled={loading}>
-              <LinearGradient
-                colors={["#10B981", "#059669"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.submitBtn}
-              >
-                <Text style={styles.submitBtnText}>
-                  {loading ? "..." : t("register")}
-                </Text>
-              </LinearGradient>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handleRegister}
+              disabled={loading}
+              style={styles.submitBtn}
+            >
+              <Text style={styles.submitBtnText}>{loading ? "..." : t("register")}</Text>
             </TouchableOpacity>
 
             <View style={styles.switchRow}>
+              <Text style={styles.switchText}>لديك حساب؟{"  "}</Text>
               <TouchableOpacity onPress={() => router.replace("/(auth)/login")}>
-                <Text style={[styles.switchLink, { color: colors.tint }]}>{t("login")}</Text>
+                <Text style={styles.switchLink}>{t("login")}</Text>
               </TouchableOpacity>
-              <Text style={[styles.switchText, { color: colors.textSecondary }]}>{"  "}لديك حساب؟</Text>
             </View>
           </View>
         </ScrollView>
@@ -194,35 +196,36 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scroll: { flexGrow: 1, paddingHorizontal: 24, gap: 20 },
-  backBtn: {
-    width: 44, height: 44, borderRadius: 14,
-    alignItems: "center", justifyContent: "center", borderWidth: 1,
-  },
-  headerBlock: { alignItems: "center", gap: 12, marginVertical: 8 },
-  iconBox: {
-    width: 72, height: 72, borderRadius: 22,
-    alignItems: "center", justifyContent: "center",
-    shadowColor: "#10B981", shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4, shadowRadius: 14, elevation: 10,
-  },
-  title: { fontSize: 28, fontFamily: "Inter_700Bold", textAlign: "center" },
-  subtitle: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center" },
+  container: { flex: 1, backgroundColor: BG },
+  scroll: { flexGrow: 1, paddingHorizontal: 24, gap: 28 },
+  backBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  headerBlock: { alignItems: "center", gap: 14 },
+  logoRing: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center", padding: 2.5 },
+  logoInner: { width: "100%", height: "100%", borderRadius: 37, backgroundColor: CARD, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 26, fontFamily: "Inter_700Bold", color: TEXT, textAlign: "center" },
+  subtitle: { fontSize: 15, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center" },
   form: { gap: 14 },
   inputWrapper: {
-    flexDirection: "row", alignItems: "center",
-    borderRadius: 16, borderWidth: 1,
-    paddingHorizontal: 14, height: 56, gap: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: INPUT_BG,
+    borderRadius: 16,
+    borderWidth: 0.5,
+    borderColor: BORDER,
+    paddingHorizontal: 16,
+    height: 56,
+    gap: 12,
   },
-  input: { flex: 1, fontSize: 16, height: "100%" },
+  input: { flex: 1, fontSize: 16, color: TEXT, fontFamily: "Inter_400Regular", height: "100%" },
   submitBtn: {
-    borderRadius: 18, paddingVertical: 18, alignItems: "center",
-    shadowColor: "#10B981", shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4, shadowRadius: 14, elevation: 10, marginTop: 6,
+    backgroundColor: TEXT,
+    borderRadius: 100,
+    paddingVertical: 18,
+    alignItems: "center",
+    marginTop: 4,
   },
-  submitBtnText: { color: "#fff", fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  submitBtnText: { color: BG, fontSize: 17, fontFamily: "Inter_600SemiBold" },
   switchRow: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
-  switchText: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  switchLink: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  switchText: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2 },
+  switchLink: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT },
 });

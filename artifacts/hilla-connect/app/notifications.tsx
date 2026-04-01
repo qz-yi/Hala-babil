@@ -1,5 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useEffect } from "react";
 import {
@@ -13,25 +13,38 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { AppNotification } from "@/context/AppContext";
 
+const BG = "#000000";
+const CARD = "#121212";
+const BORDER = "#262626";
+const TEXT = "#FFFFFF";
+const TEXT2 = "#8E8E93";
+
 const NOTIF_ICONS: Record<string, { name: string; color: string }> = {
-  follow_request: { name: "person-add-outline", color: "#7C3AED" },
-  follow_accept: { name: "person-add", color: "#10B981" },
-  like: { name: "heart", color: "#E1306C" },
-  comment: { name: "chatbubble-outline", color: "#3B82F6" },
-  post: { name: "images-outline", color: "#F59E0B" },
-  story: { name: "radio-button-on-outline", color: "#EC4899" },
+  follow_request: { name: "user-plus", color: "#9B59B6" },
+  follow_accept: { name: "user-check", color: "#34D399" },
+  like: { name: "heart", color: "#FF3B5C" },
+  comment: { name: "message-circle", color: "#3D91F4" },
+  post: { name: "image", color: "#FBBF24" },
+  story: { name: "circle", color: "#EC4899" },
   story_like: { name: "heart", color: "#EC4899" },
-  story_reply: { name: "chatbubble-ellipses-outline", color: "#EC4899" },
-  message: { name: "chatbubbles-outline", color: "#06B6D4" },
+  story_reply: { name: "message-square", color: "#EC4899" },
+  message: { name: "message-circle", color: "#00BCD4" },
 };
 
-function NotifItem({ notif, colors, onPress }: { notif: AppNotification; colors: any; onPress: () => void }) {
+function NotifItem({
+  notif,
+  onPress,
+}: {
+  notif: AppNotification;
+  onPress: () => void;
+}) {
   const accentColor = ACCENT_COLORS[(notif.senderName?.length ?? 0) % ACCENT_COLORS.length];
-  const icon = NOTIF_ICONS[notif.type] ?? { name: "notifications-outline", color: colors.tint };
+  const icon = NOTIF_ICONS[notif.type] ?? { name: "bell", color: "#FFFFFF" };
+
   const formatTime = (ts: number) => {
     const diff = Date.now() - ts;
     const mins = Math.floor(diff / 60000);
@@ -44,53 +57,57 @@ function NotifItem({ notif, colors, onPress }: { notif: AppNotification; colors:
 
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onPress();
+      }}
       style={[
         styles.notifItem,
-        {
-          backgroundColor: notif.isRead ? colors.card : `${colors.tint}12`,
-          borderColor: notif.isRead ? colors.border : `${colors.tint}30`,
-        },
+        !notif.isRead && { backgroundColor: "rgba(61,145,244,0.06)" },
       ]}
-      activeOpacity={0.8}
+      activeOpacity={0.7}
     >
-      {/* Sender Avatar */}
       <View style={styles.notifAvatarWrap}>
         {notif.senderAvatar ? (
           <Image source={{ uri: notif.senderAvatar }} style={styles.notifAvatar} />
         ) : (
-          <View style={[styles.notifAvatar, { backgroundColor: `${accentColor}33`, alignItems: "center", justifyContent: "center" }]}>
-            <Text style={[styles.notifAvatarText, { color: accentColor }]}>{notif.senderName?.[0]?.toUpperCase()}</Text>
+          <View
+            style={[styles.notifAvatar, { backgroundColor: `${accentColor}33`, alignItems: "center", justifyContent: "center" }]}
+          >
+            <Text style={[styles.notifAvatarText, { color: accentColor }]}>
+              {notif.senderName?.[0]?.toUpperCase()}
+            </Text>
           </View>
         )}
         <View style={[styles.notifTypeBadge, { backgroundColor: icon.color }]}>
-          <Ionicons name={icon.name as any} size={11} color="#fff" />
+          <Feather name={icon.name as any} size={9} color="#fff" strokeWidth={2} />
         </View>
       </View>
 
-      {/* Content */}
       <View style={styles.notifContent}>
-        <Text style={[styles.notifMessage, { color: colors.text }]} numberOfLines={2}>
-          <Text style={{ fontFamily: "Inter_600SemiBold" }}>{notif.senderName}</Text>
-          {"  "}{notif.message.replace(notif.senderName, "").trim()}
+        <Text style={styles.notifMessage} numberOfLines={2}>
+          <Text style={styles.notifSenderName}>{notif.senderName}</Text>
+          {"  "}
+          {notif.message.replace(notif.senderName, "").trim()}
         </Text>
-        <Text style={[styles.notifTime, { color: colors.textSecondary }]}>{formatTime(notif.createdAt)}</Text>
+        <Text style={styles.notifTime}>{formatTime(notif.createdAt)}</Text>
       </View>
 
-      {/* Unread dot */}
-      {!notif.isRead && (
-        <View style={[styles.unreadDot, { backgroundColor: colors.tint }]} />
-      )}
+      {!notif.isRead && <View style={styles.unreadDot} />}
     </TouchableOpacity>
   );
 }
 
 export default function NotificationsScreen() {
   const {
-    notifications, currentUser, markNotificationRead, markAllNotificationsRead,
-    getUnreadNotificationsCount, conversations, theme, t,
+    notifications,
+    currentUser,
+    markNotificationRead,
+    markAllNotificationsRead,
+    getUnreadNotificationsCount,
+    conversations,
+    t,
   } = useApp();
-  const colors = Colors[theme];
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 20 : insets.top;
 
@@ -102,76 +119,65 @@ export default function NotificationsScreen() {
 
   const handleNotifPress = (notif: AppNotification) => {
     markNotificationRead(notif.id);
-
     if (notif.type === "follow_request" || notif.type === "follow_accept") {
       router.push(`/profile/${notif.senderId}`);
-    } else if (notif.type === "like" || notif.type === "comment") {
-      // Navigate directly to the referenced post
-      if (notif.referenceId) {
-        router.push(`/post/${notif.referenceId}`);
-      } else {
-        router.push(`/profile/${notif.senderId}`);
-      }
-    } else if (notif.type === "post") {
-      // Notification about a new post
-      if (notif.referenceId) {
-        router.push(`/post/${notif.referenceId}`);
-      } else {
-        router.push(`/profile/${notif.senderId}`);
-      }
+    } else if (notif.type === "like" || notif.type === "comment" || notif.type === "post") {
+      if (notif.referenceId) router.push(`/post/${notif.referenceId}`);
+      else router.push(`/profile/${notif.senderId}`);
     } else if (notif.type === "story" || notif.type === "story_like" || notif.type === "story_reply") {
-      // Navigate to that user's story
       router.push(`/story/${notif.senderId}`);
     } else if (notif.type === "message") {
-      // Find conversation with this user and navigate to it
       const convo = conversations.find(
         (c) =>
           c.participants.includes(currentUser?.id ?? "") &&
           c.participants.includes(notif.senderId)
       );
-      if (convo) {
-        router.push(`/chat/${convo.id}`);
-      } else {
-        router.push("/(tabs)/messages" as any);
-      }
+      if (convo) router.push(`/chat/${convo.id}`);
+      else router.push("/(tabs)/messages" as any);
     }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LinearGradient
-        colors={theme === "dark" ? ["rgba(124,58,237,0.15)", "transparent"] : ["rgba(124,58,237,0.06)", "transparent"]}
-        style={[styles.headerGrad, { paddingTop: topPad + 8 }]}
-      >
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: topPad }]}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Feather name="arrow-left" size={22} color={TEXT} strokeWidth={1.5} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{t("notifications")}</Text>
+        {unreadCount > 0 && (
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              markAllNotificationsRead();
+            }}
+            style={styles.markAllBtn}
+          >
+            <Text style={styles.markAllText}>قراءة الكل</Text>
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>{t("notifications")}</Text>
-          {unreadCount > 0 && (
-            <TouchableOpacity onPress={markAllNotificationsRead} style={[styles.markAllBtn, { backgroundColor: `${colors.tint}22` }]}>
-              <Text style={[styles.markAllText, { color: colors.tint }]}>قراءة الكل</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </LinearGradient>
+        )}
+      </View>
 
       {myNotifs.length === 0 ? (
         <View style={styles.emptyState}>
-          <View style={[styles.emptyIcon, { backgroundColor: `${colors.tint}15` }]}>
-            <Ionicons name="notifications-off-outline" size={48} color={colors.tint} />
+          <View style={styles.emptyIcon}>
+            <Feather name="bell-off" size={40} color={TEXT2} strokeWidth={1} />
           </View>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("noNotifications")}</Text>
-          <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>ستظهر هنا إشعاراتك حين تصلك</Text>
+          <Text style={styles.emptyTitle}>{t("noNotifications")}</Text>
+          <Text style={styles.emptyDesc}>ستظهر هنا إشعاراتك حين تصلك</Text>
         </View>
       ) : (
         <FlatList
           data={myNotifs}
           keyExtractor={(n) => n.id}
-          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 100 }]}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <NotifItem notif={item} colors={colors} onPress={() => handleNotifPress(item)} />
+            <NotifItem notif={item} onPress={() => handleNotifPress(item)} />
           )}
         />
       )}
@@ -180,33 +186,60 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  headerGrad: { paddingHorizontal: 16, paddingBottom: 14 },
-  headerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 4 },
-  backBtn: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", borderWidth: 1 },
-  headerTitle: { flex: 1, fontSize: 24, fontFamily: "Inter_700Bold" },
-  markAllBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
-  markAllText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  list: { padding: 14, gap: 10 },
+  container: { flex: 1, backgroundColor: BG },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: BORDER,
+  },
+  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  headerTitle: { flex: 1, fontSize: 22, fontFamily: "Inter_700Bold", color: TEXT },
+  markAllBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 100, backgroundColor: "#1C1C1C" },
+  markAllText: { fontSize: 13, fontFamily: "Inter_500Medium", color: TEXT2 },
+
   notifItem: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    borderRadius: 18, borderWidth: 1, padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: BORDER,
   },
   notifAvatarWrap: { position: "relative", width: 48, height: 48 },
-  notifAvatar: { width: 48, height: 48, borderRadius: 16, overflow: "hidden" },
+  notifAvatar: { width: 48, height: 48, borderRadius: 24, overflow: "hidden" },
   notifAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
   notifTypeBadge: {
-    position: "absolute", bottom: -3, right: -3,
-    width: 20, height: 20, borderRadius: 6,
-    alignItems: "center", justifyContent: "center",
-    borderWidth: 1.5, borderColor: "#fff",
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: BG,
   },
-  notifContent: { flex: 1, gap: 4 },
-  notifMessage: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
-  notifTime: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  unreadDot: { width: 8, height: 8, borderRadius: 4 },
+  notifContent: { flex: 1, gap: 3 },
+  notifMessage: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT, lineHeight: 20 },
+  notifSenderName: { fontFamily: "Inter_600SemiBold" },
+  notifTime: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#3D91F4" },
+
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, padding: 40 },
-  emptyIcon: { width: 90, height: 90, borderRadius: 28, alignItems: "center", justifyContent: "center" },
-  emptyTitle: { fontSize: 20, fontFamily: "Inter_600SemiBold" },
-  emptyDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
+  emptyIcon: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: "#1C1C1C",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold", color: TEXT },
+  emptyDesc: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center" },
 });

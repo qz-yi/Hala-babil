@@ -1,9 +1,9 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -15,14 +15,19 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 
+const BG = "#000000";
+const CARD = "#121212";
+const BORDER = "#262626";
+const TEXT = "#FFFFFF";
+const TEXT2 = "#8E8E93";
+const INPUT_BG = "#1C1C1C";
+
 export default function LoginScreen() {
-  const { login, t, theme } = useApp();
+  const { login, t } = useApp();
   const { showToast } = useToast();
-  const colors = Colors[theme];
   const insets = useSafeAreaInsets();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -39,6 +44,7 @@ export default function LoginScreen() {
       return;
     }
     setLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const success = await login(phone.trim(), password);
     setLoading(false);
     if (success) {
@@ -47,19 +53,12 @@ export default function LoginScreen() {
       router.replace("/(tabs)");
     } else {
       showToast(t("invalidCredentials"), "error");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LinearGradient
-        colors={
-          theme === "dark"
-            ? ["rgba(79,70,229,0.15)", "transparent"]
-            : ["rgba(79,70,229,0.08)", "transparent"]
-        }
-        style={StyleSheet.absoluteFill}
-      />
+    <View style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -67,42 +66,43 @@ export default function LoginScreen() {
         <ScrollView
           contentContainerStyle={[
             styles.scroll,
-            { paddingTop: topPad + 20, paddingBottom: botPad + 20 },
+            { paddingTop: topPad + 16, paddingBottom: botPad + 24 },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
           <TouchableOpacity
             onPress={() => router.back()}
-            style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={styles.backBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
+            <Feather name="arrow-left" size={22} color={TEXT} strokeWidth={1.5} />
           </TouchableOpacity>
 
+          {/* Logo / Title */}
           <View style={styles.headerBlock}>
             <LinearGradient
-              colors={["#7C3AED", "#4F46E5"]}
-              style={styles.iconBox}
+              colors={["#d6249f", "#285AEB"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.logoRing}
             >
-              <Ionicons name="person" size={28} color="#fff" />
+              <View style={styles.logoInner}>
+                <Feather name="user" size={28} color={TEXT} strokeWidth={1.5} />
+              </View>
             </LinearGradient>
-            <Text style={[styles.title, { color: colors.text }]}>
-              {t("login")}
-            </Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              {t("hillaConnect")}
-            </Text>
+            <Text style={styles.title}>{t("login")}</Text>
+            <Text style={styles.subtitle}>مرحباً بك في هلا بابل</Text>
           </View>
 
           {/* Fields */}
           <View style={styles.form}>
-            <View style={[styles.inputWrapper, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
-              <Ionicons name="call-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+            <View style={styles.inputWrapper}>
+              <Feather name="phone" size={18} color={TEXT2} strokeWidth={1.5} />
               <TextInput
-                style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
+                style={styles.input}
                 placeholder={t("phone")}
-                placeholderTextColor={colors.textSecondary}
+                placeholderTextColor={TEXT2}
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
@@ -112,13 +112,13 @@ export default function LoginScreen() {
               />
             </View>
 
-            <View style={[styles.inputWrapper, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
-              <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+            <View style={styles.inputWrapper}>
+              <Feather name="lock" size={18} color={TEXT2} strokeWidth={1.5} />
               <TextInput
                 ref={passwordRef}
-                style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
+                style={styles.input}
                 placeholder={t("password")}
-                placeholderTextColor={colors.textSecondary}
+                placeholderTextColor={TEXT2}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
@@ -126,11 +126,15 @@ export default function LoginScreen() {
                 onSubmitEditing={handleLogin}
                 textAlign={Platform.OS !== "web" ? "right" : "left"}
               />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                <Ionicons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={20}
-                  color={colors.textSecondary}
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeBtn}
+              >
+                <Feather
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={18}
+                  color={TEXT2}
+                  strokeWidth={1.5}
                 />
               </TouchableOpacity>
             </View>
@@ -139,37 +143,23 @@ export default function LoginScreen() {
               onPress={() => router.push("/(auth)/forgot-password")}
               style={{ alignSelf: "flex-end" }}
             >
-              <Text style={[styles.forgotText, { color: colors.tint }]}>
-                {t("forgotPassword")}
-              </Text>
+              <Text style={styles.forgotText}>{t("forgotPassword")}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={handleLogin}
               disabled={loading}
+              style={styles.submitBtn}
             >
-              <LinearGradient
-                colors={["#7C3AED", "#4F46E5", "#3B82F6"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.submitBtn}
-              >
-                <Text style={styles.submitBtnText}>
-                  {loading ? "..." : t("login")}
-                </Text>
-              </LinearGradient>
+              <Text style={styles.submitBtnText}>{loading ? "..." : t("login")}</Text>
             </TouchableOpacity>
 
             <View style={styles.switchRow}>
+              <Text style={styles.switchText}>?ليس لديك حساب{"  "}</Text>
               <TouchableOpacity onPress={() => router.replace("/(auth)/register")}>
-                <Text style={[styles.switchLink, { color: colors.tint }]}>
-                  {t("register")}
-                </Text>
+                <Text style={styles.switchLink}>{t("register")}</Text>
               </TouchableOpacity>
-              <Text style={[styles.switchText, { color: colors.textSecondary }]}>
-                {"  "}?ليس لديك حساب
-              </Text>
             </View>
           </View>
         </ScrollView>
@@ -179,103 +169,52 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scroll: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    gap: 24,
-  },
-  backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+  container: { flex: 1, backgroundColor: BG },
+  scroll: { flexGrow: 1, paddingHorizontal: 24, gap: 32 },
+  backBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  headerBlock: { alignItems: "center", gap: 16 },
+  logoRing: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
+    padding: 2.5,
   },
-  headerBlock: {
-    alignItems: "center",
-    gap: 12,
-    marginVertical: 12,
-  },
-  iconBox: {
-    width: 72,
-    height: 72,
-    borderRadius: 22,
+  logoInner: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 37,
+    backgroundColor: CARD,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#7C3AED",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 14,
-    elevation: 10,
   },
-  title: {
-    fontSize: 28,
-    fontFamily: "Inter_700Bold",
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 15,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-  },
-  form: {
-    gap: 16,
-  },
+  title: { fontSize: 28, fontFamily: "Inter_700Bold", color: TEXT, textAlign: "center" },
+  subtitle: { fontSize: 15, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center" },
+  form: { gap: 16 },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: INPUT_BG,
     borderRadius: 16,
-    borderWidth: 1,
-    paddingHorizontal: 14,
+    borderWidth: 0.5,
+    borderColor: BORDER,
+    paddingHorizontal: 16,
     height: 56,
-    gap: 10,
+    gap: 12,
   },
-  inputIcon: {
-    flexShrink: 0,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    height: "100%",
-  },
-  eyeBtn: {
-    padding: 4,
-  },
-  forgotText: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    marginTop: -4,
-  },
+  input: { flex: 1, fontSize: 16, color: TEXT, fontFamily: "Inter_400Regular", height: "100%" },
+  eyeBtn: { padding: 4 },
+  forgotText: { fontSize: 14, fontFamily: "Inter_500Medium", color: TEXT2, marginTop: -4 },
   submitBtn: {
-    borderRadius: 18,
+    backgroundColor: TEXT,
+    borderRadius: 100,
     paddingVertical: 18,
     alignItems: "center",
-    shadowColor: "#7C3AED",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 14,
-    elevation: 10,
     marginTop: 4,
   },
-  submitBtnText: {
-    color: "#fff",
-    fontSize: 17,
-    fontFamily: "Inter_600SemiBold",
-  },
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  switchText: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-  },
-  switchLink: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-  },
+  submitBtnText: { color: BG, fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  switchRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 4 },
+  switchText: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2 },
+  switchLink: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT },
 });

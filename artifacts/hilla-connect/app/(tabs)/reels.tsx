@@ -1,6 +1,7 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
+import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useRef, useState } from "react";
@@ -23,9 +24,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { ACCENT_COLORS } from "@/constants/colors";
 import { useApp, type Reel, type ReelFilter } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
+
+const BG = "#000000";
+const CARD = "#121212";
+const BORDER = "#262626";
+const TEXT = "#FFFFFF";
+const TEXT2 = "#8E8E93";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 const REEL_HEIGHT = Platform.OS === "web" ? Math.min(SCREEN_HEIGHT, 700) : SCREEN_HEIGHT;
@@ -56,7 +63,6 @@ function ReelPlayerItem({
   isOwner,
   creatorName,
   creatorAvatar,
-  colors,
   insets,
 }: {
   reel: Reel;
@@ -71,7 +77,6 @@ function ReelPlayerItem({
   isOwner: boolean;
   creatorName: string;
   creatorAvatar?: string;
-  colors: any;
   insets: any;
 }) {
   const [paused, setPaused] = useState(false);
@@ -124,7 +129,7 @@ function ReelPlayerItem({
           pointerEvents="none"
         >
           <View style={styles.pauseIcon}>
-            <Ionicons name="play" size={36} color="#fff" />
+            <Feather name="play" size={32} color="#fff" strokeWidth={1.5} />
           </View>
         </View>
       )}
@@ -158,28 +163,24 @@ function ReelPlayerItem({
 
       {/* Action buttons - must be on top, so use onPress to stop propagation */}
       <View style={[styles.reelActions, { paddingBottom: insets.bottom + 90 }]}>
-        <TouchableOpacity style={styles.actionBtn} onPress={onLike}>
-          <Ionicons
-            name={isLiked ? "heart" : "heart-outline"}
-            size={32}
-            color={isLiked ? "#FF3B5C" : "#fff"}
-          />
+        <TouchableOpacity style={styles.actionBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onLike(); }}>
+          <Feather name="heart" size={28} color={isLiked ? "#FF3B5C" : "#fff"} strokeWidth={isLiked ? 0 : 1.5} />
           <Text style={styles.actionCount}>{likesCount}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn} onPress={onComment}>
-          <Ionicons name="chatbubble-outline" size={29} color="#fff" />
+        <TouchableOpacity style={styles.actionBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onComment(); }}>
+          <Feather name="message-circle" size={26} color="#fff" strokeWidth={1.5} />
           <Text style={styles.actionCount}>{commentsCount}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn} onPress={onShare}>
-          <Ionicons name="paper-plane-outline" size={29} color="#fff" />
+        <TouchableOpacity style={styles.actionBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onShare(); }}>
+          <Feather name="send" size={26} color="#fff" strokeWidth={1.5} />
           <Text style={styles.actionCount}>مشاركة</Text>
         </TouchableOpacity>
 
         {isOwner && (
-          <TouchableOpacity style={styles.actionBtn} onPress={onDelete}>
-            <Ionicons name="trash-outline" size={26} color="#FF3B5C" />
+          <TouchableOpacity style={styles.actionBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onDelete(); }}>
+            <Feather name="trash-2" size={22} color="#FF3B5C" strokeWidth={1.5} />
           </TouchableOpacity>
         )}
       </View>
@@ -192,12 +193,10 @@ function CommentSheet({
   reelId,
   visible,
   onClose,
-  colors,
 }: {
   reelId: string;
   visible: boolean;
   onClose: () => void;
-  colors: any;
 }) {
   const { getReelComments, addReelComment } = useApp();
   const [text, setText] = useState("");
@@ -212,15 +211,15 @@ function CommentSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
-      <View style={[styles.commentSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>التعليقات</Text>
+      <View style={[styles.commentSheet, { backgroundColor: CARD, borderColor: BORDER }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
+        <Text style={[styles.sheetTitle, { color: TEXT }]}>التعليقات</Text>
         <FlatList
           data={comments}
           keyExtractor={(c) => c.id}
           style={{ maxHeight: 320 }}
           ListEmptyComponent={
-            <Text style={[styles.emptyComments, { color: colors.textSecondary }]}>
+            <Text style={[styles.emptyComments, { color: TEXT2 }]}>
               لا توجد تعليقات بعد
             </Text>
           }
@@ -239,8 +238,8 @@ function CommentSheet({
                 )}
               </View>
               <View style={styles.commentBody}>
-                <Text style={[styles.commentUser, { color: colors.tint }]}>{item.userName}</Text>
-                <Text style={[styles.commentText, { color: colors.text }]}>{item.content}</Text>
+                <Text style={[styles.commentUser, { color: "#3D91F4" }]}>{item.userName}</Text>
+                <Text style={[styles.commentText, { color: TEXT }]}>{item.content}</Text>
               </View>
             </View>
           )}
@@ -248,23 +247,23 @@ function CommentSheet({
         <View
           style={[
             styles.commentInput,
-            { backgroundColor: colors.inputBackground, borderColor: colors.border },
+            { backgroundColor: "#1C1C1C", borderColor: BORDER },
           ]}
         >
           <TextInput
             style={[
               styles.commentInputField,
-              { color: colors.text, fontFamily: "Inter_400Regular" },
+              { color: TEXT, fontFamily: "Inter_400Regular" },
             ]}
             value={text}
             onChangeText={setText}
             placeholder="أضف تعليقاً..."
-            placeholderTextColor={colors.textSecondary}
+            placeholderTextColor={TEXT2}
             textAlign="right"
             multiline
           />
           <TouchableOpacity onPress={handleSend} style={styles.sendCommentBtn}>
-            <Ionicons name="send" size={20} color={colors.tint} />
+            <Feather name="send" size={18} color="#3D91F4" strokeWidth={1.5} />
           </TouchableOpacity>
         </View>
       </View>
@@ -277,12 +276,10 @@ function ShareSheet({
   reelId,
   visible,
   onClose,
-  colors,
 }: {
   reelId: string;
   visible: boolean;
   onClose: () => void;
-  colors: any;
 }) {
   const { users, currentUser, shareReelToConversation } = useApp();
   const { showToast } = useToast();
@@ -297,15 +294,15 @@ function ShareSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
-      <View style={[styles.commentSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>مشاركة مع</Text>
+      <View style={[styles.commentSheet, { backgroundColor: CARD, borderColor: BORDER }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
+        <Text style={[styles.sheetTitle, { color: TEXT }]}>مشاركة مع</Text>
         <FlatList
           data={others}
           keyExtractor={(u) => u.id}
           style={{ maxHeight: 320 }}
           ListEmptyComponent={
-            <Text style={[styles.emptyComments, { color: colors.textSecondary }]}>
+            <Text style={[styles.emptyComments, { color: TEXT2 }]}>
               لا يوجد مستخدمون لمشاركتهم
             </Text>
           }
@@ -324,12 +321,12 @@ function ShareSheet({
                 )}
               </View>
               <View>
-                <Text style={[styles.commentUser, { color: colors.text }]}>{item.name}</Text>
-                <Text style={[styles.commentText, { color: colors.textSecondary, fontSize: 12 }]}>
+                <Text style={[styles.commentUser, { color: TEXT }]}>{item.name}</Text>
+                <Text style={[styles.commentText, { color: TEXT2, fontSize: 12 }]}>
                   {item.phone}
                 </Text>
               </View>
-              <Ionicons name="paper-plane-outline" size={18} color={colors.tint} style={{ marginLeft: "auto" as any }} />
+              <Feather name="send" size={16} color="#3D91F4" strokeWidth={1.5} style={{ marginLeft: "auto" as any }} />
             </TouchableOpacity>
           )}
         />
@@ -342,12 +339,10 @@ function ShareSheet({
 function PublishModal({
   visible,
   onClose,
-  colors,
   insets,
 }: {
   visible: boolean;
   onClose: () => void;
-  colors: any;
   insets: any;
 }) {
   const { addReel } = useApp();
@@ -405,51 +400,52 @@ function PublishModal({
         style={[
           styles.publishSheet,
           {
-            backgroundColor: colors.card,
-            borderColor: colors.border,
+            backgroundColor: CARD,
+            borderColor: BORDER,
             paddingBottom: insets.bottom + 20,
           },
         ]}
       >
-        <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>نشر مقطع جديد</Text>
+        <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
+        <Text style={[styles.sheetTitle, { color: TEXT }]}>نشر مقطع جديد</Text>
 
         <TouchableOpacity
           onPress={handlePickVideo}
           style={[
             styles.videoPickBtn,
             {
-              backgroundColor: videoUri ? `${colors.tint}22` : colors.backgroundTertiary,
-              borderColor: videoUri ? colors.tint : colors.border,
+              backgroundColor: videoUri ? `${"#3D91F4"}22` : "#1C1C1C",
+              borderColor: videoUri ? "#3D91F4" : BORDER,
             },
           ]}
         >
-          <Ionicons
-            name={videoUri ? "checkmark-circle" : "film-outline"}
-            size={30}
-            color={videoUri ? colors.tint : colors.textSecondary}
+          <Feather
+            name={videoUri ? "check-circle" : "film"}
+            size={28}
+            color={videoUri ? "#3D91F4" : TEXT2}
+            strokeWidth={1.5}
           />
-          <Text style={[styles.videoPickText, { color: videoUri ? colors.tint : colors.textSecondary }]}>
+          <Text style={[styles.videoPickText, { color: videoUri ? "#3D91F4" : TEXT2 }]}>
             {videoUri ? "تم اختيار المقطع" : "اختر مقطعاً من المعرض"}
           </Text>
         </TouchableOpacity>
 
         <View
-          style={[styles.titleInput, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+          style={[styles.titleInput, { backgroundColor: "#1C1C1C", borderColor: BORDER }]}
         >
           <TextInput
-            style={[styles.titleInputField, { color: colors.text, fontFamily: "Inter_400Regular" }]}
+            style={[styles.titleInputField, { color: TEXT, fontFamily: "Inter_400Regular" }]}
             value={title}
             onChangeText={setTitle}
             placeholder="وصف المقطع..."
-            placeholderTextColor={colors.textSecondary}
+            placeholderTextColor={TEXT2}
             textAlign="right"
             multiline
             maxLength={150}
           />
         </View>
 
-        <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>الفلاتر</Text>
+        <Text style={[styles.filterLabel, { color: TEXT2 }]}>الفلاتر</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
           {FILTERS.map((f) => (
             <TouchableOpacity
@@ -458,13 +454,13 @@ function PublishModal({
               style={[
                 styles.filterChip,
                 {
-                  backgroundColor: filter === f.key ? colors.tint : colors.backgroundTertiary,
-                  borderColor: filter === f.key ? colors.tint : colors.border,
+                  backgroundColor: filter === f.key ? "#3D91F4" : "#1C1C1C",
+                  borderColor: filter === f.key ? "#3D91F4" : BORDER,
                 },
               ]}
             >
               <Text
-                style={[styles.filterChipText, { color: filter === f.key ? "#fff" : colors.textSecondary }]}
+                style={[styles.filterChipText, { color: filter === f.key ? "#fff" : TEXT2 }]}
               >
                 {f.label}
               </Text>
@@ -473,8 +469,8 @@ function PublishModal({
         </ScrollView>
 
         <View style={styles.publishBtns}>
-          <TouchableOpacity onPress={handleClose} style={[styles.cancelPub, { borderColor: colors.border }]}>
-            <Text style={{ color: colors.textSecondary, fontFamily: "Inter_500Medium" }}>إلغاء</Text>
+          <TouchableOpacity onPress={handleClose} style={[styles.cancelPub, { borderColor: BORDER }]}>
+            <Text style={{ color: TEXT2, fontFamily: "Inter_500Medium" }}>إلغاء</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handlePublish} disabled={loading} style={{ flex: 1 }}>
             <LinearGradient
@@ -503,9 +499,7 @@ export default function ReelsScreen() {
     getReelComments,
     deleteReel,
     users,
-    theme,
   } = useApp();
-  const colors = Colors[theme];
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
 
@@ -566,24 +560,21 @@ export default function ReelsScreen() {
       <View
         style={[
           styles.emptyContainer,
-          { backgroundColor: colors.background, paddingTop: insets.top },
+          { backgroundColor: BG, paddingTop: insets.top },
         ]}
       >
-        <Ionicons name="film-outline" size={72} color={colors.border} />
-        <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>لا توجد مقاطع بعد</Text>
-        <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
+        <Feather name="film" size={72} color={BORDER} strokeWidth={0.8} />
+        <Text style={[styles.emptyTitle, { color: TEXT2 }]}>لا توجد مقاطع بعد</Text>
+        <Text style={[styles.emptyDesc, { color: TEXT2 }]}>
           كن أول من ينشر مقطعاً!
         </Text>
-        <TouchableOpacity onPress={() => setShowPublish(true)}>
-          <LinearGradient colors={["#7C3AED", "#4F46E5"]} style={styles.emptyBtn}>
-            <Ionicons name="add" size={18} color="#fff" />
-            <Text style={[styles.emptyBtnText, { color: "#fff" }]}>نشر أول مقطع</Text>
-          </LinearGradient>
+        <TouchableOpacity onPress={() => setShowPublish(true)} style={styles.emptyBtn}>
+          <Feather name="plus" size={16} color="#fff" strokeWidth={2} />
+          <Text style={[styles.emptyBtnText, { color: "#fff" }]}>نشر أول مقطع</Text>
         </TouchableOpacity>
         <PublishModal
           visible={showPublish}
           onClose={() => setShowPublish(false)}
-          colors={colors}
           insets={insets}
         />
       </View>
@@ -630,7 +621,6 @@ export default function ReelsScreen() {
               isOwner={item.creatorId === currentUser?.id}
               creatorName={creator?.name ?? "مستخدم"}
               creatorAvatar={creator?.avatar}
-              colors={colors}
               insets={insets}
             />
           );
@@ -644,7 +634,7 @@ export default function ReelsScreen() {
         ]}
         onPress={() => setShowPublish(true)}
       >
-        <Ionicons name="add" size={26} color="#fff" />
+        <Feather name="plus" size={24} color="#fff" strokeWidth={2} />
       </TouchableOpacity>
 
       {commentReel && (
@@ -652,7 +642,6 @@ export default function ReelsScreen() {
           reelId={commentReel}
           visible={!!commentReel}
           onClose={() => setCommentReel(null)}
-          colors={colors}
         />
       )}
       {shareReel && (
@@ -660,13 +649,11 @@ export default function ReelsScreen() {
           reelId={shareReel}
           visible={!!shareReel}
           onClose={() => setShareReel(null)}
-          colors={colors}
         />
       )}
       <PublishModal
         visible={showPublish}
         onClose={() => setShowPublish(false)}
-        colors={colors}
         insets={insets}
       />
     </View>

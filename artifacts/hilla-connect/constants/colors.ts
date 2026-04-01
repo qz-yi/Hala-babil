@@ -1,54 +1,63 @@
-const INDIGO = "#4F46E5";
-const ELECTRIC_BLUE = "#3B82F6";
-const VIOLET = "#7C3AED";
-const EMERALD = "#10B981";
-const AMBER = "#F59E0B";
-const ROSE = "#F43F5E";
-const CYAN = "#06B6D4";
+const STORY_GRADIENT = ["#fdf497", "#d6249f", "#285AEB"] as const;
+const ACCENT = "#FFFFFF";
+const DANGER = "#FF3B5C";
+const SUCCESS = "#34D399";
+const WARNING = "#FBBF24";
+const GOLD = "#FFD700";
 
-export const ACCENT_COLORS = [INDIGO, ELECTRIC_BLUE, VIOLET, EMERALD, AMBER, ROSE, CYAN];
+export const STORY_GRADIENT_COLORS = STORY_GRADIENT;
+
+export const ACCENT_COLORS = [
+  "#E91E8C",
+  "#3D91F4",
+  "#9B59B6",
+  "#00C853",
+  "#FF6D00",
+  "#FF3B5C",
+  "#00BCD4",
+];
 
 export default {
   light: {
-    text: "#0F0F1A",
+    text: "#0F0F0F",
     textSecondary: "#6B7280",
-    background: "#F8F8FC",
+    background: "#F8F8F8",
     backgroundSecondary: "#FFFFFF",
-    backgroundTertiary: "#F1F0F8",
+    backgroundTertiary: "#F0F0F0",
     card: "#FFFFFF",
-    border: "#E5E4F0",
-    tint: INDIGO,
-    accent: ELECTRIC_BLUE,
+    border: "#E5E5E5",
+    tint: "#000000",
+    accent: "#3D91F4",
     tabIconDefault: "#9CA3AF",
-    tabIconSelected: INDIGO,
-    danger: ROSE,
-    success: EMERALD,
-    warning: AMBER,
-    superAdmin: "#FFD700",
+    tabIconSelected: "#000000",
+    danger: DANGER,
+    success: SUCCESS,
+    warning: WARNING,
+    superAdmin: GOLD,
     superAdminGlow: "rgba(255,215,0,0.3)",
-    overlay: "rgba(15,15,26,0.5)",
-    inputBackground: "#F1F0F8",
-    shadow: "rgba(79,70,229,0.08)",
+    overlay: "rgba(0,0,0,0.5)",
+    inputBackground: "#F0F0F0",
+    shadow: "rgba(0,0,0,0.08)",
   },
   dark: {
-    text: "#F0EFFF",
-    textSecondary: "#9CA3AF",
-    background: "#0A0A14",
-    backgroundSecondary: "#12121F",
-    backgroundTertiary: "#1A1A2E",
-    card: "#16162A",
-    border: "#2A2A3D",
-    tint: "#818CF8",
-    accent: "#60A5FA",
-    tabIconDefault: "#4B5563",
-    tabIconSelected: "#818CF8",
-    danger: "#FB7185",
-    success: "#34D399",
-    warning: "#FBBF24",
-    superAdmin: "#FFD700",
+    text: "#FFFFFF",
+    textSecondary: "#8E8E93",
+    background: "#000000",
+    backgroundSecondary: "#121212",
+    backgroundTertiary: "#1C1C1C",
+    card: "#121212",
+    border: "#262626",
+    tint: "#FFFFFF",
+    accent: "#3D91F4",
+    tabIconDefault: "#636366",
+    tabIconSelected: "#FFFFFF",
+    danger: DANGER,
+    success: SUCCESS,
+    warning: WARNING,
+    superAdmin: GOLD,
     superAdminGlow: "rgba(255,215,0,0.2)",
-    overlay: "rgba(0,0,0,0.7)",
-    inputBackground: "#1A1A2E",
-    shadow: "rgba(0,0,0,0.3)",
+    overlay: "rgba(0,0,0,0.75)",
+    inputBackground: "#1C1C1C",
+    shadow: "rgba(0,0,0,0.5)",
   },
 };

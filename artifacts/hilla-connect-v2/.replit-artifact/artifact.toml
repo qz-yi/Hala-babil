@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "Hilla Connect"
+version = "1.0.0"
+id = "artifacts/hilla-connect-v2"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 24494
+
+[services.development]
+run = "pnpm --filter @workspace/hilla-connect-v2 run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/hilla-connect-v2", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/hilla-connect-v2", "run", "serve" ]
+
+[services.env]
+PORT = "24494"
+BASE_PATH = "/"

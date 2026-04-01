@@ -33,7 +33,8 @@ export interface Message {
   senderId: string;
   senderName: string;
   content: string;
-  type: "text" | "image" | "gif";
+  type: "text" | "image" | "video" | "gif";
+  mediaUrl?: string;
   timestamp: number;
 }
 
@@ -47,6 +48,7 @@ export interface Room {
   seatUsers: (User | null)[];
   chat: Message[];
   bannedUsers: string[];
+  mutedUsers: string[];
   isHidden: boolean;
   createdAt: number;
 }
@@ -225,9 +227,10 @@ interface AppContextValue {
   deleteRoom: (roomId: string) => Promise<void>;
   joinRoomSeat: (roomId: string, seatIndex: number) => void;
   leaveRoomSeat: (roomId: string) => void;
-  sendRoomMessage: (roomId: string, content: string, type?: "text" | "image" | "gif") => void;
+  sendRoomMessage: (roomId: string, content: string, type?: "text" | "image" | "video" | "gif", mediaUrl?: string) => void;
   kickFromRoom: (roomId: string, userId: string) => void;
   banFromRoom: (roomId: string, userId: string) => void;
+  muteUserInRoom: (roomId: string, userId: string) => void;
   getConversation: (otherUserId: string) => Conversation;
   sendPrivateMessage: (conversationId: string, receiverId: string, content: string, type?: "text" | "image" | "video" | "audio" | "shared", mediaUrl?: string, duration?: number, sharedContent?: SharedContent, storyRef?: string) => void;
   blockUser: (userId: string) => void;
@@ -395,6 +398,8 @@ const translations: Record<Language, Record<string, string>> = {
     noMembers: "لا يوجد أعضاء في المقاعد",
     userActions: "خيارات المستخدم",
     kickFromRoom: "طرد من الغرفة",
+    muteInRoom: "كتم الصوت",
+    unmuteInRoom: "رفع الكتم",
     noReels: "لا توجد مقاطع بعد",
     beFirst: "كن أول من ينشر مقطعاً!",
     publishReel: "نشر مقطع",
@@ -575,6 +580,8 @@ const translations: Record<Language, Record<string, string>> = {
     noMembers: "No members in seats",
     userActions: "User Actions",
     kickFromRoom: "Kick from Room",
+    muteInRoom: "Mute User",
+    unmuteInRoom: "Unmute User",
     noReels: "No reels yet",
     beFirst: "Be the first to post!",
     publishReel: "Publish Reel",
@@ -877,6 +884,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         seatUsers: Array(6).fill(null),
         chat: [],
         bannedUsers: [],
+        mutedUsers: [],
         isHidden: false,
         createdAt: Date.now(),
       };
@@ -934,7 +942,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const sendRoomMessage = useCallback(
-    (roomId: string, content: string, type: "text" | "image" | "gif" = "text") => {
+    (roomId: string, content: string, type: "text" | "image" | "video" | "gif" = "text", mediaUrl?: string) => {
       if (!currentUser) return;
       const msg: Message = {
         id: generateId(),
@@ -942,6 +950,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         senderName: currentUser.name,
         content,
         type,
+        mediaUrl,
         timestamp: Date.now(),
       };
       const updated = rooms.map((r) => {
@@ -951,6 +960,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       saveRooms(updated);
     },
     [currentUser, rooms]
+  );
+
+  const muteUserInRoom = useCallback(
+    (roomId: string, userId: string) => {
+      const updated = rooms.map((r) => {
+        if (r.id !== roomId) return r;
+        const already = (r.mutedUsers ?? []).includes(userId);
+        const mutedUsers = already
+          ? (r.mutedUsers ?? []).filter((id) => id !== userId)
+          : [...(r.mutedUsers ?? []), userId];
+        return { ...r, mutedUsers };
+      });
+      saveRooms(updated);
+    },
+    [rooms]
   );
 
   const kickFromRoom = useCallback(
@@ -1943,7 +1967,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isSuperAdmin, users, rooms, conversations, restaurants, reels, reelLikes, reelComments,
       posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
-      sendRoomMessage, kickFromRoom, banFromRoom, getConversation, sendPrivateMessage, blockUser,
+      sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom, getConversation, sendPrivateMessage, blockUser,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, getReelComments,
       shareReelToConversation, sharePostToDM, shareStoryToDM, searchUsers,
@@ -1960,7 +1984,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       language, theme, currentUser, isSuperAdmin, users, rooms, conversations, restaurants,
       reels, reelLikes, reelComments, posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
-      sendRoomMessage, kickFromRoom, banFromRoom, getConversation, sendPrivateMessage, blockUser,
+      sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom, getConversation, sendPrivateMessage, blockUser,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, getReelComments,
       shareReelToConversation, sharePostToDM, shareStoryToDM, searchUsers,

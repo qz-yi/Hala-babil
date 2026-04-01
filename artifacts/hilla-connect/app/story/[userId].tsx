@@ -132,7 +132,6 @@ export default function StoryViewerScreen() {
     return () => { animRef.current?.stop(); };
   }, [currentIndex, currentStory?.id, paused]);
 
-  // Reset reply state when story changes
   useEffect(() => {
     setReplySent(false);
     setReplyText("");
@@ -232,21 +231,30 @@ export default function StoryViewerScreen() {
         ))}
       </View>
 
-      {/* User info */}
+      {/* ─── User info row — CLICKABLE to go to profile ─── */}
       <View style={[styles.userRow, { top: topPad + 36 }]}>
-        <View style={styles.userInfo}>
+        <TouchableOpacity
+          onPress={() => {
+            if (!isMyStory) router.push(`/profile/${userId}` as any);
+          }}
+          activeOpacity={isMyStory ? 1 : 0.85}
+          style={styles.userInfoTouchable}
+        >
           {user.avatar ? (
             <Image source={{ uri: user.avatar }} style={styles.userAvatar} />
           ) : (
             <View style={[styles.userAvatar, { backgroundColor: `${accentColor}55`, alignItems: "center", justifyContent: "center" }]}>
-              <Text style={{ color: accentColor, fontSize: 16, fontFamily: "Inter_700Bold" }}>{user.name[0]?.toUpperCase()}</Text>
+              <Text style={{ color: accentColor, fontSize: 16, fontFamily: "Inter_700Bold" }}>
+                {user.name[0]?.toUpperCase()}
+              </Text>
             </View>
           )}
           <View>
             <Text style={styles.userName}>{user.name}</Text>
             <Text style={styles.storyTime}>{formatTime(currentStory.createdAt)}</Text>
           </View>
-        </View>
+        </TouchableOpacity>
+
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
           <Ionicons name="close" size={26} color="#fff" />
         </TouchableOpacity>
@@ -254,68 +262,82 @@ export default function StoryViewerScreen() {
 
       {/* Caption */}
       {currentStory.caption ? (
-        <View style={styles.captionWrap}>
+        <View style={[styles.captionWrap, { bottom: isMyStory ? 60 : 130 }]}>
           <Text style={styles.captionText}>{currentStory.caption}</Text>
         </View>
       ) : null}
 
-      {/* Views count */}
-      <View style={styles.viewsWrap}>
-        <Ionicons name="eye-outline" size={16} color="rgba(255,255,255,0.8)" />
-        <Text style={styles.viewsText}>{currentStory.viewerIds.length} مشاهدة</Text>
-      </View>
-
-      {/* ─── Action buttons (heart + share) ─── */}
+      {/* ─── Bottom bar for non-owner ─── */}
       {!isMyStory && (
-        <View style={styles.actionBtns}>
-          <TouchableOpacity onPress={handleLike} style={styles.actionBtn} activeOpacity={0.8}>
-            <Animated.View style={{ transform: [{ scale: heartScale }] }}>
-              <Ionicons
-                name={liked ? "heart" : "heart-outline"}
-                size={28}
-                color={liked ? "#E1306C" : "#fff"}
-              />
-            </Animated.View>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => { setPaused(true); setShowShare(true); }}
-            style={styles.actionBtn}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="paper-plane-outline" size={26} color="#fff" />
-          </TouchableOpacity>
+        <View style={[styles.bottomBar, { paddingBottom: botPad + 8 }]}>
+          {/* Reply input */}
+          <View style={styles.replyRow}>
+            {replySent ? (
+              <View style={styles.replySentRow}>
+                <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                <Text style={styles.replySentText}>تم إرسال ردّك</Text>
+              </View>
+            ) : (
+              <>
+                <TextInput
+                  style={styles.replyInput}
+                  placeholder="رد على القصة..."
+                  placeholderTextColor="rgba(255,255,255,0.5)"
+                  value={replyText}
+                  onChangeText={setReplyText}
+                  onFocus={() => setPaused(true)}
+                  onBlur={() => { if (!replyText.trim()) setPaused(false); }}
+                  textAlign="right"
+                  returnKeyType="send"
+                  onSubmitEditing={handleSendReply}
+                />
+                {replyText.trim().length > 0 && (
+                  <TouchableOpacity onPress={handleSendReply} style={styles.replySendBtn}>
+                    <Ionicons name="send" size={18} color="#fff" />
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+          </View>
+
+          {/* Action buttons row: views (left) + heart+share (right) */}
+          <View style={styles.actionsRow}>
+            {/* Views count — bottom left */}
+            <View style={styles.viewsBadge}>
+              <Ionicons name="eye-outline" size={15} color="rgba(255,255,255,0.85)" />
+              <Text style={styles.viewsText}>{currentStory.viewerIds.length}</Text>
+            </View>
+
+            {/* Heart + Share — bottom right */}
+            <View style={styles.reactionBtns}>
+              <TouchableOpacity onPress={handleLike} style={styles.reactionBtn} activeOpacity={0.8}>
+                <Animated.View style={{ transform: [{ scale: heartScale }] }}>
+                  <Ionicons
+                    name={liked ? "heart" : "heart-outline"}
+                    size={26}
+                    color={liked ? "#E1306C" : "#fff"}
+                  />
+                </Animated.View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => { setPaused(true); setShowShare(true); }}
+                style={styles.reactionBtn}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="paper-plane-outline" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       )}
 
-      {/* ─── Reply input (for non-owner) ─── */}
-      {!isMyStory && (
-        <View style={[styles.replyBar, { paddingBottom: botPad + 8 }]}>
-          {replySent ? (
-            <View style={styles.replySentRow}>
-              <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-              <Text style={styles.replySentText}>تم إرسال ردّك</Text>
-            </View>
-          ) : (
-            <>
-              <TextInput
-                style={styles.replyInput}
-                placeholder="رد على القصة..."
-                placeholderTextColor="rgba(255,255,255,0.5)"
-                value={replyText}
-                onChangeText={setReplyText}
-                onFocus={() => setPaused(true)}
-                onBlur={() => { if (!replyText.trim()) setPaused(false); }}
-                textAlign="right"
-                returnKeyType="send"
-                onSubmitEditing={handleSendReply}
-              />
-              {replyText.trim().length > 0 && (
-                <TouchableOpacity onPress={handleSendReply} style={styles.replySendBtn}>
-                  <Ionicons name="send" size={18} color="#fff" />
-                </TouchableOpacity>
-              )}
-            </>
-          )}
+      {/* My story: just show views at bottom */}
+      {isMyStory && (
+        <View style={[styles.myStoryBottom, { bottom: botPad + 16 }]}>
+          <View style={styles.viewsBadge}>
+            <Ionicons name="eye-outline" size={15} color="rgba(255,255,255,0.85)" />
+            <Text style={styles.viewsText}>{currentStory.viewerIds.length} مشاهدة</Text>
+          </View>
         </View>
       )}
 
@@ -338,7 +360,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   storyMedia: { ...StyleSheet.absoluteFillObject },
   topGrad: { position: "absolute", top: 0, left: 0, right: 0, height: 200 },
-  bottomGrad: { position: "absolute", bottom: 0, left: 0, right: 0, height: 260 },
+  bottomGrad: { position: "absolute", bottom: 0, left: 0, right: 0, height: 320 },
   progressRow: { position: "absolute", left: 12, right: 12, flexDirection: "row", gap: 4, zIndex: 10 },
   progressBar: { flex: 1, height: 2.5, borderRadius: 2, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 2 },
@@ -346,32 +368,30 @@ const styles = StyleSheet.create({
     position: "absolute", left: 16, right: 16, zIndex: 10,
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
   },
-  userInfo: { flexDirection: "row", alignItems: "center", gap: 10 },
-  userAvatar: { width: 40, height: 40, borderRadius: 13, overflow: "hidden", borderWidth: 2, borderColor: "rgba(255,255,255,0.7)" },
+  userInfoTouchable: { flexDirection: "row", alignItems: "center", gap: 10 },
+  userAvatar: {
+    width: 40, height: 40, borderRadius: 13, overflow: "hidden",
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.7)",
+  },
   userName: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 },
   storyTime: { color: "rgba(255,255,255,0.7)", fontFamily: "Inter_400Regular", fontSize: 12 },
   closeBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  captionWrap: { position: "absolute", bottom: 120, left: 20, right: 20 },
-  captionText: { color: "#fff", fontFamily: "Inter_500Medium", fontSize: 16, textAlign: "center", textShadowColor: "rgba(0,0,0,0.5)", textShadowRadius: 8 },
-  viewsWrap: { position: "absolute", bottom: 180, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  viewsText: { color: "rgba(255,255,255,0.8)", fontFamily: "Inter_400Regular", fontSize: 13 },
-  tapLeft: { position: "absolute", left: 0, top: 100, bottom: 200, width: "40%", zIndex: 5 },
-  tapRight: { position: "absolute", right: 0, top: 100, bottom: 200, width: "60%", zIndex: 5 },
-  // Action buttons
-  actionBtns: {
-    position: "absolute", right: 16, bottom: 130,
-    flexDirection: "column", gap: 16, zIndex: 10,
+  captionWrap: { position: "absolute", left: 20, right: 20 },
+  captionText: {
+    color: "#fff", fontFamily: "Inter_500Medium", fontSize: 16,
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.5)", textShadowRadius: 8,
   },
-  actionBtn: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    alignItems: "center", justifyContent: "center",
+  tapLeft: { position: "absolute", left: 0, top: 100, bottom: 160, width: "40%", zIndex: 5 },
+  tapRight: { position: "absolute", right: 0, top: 100, bottom: 160, width: "60%", zIndex: 5 },
+
+  // ─── Bottom bar (non-owner) ───
+  bottomBar: {
+    position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 10,
+    paddingHorizontal: 16, paddingTop: 8, gap: 8,
   },
-  // Reply bar
-  replyBar: {
-    position: "absolute", left: 16, right: 16, bottom: 0,
-    flexDirection: "row", alignItems: "center", gap: 10, zIndex: 10,
-    paddingTop: 8,
+  replyRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
   },
   replyInput: {
     flex: 1,
@@ -383,11 +403,33 @@ const styles = StyleSheet.create({
   },
   replySendBtn: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: "#7C3AED",
-    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center",
   },
   replySentRow: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12 },
   replySentText: { color: "#10B981", fontFamily: "Inter_600SemiBold", fontSize: 14 },
+
+  // ─── Actions row ───
+  actionsRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 4, paddingVertical: 4,
+  },
+  viewsBadge: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  viewsText: { color: "rgba(255,255,255,0.9)", fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  reactionBtns: { flexDirection: "row", gap: 8 },
+  reactionBtn: {
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    alignItems: "center", justifyContent: "center",
+  },
+
+  // ─── My story bottom ───
+  myStoryBottom: {
+    position: "absolute", left: 16, zIndex: 10,
+  },
 });
 
 // Share modal styles

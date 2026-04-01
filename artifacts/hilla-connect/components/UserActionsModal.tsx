@@ -22,6 +22,7 @@ interface UserActionsModalProps {
   targetUser: User | null;
   roomId?: string;
   isRoomOwner?: boolean;
+  mutedUsers?: string[];
   onClose: () => void;
 }
 
@@ -30,9 +31,10 @@ export default function UserActionsModal({
   targetUser,
   roomId,
   isRoomOwner,
+  mutedUsers = [],
   onClose,
 }: UserActionsModalProps) {
-  const { currentUser, isSuperAdmin, getConversation, blockUser, kickFromRoom, t, theme } = useApp();
+  const { currentUser, isSuperAdmin, getConversation, blockUser, kickFromRoom, muteUserInRoom, t, theme } = useApp();
   const { showToast } = useToast();
   const colors = Colors[theme];
 
@@ -43,6 +45,7 @@ export default function UserActionsModal({
 
   const uColor = ACCENT_COLORS[targetUser.name.length % ACCENT_COLORS.length];
   const canKick = (isRoomOwner || isSuperAdmin) && !!roomId;
+  const isMuted = mutedUsers.includes(targetUser.id);
 
   const handleViewProfile = () => {
     onClose();
@@ -66,6 +69,16 @@ export default function UserActionsModal({
     onClose();
     kickFromRoom(roomId, targetUser.id);
     showToast(`تم طرد ${targetUser.name} من الغرفة`, "info");
+  };
+
+  const handleMute = () => {
+    if (!roomId) return;
+    onClose();
+    muteUserInRoom(roomId, targetUser.id);
+    showToast(
+      isMuted ? `تم رفع كتم ${targetUser.name}` : `تم كتم ${targetUser.name}`,
+      "info"
+    );
   };
 
   return (
@@ -132,16 +145,30 @@ export default function UserActionsModal({
           </TouchableOpacity>
 
           {canKick && (
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: `${colors.warning}12`, borderColor: `${colors.warning}30` }]}
-              onPress={handleKick}
-            >
-              <View style={[styles.actionIconCircle, { backgroundColor: `${colors.warning}18` }]}>
-                <Ionicons name="exit-outline" size={18} color={colors.warning} />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.warning }]}>{t("kickFromRoom")}</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.warning} />
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.2)" }]}
+                onPress={handleMute}
+              >
+                <View style={[styles.actionIconCircle, { backgroundColor: "rgba(245,158,11,0.12)" }]}>
+                  <Ionicons name={isMuted ? "mic-outline" : "mic-off-outline"} size={18} color="#F59E0B" />
+                </View>
+                <Text style={[styles.actionLabel, { color: "#F59E0B" }]}>
+                  {isMuted ? t("unmuteInRoom") : t("muteInRoom")}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#F59E0B" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: `${colors.warning}12`, borderColor: `${colors.warning}30` }]}
+                onPress={handleKick}
+              >
+                <View style={[styles.actionIconCircle, { backgroundColor: `${colors.warning}18` }]}>
+                  <Ionicons name="exit-outline" size={18} color={colors.warning} />
+                </View>
+                <Text style={[styles.actionLabel, { color: colors.warning }]}>{t("kickFromRoom")}</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.warning} />
+              </TouchableOpacity>
+            </>
           )}
 
           <TouchableOpacity

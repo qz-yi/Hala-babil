@@ -62,6 +62,8 @@ Arabic-first social communication platform built with Expo React Native.
 - Create story (`/create-story`) — image/video + caption + filters
 - Story viewer (`/story/[userId]`) — progress bar animation, tap left/right navigation
 - Unread story ring highlighted in pink/red
+- User info row (avatar+name) at top is clickable → navigates to profile
+- Views counter at bottom-left, heart+share buttons at bottom-right above reply bar
 
 #### Follow System
 - Follow/unfollow any user
@@ -74,11 +76,21 @@ Arabic-first social communication platform built with Expo React Native.
 - Mark individual or all as read
 - Badge count on home header
 
+#### Voice Rooms (updated)
+- Role system: users enter as Listeners (no mic, no seat) by default
+- "هل تريد الصعود للميكروفون؟" confirmation modal before joining a seat
+- Leave Seat button (↓ arrow) lets speakers leave seat without leaving room
+- Room chat supports image/video: paperclip button opens attach menu, media shown in chat bubbles (tap to expand)
+- Live reactions: ❤️ and 😂 buttons with floating emoji animations that rise from bottom
+- Admin controls: mute/unmute + kick any user via UserActionsModal; muted badge shown on member list
+- `mutedUsers` array persisted in Room state; `muteUserInRoom` in AppContext
+
 #### Multimedia DMs
 - Chat screen (`/chat/[id]`) supports: text, image (picker), video (picker), audio (simulated mic)
 - Attachment menu with image/video/audio buttons
 - Voice call + video call buttons (UI ready, "coming soon" alert)
 - Image preview in chat bubble
+- Conversations list shows proper previews for shared content: 📎 منشور / 📷 صورة / 🎥 فيديو / 🎤 صوتية
 
 #### Profile Redesign (`/profile`)
 - Avatar with camera overlay (tap to change)

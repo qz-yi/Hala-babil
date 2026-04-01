@@ -160,7 +160,15 @@ export default function MessagesScreen() {
                     )}
                   </View>
                   <Text style={[styles.convoLastMsg, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {item.lastMessage?.content || t("startChat")}
+                    {item.lastMessage?.type === "shared"
+                      ? `📎 ${item.lastMessage.sharedContent?.type === "reel" ? "مقطع فيديو" : item.lastMessage.sharedContent?.type === "story" ? "قصة" : "منشور"}`
+                      : item.lastMessage?.type === "image"
+                      ? "📷 صورة"
+                      : item.lastMessage?.type === "video"
+                      ? "🎥 فيديو"
+                      : item.lastMessage?.type === "audio"
+                      ? "🎤 رسالة صوتية"
+                      : item.lastMessage?.content || t("startChat")}
                   </Text>
                 </View>
               </TouchableOpacity>

@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Dimensions,
   FlatList,
@@ -312,8 +312,13 @@ export default function ProfileScreen() {
   const [accountTypeModal, setAccountTypeModal] = useState(false);
   const [logoutModal, setLogoutModal] = useState(false);
 
+  useEffect(() => {
+    if (!currentUser) {
+      router.replace("/(auth)/login");
+    }
+  }, [currentUser]);
+
   if (!currentUser) {
-    router.replace("/(auth)/login");
     return null;
   }
 

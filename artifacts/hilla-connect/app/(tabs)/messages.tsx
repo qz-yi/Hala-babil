@@ -18,7 +18,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { User } from "@/context/AppContext";
-import { MessageSkeleton } from "@/components/SkeletonLoader";
 
 const BG = "#000000";
 const CARD = "#121212";

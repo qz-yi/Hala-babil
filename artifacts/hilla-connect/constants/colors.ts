@@ -21,9 +21,9 @@ export default {
   light: {
     text: "#0F0F0F",
     textSecondary: "#6B7280",
-    background: "#F8F8F8",
-    backgroundSecondary: "#FFFFFF",
-    backgroundTertiary: "#F0F0F0",
+    background: "#FFFFFF",
+    backgroundSecondary: "#F5F5F5",
+    backgroundTertiary: "#EFEFEF",
     card: "#FFFFFF",
     border: "#E5E5E5",
     tint: "#000000",

@@ -23,7 +23,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ACCENT_COLORS } from "@/constants/colors";
+import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { PrivateMessage, SharedContent, User } from "@/context/AppContext";
 
@@ -457,7 +457,8 @@ const recStyles = StyleSheet.create({
 // ───── Chat Screen ─────
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { conversations, currentUser, sendPrivateMessage, blockUser, t } = useApp();
+  const { conversations, currentUser, sendPrivateMessage, blockUser, t, theme } = useApp();
+  const colors = Colors[theme];
   const insets = useSafeAreaInsets();
   const [message, setMessage] = useState("");
   const [showAttach, setShowAttach] = useState(false);

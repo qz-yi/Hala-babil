@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Dimensions,
   FlatList,
@@ -21,10 +22,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import Colors, { ACCENT_COLORS, STORY_GRADIENT_COLORS } from "@/constants/colors";
+import { ACCENT_COLORS, STORY_GRADIENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { Post, PostComment, Story, User } from "@/context/AppContext";
-import { PostSkeleton, StorySkeleton } from "@/components/SkeletonLoader";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const BG = "#000000";
@@ -279,7 +279,7 @@ function SharePostSheet({
 
 // ───── Post Card (Instagram-style) ─────
 function PostCard({ post }: { post: Post }) {
-  const { users, isPostLiked, likePost, getPostLikesCount, getPostComments } = useApp();
+  const { users, currentUser, isPostLiked, likePost, getPostLikesCount, getPostComments, deletePost } = useApp();
   const creator = users.find((u) => u.id === post.creatorId);
   const liked = isPostLiked(post.id);
   const likesCount = getPostLikesCount(post.id);
@@ -355,9 +355,34 @@ function PostCard({ post }: { post: Post }) {
           <Text style={styles.postCreatorName}>{creator.name}</Text>
           <Text style={styles.postTime}>{formatTime(post.createdAt)}</Text>
         </View>
-        <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Feather name="more-horizontal" size={20} color={TEXT2} strokeWidth={1.5} />
-        </TouchableOpacity>
+        {currentUser?.id === post.creatorId && (
+          <TouchableOpacity
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={() => {
+              Alert.alert("خيارات المنشور", "", [
+                {
+                  text: "حذف المنشور",
+                  style: "destructive",
+                  onPress: () =>
+                    Alert.alert("حذف المنشور", "هل أنت متأكد من حذف هذا المنشور؟", [
+                      { text: "إلغاء", style: "cancel" },
+                      {
+                        text: "حذف",
+                        style: "destructive",
+                        onPress: () => {
+                          deletePost(post.id);
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        },
+                      },
+                    ]),
+                },
+                { text: "إلغاء", style: "cancel" },
+              ]);
+            }}
+          >
+            <Feather name="more-horizontal" size={20} color={TEXT2} strokeWidth={1.5} />
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
 
       {/* ── Media ── */}
@@ -500,7 +525,6 @@ export default function HomeScreen() {
           <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.92)" }]} />
         )}
         <View style={styles.headerRow}>
-          <Text style={styles.headerLogo}>هلا بابل</Text>
           <View style={styles.headerIcons}>
             <TouchableOpacity
               style={styles.headerIconBtn}
@@ -547,7 +571,7 @@ export default function HomeScreen() {
         data={feedPosts}
         keyExtractor={(p) => p.id}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingTop: topPad + 52 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingTop: topPad + 40 }}
         ListHeaderComponent={
           <ScrollView
             horizontal
@@ -613,12 +637,11 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     paddingHorizontal: 16,
-    paddingBottom: 12,
-    paddingTop: 8,
+    paddingBottom: 6,
+    paddingTop: 4,
   },
-  headerLogo: { fontSize: 22, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.5 },
   headerIcons: { flexDirection: "row", gap: 8, alignItems: "center" },
   headerIconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center", position: "relative" },
   badge: {

@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "expo-av": "^16.0.8",
+    "expo-image-manipulator": "^14.0.8",
     "expo-video": "^3.0.16"
   }
 }

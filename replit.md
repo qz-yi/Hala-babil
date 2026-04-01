@@ -34,7 +34,7 @@ artifacts-monorepo/
 
 ---
 
-## Hilla Connect Mobile App (`artifacts/hilla-connect`) — v2.0
+## Hilla Connect Mobile App (`artifacts/hilla-connect`) — v3.0
 
 Arabic-first social communication platform built with Expo React Native.
 

@@ -3,9 +3,9 @@ import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -25,7 +25,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
-import type { PrivateMessage, User } from "@/context/AppContext";
+import type { PrivateMessage, SharedContent, User } from "@/context/AppContext";
 
 // ───── Media Fullscreen Modal ─────
 function VideoModalPlayer({ uri }: { uri: string }) {
@@ -95,6 +95,132 @@ const mediaStyles = StyleSheet.create({
   closeText: { color: "#fff", fontSize: 18, fontFamily: "Inter_600SemiBold" },
   fullImage: { width: "100%", height: "80%" },
   videoWrap: { width: "100%", height: "80%", backgroundColor: "#000" },
+});
+
+// ───── Shared Content Preview ─────
+function SharedContentPreview({
+  sharedContent,
+  isMe,
+  colors,
+}: {
+  sharedContent: SharedContent;
+  isMe: boolean;
+  colors: any;
+}) {
+  const ICONS: Record<string, string> = {
+    post: "images-outline",
+    reel: "play-circle-outline",
+    story: "radio-button-on-outline",
+  };
+  const LABELS: Record<string, string> = {
+    post: "منشور",
+    reel: "مقطع فيديو",
+    story: "قصة",
+  };
+  const iconColor = isMe ? "rgba(255,255,255,0.9)" : colors.tint;
+  const handleTap = () => {
+    if (sharedContent.type === "post") {
+      router.push(`/post/${sharedContent.id}` as any);
+    } else if (sharedContent.type === "story") {
+      router.push(`/story/${sharedContent.id}` as any);
+    }
+  };
+
+  return (
+    <TouchableOpacity
+      onPress={handleTap}
+      activeOpacity={0.8}
+      style={[
+        sharedStyles.card,
+        {
+          backgroundColor: isMe ? "rgba(255,255,255,0.18)" : colors.backgroundSecondary,
+          borderColor: isMe ? "rgba(255,255,255,0.3)" : colors.border,
+        },
+      ]}
+    >
+      {/* Thumbnail */}
+      <View
+        style={[sharedStyles.thumb, { backgroundColor: isMe ? "rgba(255,255,255,0.12)" : `${colors.tint}22` }]}
+      >
+        {sharedContent.mediaUrl ? (
+          <Image source={{ uri: sharedContent.mediaUrl }} style={StyleSheet.absoluteFill as any} resizeMode="cover" />
+        ) : null}
+        <View style={sharedStyles.thumbOverlay}>
+          <Ionicons name={ICONS[sharedContent.type] as any} size={24} color={iconColor} />
+        </View>
+      </View>
+      {/* Info */}
+      <View style={sharedStyles.info}>
+        <Text style={[sharedStyles.typeLabel, { color: isMe ? "rgba(255,255,255,0.7)" : colors.textSecondary }]}>
+          {LABELS[sharedContent.type]}
+        </Text>
+        {sharedContent.title ? (
+          <Text style={[sharedStyles.title, { color: isMe ? "#fff" : colors.text }]} numberOfLines={2}>
+            {sharedContent.title}
+          </Text>
+        ) : null}
+        {sharedContent.creatorName ? (
+          <Text style={[sharedStyles.creator, { color: isMe ? "rgba(255,255,255,0.65)" : colors.textSecondary }]}>
+            {sharedContent.creatorName}
+          </Text>
+        ) : null}
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={isMe ? "rgba(255,255,255,0.5)" : colors.textSecondary} />
+    </TouchableOpacity>
+  );
+}
+
+const sharedStyles = StyleSheet.create({
+  card: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    borderRadius: 14, borderWidth: 1, overflow: "hidden", minWidth: 200,
+    marginBottom: 4,
+  },
+  thumb: { width: 64, height: 64, position: "relative", overflow: "hidden" },
+  thumbOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.25)",
+  },
+  info: { flex: 1, gap: 2, paddingVertical: 10 },
+  typeLabel: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  title: { fontSize: 13, fontFamily: "Inter_600SemiBold", lineHeight: 18 },
+  creator: { fontSize: 11, fontFamily: "Inter_400Regular" },
+});
+
+// ───── Story Reply Reference ─────
+function StoryReplyRef({ storyId, colors, isMe }: { storyId: string; colors: any; isMe: boolean }) {
+  const { stories } = useApp();
+  const story = stories.find((s) => s.id === storyId);
+  if (!story) return null;
+  return (
+    <TouchableOpacity
+      onPress={() => router.push(`/story/${story.creatorId}` as any)}
+      style={[storyRefStyles.wrap, { borderColor: isMe ? "rgba(255,255,255,0.3)" : colors.border }]}
+      activeOpacity={0.8}
+    >
+      <View style={storyRefStyles.thumb}>
+        {story.mediaUrl ? (
+          <Image source={{ uri: story.mediaUrl }} style={StyleSheet.absoluteFill as any} resizeMode="cover" />
+        ) : (
+          <View style={[StyleSheet.absoluteFill as any, { backgroundColor: "#7C3AED88" }]} />
+        )}
+      </View>
+      <Text style={[storyRefStyles.label, { color: isMe ? "rgba(255,255,255,0.75)" : colors.textSecondary }]}>
+        رد على قصة
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+const storyRefStyles = StyleSheet.create({
+  wrap: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    borderRadius: 10, borderWidth: 1, overflow: "hidden",
+    marginBottom: 4, borderLeftWidth: 3, borderLeftColor: "#EC4899",
+  },
+  thumb: { width: 36, height: 36, overflow: "hidden" },
+  label: { fontSize: 11, fontFamily: "Inter_500Medium", flex: 1 },
 });
 
 // ───── Audio Bubble with Playback ─────
@@ -223,7 +349,15 @@ function MessageBubble({
           },
         ]}
       >
-        {msg.type === "image" && msg.mediaUrl ? (
+        {/* Story reply reference */}
+        {msg.storyRef && (
+          <StoryReplyRef storyId={msg.storyRef} colors={colors} isMe={isMe} />
+        )}
+
+        {/* Shared content card */}
+        {msg.type === "shared" && msg.sharedContent ? (
+          <SharedContentPreview sharedContent={msg.sharedContent} isMe={isMe} colors={colors} />
+        ) : msg.type === "image" && msg.mediaUrl ? (
           <TouchableOpacity
             style={styles.msgImageWrap}
             onPress={() => onMediaPress(msg.mediaUrl!, "image")}
@@ -335,6 +469,27 @@ export default function ChatScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Stop recording & audio when navigating away
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        // Stop recording if active
+        if (recordingRef.current) {
+          recordingRef.current.stopAndUnloadAsync().catch(() => {});
+          recordingRef.current = null;
+        }
+        if (recordTimerRef.current) {
+          clearInterval(recordTimerRef.current);
+          recordTimerRef.current = null;
+        }
+        setIsRecording(false);
+        setRecordingDuration(0);
+        // Stop any playing audio via Audio API
+        Audio.setAudioModeAsync({ allowsRecordingIOS: false }).catch(() => {});
+      };
+    }, [])
+  );
 
   const convo = conversations.find((c) => c.id === id) as any;
   const messages: PrivateMessage[] = convo?.messages || [];

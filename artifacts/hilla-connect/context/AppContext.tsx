@@ -12,6 +12,7 @@ export type Language = "ar" | "en";
 export type Theme = "light" | "dark";
 export type ReelFilter = "none" | "grayscale" | "warm" | "cool" | "vintage";
 export type AccountType = "public" | "private";
+export type PostFilter = "none" | "grayscale" | "warm" | "cool" | "vintage";
 
 export interface User {
   id: string;
@@ -50,16 +51,26 @@ export interface Room {
   createdAt: number;
 }
 
+export interface SharedContent {
+  id: string;
+  type: "post" | "reel" | "story";
+  mediaUrl?: string;
+  title?: string;
+  creatorName?: string;
+}
+
 export interface PrivateMessage {
   id: string;
   senderId: string;
   receiverId: string;
   content: string;
   mediaUrl?: string;
-  type: "text" | "image" | "video" | "audio";
+  type: "text" | "image" | "video" | "audio" | "shared";
   duration?: number;
   timestamp: number;
   read: boolean;
+  sharedContent?: SharedContent;
+  storyRef?: string;
 }
 
 export interface Conversation {
@@ -120,6 +131,8 @@ export interface Post {
   content?: string;
   mediaUrl?: string;
   mediaType: "none" | "image" | "video";
+  filter?: PostFilter;
+  isHidden?: boolean;
   createdAt: number;
 }
 
@@ -135,6 +148,8 @@ export interface PostComment {
   userName: string;
   userAvatar?: string;
   content: string;
+  likedBy: string[];
+  isPinned: boolean;
   createdAt: number;
 }
 
@@ -164,7 +179,7 @@ export interface AppNotification {
   senderId: string;
   senderName: string;
   senderAvatar?: string;
-  type: "follow_request" | "follow_accept" | "like" | "comment" | "post" | "story" | "message";
+  type: "follow_request" | "follow_accept" | "like" | "comment" | "post" | "story" | "message" | "story_like" | "story_reply";
   referenceId?: string;
   message: string;
   isRead: boolean;
@@ -214,7 +229,7 @@ interface AppContextValue {
   kickFromRoom: (roomId: string, userId: string) => void;
   banFromRoom: (roomId: string, userId: string) => void;
   getConversation: (otherUserId: string) => Conversation;
-  sendPrivateMessage: (conversationId: string, receiverId: string, content: string, type?: "text" | "image" | "video" | "audio", mediaUrl?: string, duration?: number) => void;
+  sendPrivateMessage: (conversationId: string, receiverId: string, content: string, type?: "text" | "image" | "video" | "audio" | "shared", mediaUrl?: string, duration?: number, sharedContent?: SharedContent, storyRef?: string) => void;
   blockUser: (userId: string) => void;
   addRestaurant: (restaurant: Omit<Restaurant, "id" | "createdAt">) => void;
   updateRestaurant: (id: string, data: Partial<Restaurant>) => void;
@@ -230,19 +245,28 @@ interface AppContextValue {
   addReelComment: (reelId: string, content: string) => void;
   getReelComments: (reelId: string) => ReelComment[];
   shareReelToConversation: (reelId: string, receiverId: string) => void;
+  sharePostToDM: (postId: string, receiverId: string) => void;
+  shareStoryToDM: (storyId: string, receiverId: string) => void;
   searchUsers: (query: string) => User[];
   // Posts
-  addPost: (content?: string, mediaUrl?: string, mediaType?: "none" | "image" | "video") => void;
+  addPost: (content?: string, mediaUrl?: string, mediaType?: "none" | "image" | "video", filter?: PostFilter) => void;
   deletePost: (postId: string) => void;
+  hidePost: (postId: string) => void;
   likePost: (postId: string) => void;
   isPostLiked: (postId: string) => boolean;
   getPostLikesCount: (postId: string) => number;
   addPostComment: (postId: string, content: string) => void;
+  deletePostComment: (commentId: string) => void;
+  likePostComment: (commentId: string) => void;
+  isPostCommentLiked: (commentId: string) => boolean;
+  pinPostComment: (commentId: string) => void;
   getPostComments: (postId: string) => PostComment[];
   // Stories
   addStory: (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter?: string) => void;
   deleteStory: (storyId: string) => void;
   viewStory: (storyId: string) => void;
+  likeStory: (storyId: string) => void;
+  replyToStory: (storyId: string, storyCreatorId: string, replyText: string) => void;
   getActiveStories: () => Story[];
   getUserStories: (userId: string) => Story[];
   hasUnseenStory: (userId: string) => boolean;
@@ -267,6 +291,8 @@ interface AppContextValue {
   // Activity
   getLikedReels: () => Reel[];
   getMyComments: () => ReelComment[];
+  getMyPostComments: () => PostComment[];
+  getLikedPosts: () => Post[];
   t: (key: string) => string;
 }
 
@@ -435,6 +461,23 @@ const translations: Record<Language, Record<string, string>> = {
     noPosts: "لا توجد منشورات بعد",
     grid: "شبكة",
     list: "قائمة",
+    deletePost: "حذف المنشور",
+    hidePost: "إخفاء المنشور",
+    postHidden: "تم إخفاء المنشور",
+    postDeleted: "تم حذف المنشور",
+    hidden: "مخفي",
+    pinComment: "تثبيت التعليق",
+    unpinComment: "إلغاء التثبيت",
+    deleteComment: "حذف التعليق",
+    pinned: "مثبّت",
+    sharedPost: "منشور مشارك",
+    sharedReel: "مقطع مشارك",
+    sharedStory: "قصة مشاركة",
+    tapToView: "اضغط للعرض",
+    replyToStory: "رد على القصة...",
+    likedYourStory: "أعجب بقصتك",
+    repliedToStory: "رد على قصتك",
+    storyReply: "رد على القصة",
   },
   en: {
     home: "Home",
@@ -598,6 +641,23 @@ const translations: Record<Language, Record<string, string>> = {
     noPosts: "No posts yet",
     grid: "Grid",
     list: "List",
+    deletePost: "Delete Post",
+    hidePost: "Hide Post",
+    postHidden: "Post hidden",
+    postDeleted: "Post deleted",
+    hidden: "Hidden",
+    pinComment: "Pin Comment",
+    unpinComment: "Unpin Comment",
+    deleteComment: "Delete Comment",
+    pinned: "Pinned",
+    sharedPost: "Shared Post",
+    sharedReel: "Shared Reel",
+    sharedStory: "Shared Story",
+    tapToView: "Tap to view",
+    replyToStory: "Reply to story...",
+    likedYourStory: "liked your story",
+    repliedToStory: "replied to your story",
+    storyReply: "Story Reply",
   },
 };
 
@@ -652,9 +712,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.reels) setReels(JSON.parse(data.reels));
       if (data.reelLikes) setReelLikes(JSON.parse(data.reelLikes));
       if (data.reelComments) setReelComments(JSON.parse(data.reelComments));
-      if (data.posts) setPosts(JSON.parse(data.posts));
+      if (data.posts) {
+        const parsed: Post[] = JSON.parse(data.posts);
+        setPosts(parsed);
+      }
       if (data.postLikes) setPostLikes(JSON.parse(data.postLikes));
-      if (data.postComments) setPostComments(JSON.parse(data.postComments));
+      if (data.postComments) {
+        const parsed: PostComment[] = JSON.parse(data.postComments);
+        // Migrate old comments that don't have likedBy/isPinned
+        const migrated = parsed.map((c) => ({
+          ...c,
+          likedBy: c.likedBy ?? [],
+          isPinned: c.isPinned ?? false,
+        }));
+        setPostComments(migrated);
+      }
       if (data.stories) setStories(JSON.parse(data.stories));
       if (data.follows) setFollows(JSON.parse(data.follows));
       if (data.notifications) setNotifications(JSON.parse(data.notifications));
@@ -930,7 +1002,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const sendPrivateMessage = useCallback(
-    (conversationId: string, receiverId: string, content: string, type: "text" | "image" | "video" | "audio" = "text", mediaUrl?: string, duration?: number) => {
+    (
+      conversationId: string,
+      receiverId: string,
+      content: string,
+      type: "text" | "image" | "video" | "audio" | "shared" = "text",
+      mediaUrl?: string,
+      duration?: number,
+      sharedContent?: SharedContent,
+      storyRef?: string
+    ) => {
       if (!currentUser) return;
       const msg: PrivateMessage = {
         id: generateId(),
@@ -942,15 +1023,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         duration,
         timestamp: Date.now(),
         read: false,
+        sharedContent,
+        storyRef,
       };
-      const updated = conversations.map((c) => {
+
+      let updated = conversations.map((c) => {
         if (c.id !== conversationId) return c;
         const msgs = c.messages || [];
         return { ...c, messages: [...msgs, msg], lastMessage: msg, updatedAt: Date.now() };
       });
+
+      // If conversation wasn't found (new), add it
+      const found = updated.find((c) => c.id === conversationId);
+      if (!found) {
+        const otherUser = users.find((u) => u.id === receiverId);
+        const newConvo: Conversation = {
+          id: conversationId,
+          participants: [currentUser.id, receiverId],
+          participantUsers: [currentUser, otherUser!].filter(Boolean),
+          messages: [msg],
+          lastMessage: msg,
+          updatedAt: Date.now(),
+        };
+        updated = [...conversations, newConvo];
+      }
       saveConversations(updated);
     },
-    [currentUser, conversations]
+    [currentUser, conversations, users]
   );
 
   const blockUser = useCallback(
@@ -1006,7 +1105,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!currentUser) return;
       const reel: Reel = { id: generateId(), videoUrl, title, creatorId: currentUser.id, filter, createdAt: Date.now() };
       saveReels([reel, ...reels]);
-      // إشعار المتابعين
       const myFollowers = follows.filter((f) => f.followingId === currentUser.id && f.status === "accepted");
       const newNotifs: AppNotification[] = myFollowers.map((f) => ({
         id: generateId(),
@@ -1082,6 +1180,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [reelComments]
   );
 
+  // ─── Share reel as rich content ───
   const shareReelToConversation = useCallback(
     (reelId: string, receiverId: string) => {
       if (!currentUser) return;
@@ -1102,14 +1201,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return newConvo;
       })();
       const reel = reels.find((r) => r.id === reelId);
+      const sharedContent: SharedContent = {
+        id: reelId,
+        type: "reel",
+        title: reel?.title || "مقطع فيديو",
+        mediaUrl: reel?.videoUrl,
+        creatorName: users.find((u) => u.id === reel?.creatorId)?.name,
+      };
       const msg: PrivateMessage = {
         id: generateId(),
         senderId: currentUser.id,
         receiverId,
-        content: `🎬 ${reel?.title || "مقطع فيديو"}\n${reel?.videoUrl || ""}`,
-        type: "text",
+        content: "",
+        type: "shared",
         timestamp: Date.now(),
         read: false,
+        sharedContent,
       };
       const updated = conversations.map((c) => {
         if (c.id !== convo.id) return c;
@@ -1124,6 +1231,114 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     },
     [currentUser, conversations, reels, users]
+  );
+
+  // ─── Share post as rich content in DM ───
+  const sharePostToDM = useCallback(
+    (postId: string, receiverId: string) => {
+      if (!currentUser) return;
+      const post = posts.find((p) => p.id === postId);
+      if (!post) return;
+      const convo = (() => {
+        const existing = conversations.find(
+          (c) => c.participants.includes(currentUser.id) && c.participants.includes(receiverId)
+        );
+        if (existing) return existing;
+        const otherUser = users.find((u) => u.id === receiverId);
+        const newConvo: Conversation = {
+          id: generateId(),
+          participants: [currentUser.id, receiverId],
+          participantUsers: [currentUser, otherUser!].filter(Boolean),
+          messages: [],
+          updatedAt: Date.now(),
+        };
+        saveConversations([...conversations, newConvo]);
+        return newConvo;
+      })();
+      const sharedContent: SharedContent = {
+        id: postId,
+        type: "post",
+        title: post.content || "منشور",
+        mediaUrl: post.mediaUrl,
+        creatorName: users.find((u) => u.id === post.creatorId)?.name,
+      };
+      const msg: PrivateMessage = {
+        id: generateId(),
+        senderId: currentUser.id,
+        receiverId,
+        content: "",
+        type: "shared",
+        timestamp: Date.now(),
+        read: false,
+        sharedContent,
+      };
+      const updated = conversations.map((c) => {
+        if (c.id !== convo.id) return c;
+        const msgs = c.messages || [];
+        return { ...c, messages: [...msgs, msg], lastMessage: msg, updatedAt: Date.now() };
+      });
+      const alreadyInList = updated.find((c) => c.id === convo.id);
+      if (!alreadyInList) {
+        saveConversations([...updated, { ...convo, messages: [msg], lastMessage: msg, updatedAt: Date.now() }]);
+      } else {
+        saveConversations(updated);
+      }
+    },
+    [currentUser, posts, conversations, users]
+  );
+
+  // ─── Share story in DM ───
+  const shareStoryToDM = useCallback(
+    (storyId: string, receiverId: string) => {
+      if (!currentUser) return;
+      const story = stories.find((s) => s.id === storyId);
+      if (!story) return;
+      const convo = (() => {
+        const existing = conversations.find(
+          (c) => c.participants.includes(currentUser.id) && c.participants.includes(receiverId)
+        );
+        if (existing) return existing;
+        const otherUser = users.find((u) => u.id === receiverId);
+        const newConvo: Conversation = {
+          id: generateId(),
+          participants: [currentUser.id, receiverId],
+          participantUsers: [currentUser, otherUser!].filter(Boolean),
+          messages: [],
+          updatedAt: Date.now(),
+        };
+        saveConversations([...conversations, newConvo]);
+        return newConvo;
+      })();
+      const sharedContent: SharedContent = {
+        id: storyId,
+        type: "story",
+        title: story.caption || "قصة",
+        mediaUrl: story.mediaUrl,
+        creatorName: users.find((u) => u.id === story.creatorId)?.name,
+      };
+      const msg: PrivateMessage = {
+        id: generateId(),
+        senderId: currentUser.id,
+        receiverId,
+        content: "",
+        type: "shared",
+        timestamp: Date.now(),
+        read: false,
+        sharedContent,
+      };
+      const updated = conversations.map((c) => {
+        if (c.id !== convo.id) return c;
+        const msgs = c.messages || [];
+        return { ...c, messages: [...msgs, msg], lastMessage: msg, updatedAt: Date.now() };
+      });
+      const alreadyInList = updated.find((c) => c.id === convo.id);
+      if (!alreadyInList) {
+        saveConversations([...updated, { ...convo, messages: [msg], lastMessage: msg, updatedAt: Date.now() }]);
+      } else {
+        saveConversations(updated);
+      }
+    },
+    [currentUser, stories, conversations, users]
   );
 
   const searchUsers = useCallback(
@@ -1141,7 +1356,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // POSTS
   // ============================
   const addPost = useCallback(
-    (content?: string, mediaUrl?: string, mediaType: "none" | "image" | "video" = "none") => {
+    (content?: string, mediaUrl?: string, mediaType: "none" | "image" | "video" = "none", filter: PostFilter = "none") => {
       if (!currentUser) return;
       const post: Post = {
         id: generateId(),
@@ -1149,10 +1364,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         content,
         mediaUrl,
         mediaType,
+        filter,
+        isHidden: false,
         createdAt: Date.now(),
       };
       savePosts([post, ...posts]);
-      // إشعار المتابعين
       const myFollowers = follows.filter((f) => f.followingId === currentUser.id && f.status === "accepted");
       const newNotifs: AppNotification[] = myFollowers.map((f) => ({
         id: generateId(),
@@ -1180,6 +1396,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [posts, postLikes, postComments]
   );
 
+  const hidePost = useCallback(
+    (postId: string) => {
+      savePosts(posts.map((p) => p.id === postId ? { ...p, isHidden: !p.isHidden } : p));
+    },
+    [posts]
+  );
+
   const likePost = useCallback(
     (postId: string) => {
       if (!currentUser) return;
@@ -1188,7 +1411,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         savePostLikes(postLikes.filter((l) => !(l.postId === postId && l.userId === currentUser.id)));
       } else {
         savePostLikes([...postLikes, { postId, userId: currentUser.id }]);
-        // إشعار صاحب المنشور
         const post = posts.find((p) => p.id === postId);
         if (post && post.creatorId !== currentUser.id) {
           const notif: AppNotification = {
@@ -1233,10 +1455,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         userName: currentUser.name,
         userAvatar: currentUser.avatar,
         content: content.trim(),
+        likedBy: [],
+        isPinned: false,
         createdAt: Date.now(),
       };
       savePostComments([...postComments, comment]);
-      // إشعار صاحب المنشور
       const post = posts.find((p) => p.id === postId);
       if (post && post.creatorId !== currentUser.id) {
         const notif: AppNotification = {
@@ -1257,8 +1480,60 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [currentUser, postComments, posts, notifications]
   );
 
+  const deletePostComment = useCallback(
+    (commentId: string) => {
+      savePostComments(postComments.filter((c) => c.id !== commentId));
+    },
+    [postComments]
+  );
+
+  const likePostComment = useCallback(
+    (commentId: string) => {
+      if (!currentUser) return;
+      const updated = postComments.map((c) => {
+        if (c.id !== commentId) return c;
+        const liked = c.likedBy.includes(currentUser.id);
+        return {
+          ...c,
+          likedBy: liked
+            ? c.likedBy.filter((id) => id !== currentUser.id)
+            : [...c.likedBy, currentUser.id],
+        };
+      });
+      savePostComments(updated);
+    },
+    [currentUser, postComments]
+  );
+
+  const isPostCommentLiked = useCallback(
+    (commentId: string) => {
+      if (!currentUser) return false;
+      const comment = postComments.find((c) => c.id === commentId);
+      return comment ? comment.likedBy.includes(currentUser.id) : false;
+    },
+    [currentUser, postComments]
+  );
+
+  const pinPostComment = useCallback(
+    (commentId: string) => {
+      const updated = postComments.map((c) => {
+        if (c.id !== commentId) return { ...c, isPinned: false };
+        return { ...c, isPinned: !c.isPinned };
+      });
+      savePostComments(updated);
+    },
+    [postComments]
+  );
+
   const getPostComments = useCallback(
-    (postId: string) => postComments.filter((c) => c.postId === postId).sort((a, b) => a.createdAt - b.createdAt),
+    (postId: string) => {
+      const all = postComments.filter((c) => c.postId === postId);
+      return all.sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.likedBy.length - a.likedBy.length || a.createdAt - b.createdAt;
+      });
+    },
     [postComments]
   );
 
@@ -1268,7 +1543,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addStory = useCallback(
     (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter = "none") => {
       if (!currentUser) return;
-      const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 ساعة
+      const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
       const story: Story = {
         id: generateId(),
         creatorId: currentUser.id,
@@ -1300,6 +1575,112 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       saveStories(updated);
     },
     [currentUser, stories]
+  );
+
+  const likeStory = useCallback(
+    (storyId: string) => {
+      if (!currentUser) return;
+      const story = stories.find((s) => s.id === storyId);
+      if (!story || story.creatorId === currentUser.id) return;
+      const notif: AppNotification = {
+        id: generateId(),
+        recipientId: story.creatorId,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderAvatar: currentUser.avatar,
+        type: "story_like",
+        referenceId: storyId,
+        message: `${currentUser.name} أعجب بقصتك`,
+        isRead: false,
+        createdAt: Date.now(),
+      };
+      saveNotifications([notif, ...notifications]);
+    },
+    [currentUser, stories, notifications]
+  );
+
+  const replyToStory = useCallback(
+    (storyId: string, storyCreatorId: string, replyText: string) => {
+      if (!currentUser || !replyText.trim() || storyCreatorId === currentUser.id) return;
+      const story = stories.find((s) => s.id === storyId);
+      // Get or create conversation with story creator
+      const existing = conversations.find(
+        (c) => c.participants.includes(currentUser.id) && c.participants.includes(storyCreatorId)
+      );
+      let convoId: string;
+      if (existing) {
+        convoId = existing.id;
+      } else {
+        const otherUser = users.find((u) => u.id === storyCreatorId);
+        const newConvo: Conversation = {
+          id: generateId(),
+          participants: [currentUser.id, storyCreatorId],
+          participantUsers: [currentUser, otherUser!].filter(Boolean),
+          messages: [],
+          updatedAt: Date.now(),
+        };
+        saveConversations([...conversations, newConvo]);
+        convoId = newConvo.id;
+      }
+
+      const sharedContent: SharedContent = {
+        id: storyId,
+        type: "story",
+        title: story?.caption || "قصة",
+        mediaUrl: story?.mediaUrl,
+        creatorName: currentUser.name,
+      };
+      const msg: PrivateMessage = {
+        id: generateId(),
+        senderId: currentUser.id,
+        receiverId: storyCreatorId,
+        content: replyText.trim(),
+        type: "text",
+        timestamp: Date.now(),
+        read: false,
+        storyRef: storyId,
+        sharedContent,
+      };
+
+      const updated = conversations.map((c) => {
+        if (c.id !== convoId) return c;
+        const msgs = c.messages || [];
+        return { ...c, messages: [...msgs, msg], lastMessage: msg, updatedAt: Date.now() };
+      });
+      const alreadyInList = updated.find((c) => c.id === convoId);
+      if (!alreadyInList) {
+        const otherUser = users.find((u) => u.id === storyCreatorId);
+        saveConversations([
+          ...updated,
+          {
+            id: convoId,
+            participants: [currentUser.id, storyCreatorId],
+            participantUsers: [currentUser, otherUser!].filter(Boolean),
+            messages: [msg],
+            lastMessage: msg,
+            updatedAt: Date.now(),
+          },
+        ]);
+      } else {
+        saveConversations(updated);
+      }
+
+      // إشعار صاحب القصة
+      const notif: AppNotification = {
+        id: generateId(),
+        recipientId: storyCreatorId,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderAvatar: currentUser.avatar,
+        type: "story_reply",
+        referenceId: storyId,
+        message: `${currentUser.name} رد على قصتك: "${replyText.trim().substring(0, 30)}"`,
+        isRead: false,
+        createdAt: Date.now(),
+      };
+      saveNotifications([notif, ...notifications]);
+    },
+    [currentUser, stories, conversations, users, notifications]
   );
 
   const getActiveStories = useCallback(
@@ -1343,7 +1724,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         createdAt: Date.now(),
       };
       saveFollows([...follows, follow]);
-      // إشعار المتابَع
       const notif: AppNotification = {
         id: generateId(),
         recipientId: userId,
@@ -1381,8 +1761,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return f;
       });
       saveFollows(updated);
-      // إشعار الطالب بالقبول
-      const followerUser = users.find((u) => u.id === followerId);
       const notif: AppNotification = {
         id: generateId(),
         recipientId: followerId,
@@ -1491,7 +1869,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .map((f) => f.followingId);
       const feedIds = new Set([currentUser.id, ...followingIds]);
       return posts
-        .filter((p) => feedIds.has(p.creatorId))
+        .filter((p) => feedIds.has(p.creatorId) && (!p.isHidden || p.creatorId === currentUser.id))
         .sort((a, b) => b.createdAt - a.createdAt);
     },
     [currentUser, posts, follows]
@@ -1534,6 +1912,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [currentUser, reelComments]
   );
 
+  const getMyPostComments = useCallback(
+    () => {
+      if (!currentUser) return [];
+      return postComments
+        .filter((c) => c.userId === currentUser.id)
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .slice(0, 20);
+    },
+    [currentUser, postComments]
+  );
+
+  const getLikedPosts = useCallback(
+    () => {
+      if (!currentUser) return [];
+      const likedPostIds = postLikes.filter((l) => l.userId === currentUser.id).map((l) => l.postId);
+      return posts.filter((p) => likedPostIds.includes(p.id));
+    },
+    [currentUser, posts, postLikes]
+  );
+
   const t = useCallback(
     (key: string) => translations[language][key] ?? key,
     [language]
@@ -1548,13 +1946,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sendRoomMessage, kickFromRoom, banFromRoom, getConversation, sendPrivateMessage, blockUser,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, getReelComments,
-      shareReelToConversation, searchUsers,
-      addPost, deletePost, likePost, isPostLiked, getPostLikesCount, addPostComment, getPostComments,
-      addStory, deleteStory, viewStory, getActiveStories, getUserStories, hasUnseenStory,
+      shareReelToConversation, sharePostToDM, shareStoryToDM, searchUsers,
+      addPost, deletePost, hidePost, likePost, isPostLiked, getPostLikesCount,
+      addPostComment, deletePostComment, likePostComment, isPostCommentLiked, pinPostComment, getPostComments,
+      addStory, deleteStory, viewStory, likeStory, replyToStory, getActiveStories, getUserStories, hasUnseenStory,
       followUser, unfollowUser, acceptFollowRequest, rejectFollowRequest, isFollowing, isFollowedBy,
       getFollowStatus, getFollowersCount, getFollowingCount, getFollowRequests,
       markNotificationRead, markAllNotificationsRead, getUnreadNotificationsCount,
-      getFeedPosts, getFeedReels, getLikedReels, getMyComments,
+      getFeedPosts, getFeedReels, getLikedReels, getMyComments, getMyPostComments, getLikedPosts,
       t,
     }),
     [
@@ -1564,13 +1963,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sendRoomMessage, kickFromRoom, banFromRoom, getConversation, sendPrivateMessage, blockUser,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, getReelComments,
-      shareReelToConversation, searchUsers,
-      addPost, deletePost, likePost, isPostLiked, getPostLikesCount, addPostComment, getPostComments,
-      addStory, deleteStory, viewStory, getActiveStories, getUserStories, hasUnseenStory,
+      shareReelToConversation, sharePostToDM, shareStoryToDM, searchUsers,
+      addPost, deletePost, hidePost, likePost, isPostLiked, getPostLikesCount,
+      addPostComment, deletePostComment, likePostComment, isPostCommentLiked, pinPostComment, getPostComments,
+      addStory, deleteStory, viewStory, likeStory, replyToStory, getActiveStories, getUserStories, hasUnseenStory,
       followUser, unfollowUser, acceptFollowRequest, rejectFollowRequest, isFollowing, isFollowedBy,
       getFollowStatus, getFollowersCount, getFollowingCount, getFollowRequests,
       markNotificationRead, markAllNotificationsRead, getUnreadNotificationsCount,
-      getFeedPosts, getFeedReels, getLikedReels, getMyComments, t,
+      getFeedPosts, getFeedReels, getLikedReels, getMyComments, getMyPostComments, getLikedPosts, t,
     ]
   );
 

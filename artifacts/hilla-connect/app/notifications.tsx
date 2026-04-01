@@ -24,6 +24,8 @@ const NOTIF_ICONS: Record<string, { name: string; color: string }> = {
   comment: { name: "chatbubble-outline", color: "#3B82F6" },
   post: { name: "images-outline", color: "#F59E0B" },
   story: { name: "radio-button-on-outline", color: "#EC4899" },
+  story_like: { name: "heart", color: "#EC4899" },
+  story_reply: { name: "chatbubble-ellipses-outline", color: "#EC4899" },
   message: { name: "chatbubbles-outline", color: "#06B6D4" },
 };
 
@@ -61,7 +63,6 @@ function NotifItem({ notif, colors, onPress }: { notif: AppNotification; colors:
             <Text style={[styles.notifAvatarText, { color: accentColor }]}>{notif.senderName?.[0]?.toUpperCase()}</Text>
           </View>
         )}
-        {/* Type Icon Badge */}
         <View style={[styles.notifTypeBadge, { backgroundColor: icon.color }]}>
           <Ionicons name={icon.name as any} size={11} color="#fff" />
         </View>
@@ -86,7 +87,8 @@ function NotifItem({ notif, colors, onPress }: { notif: AppNotification; colors:
 
 export default function NotificationsScreen() {
   const {
-    notifications, currentUser, markNotificationRead, markAllNotificationsRead, getUnreadNotificationsCount, theme, t,
+    notifications, currentUser, markNotificationRead, markAllNotificationsRead,
+    getUnreadNotificationsCount, conversations, theme, t,
   } = useApp();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
@@ -100,13 +102,38 @@ export default function NotificationsScreen() {
 
   const handleNotifPress = (notif: AppNotification) => {
     markNotificationRead(notif.id);
+
     if (notif.type === "follow_request" || notif.type === "follow_accept") {
       router.push(`/profile/${notif.senderId}`);
-    } else if (notif.type === "like" || notif.type === "comment" || notif.type === "post") {
-      // Navigate to the post (for now, go to sender profile)
-      router.push(`/profile/${notif.senderId}`);
+    } else if (notif.type === "like" || notif.type === "comment") {
+      // Navigate directly to the referenced post
+      if (notif.referenceId) {
+        router.push(`/post/${notif.referenceId}`);
+      } else {
+        router.push(`/profile/${notif.senderId}`);
+      }
+    } else if (notif.type === "post") {
+      // Notification about a new post
+      if (notif.referenceId) {
+        router.push(`/post/${notif.referenceId}`);
+      } else {
+        router.push(`/profile/${notif.senderId}`);
+      }
+    } else if (notif.type === "story" || notif.type === "story_like" || notif.type === "story_reply") {
+      // Navigate to that user's story
+      router.push(`/story/${notif.senderId}`);
     } else if (notif.type === "message") {
-      router.push("/(tabs)/messages" as any);
+      // Find conversation with this user and navigate to it
+      const convo = conversations.find(
+        (c) =>
+          c.participants.includes(currentUser?.id ?? "") &&
+          c.participants.includes(notif.senderId)
+      );
+      if (convo) {
+        router.push(`/chat/${convo.id}`);
+      } else {
+        router.push("/(tabs)/messages" as any);
+      }
     }
   };
 

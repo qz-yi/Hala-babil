@@ -50,11 +50,13 @@ function ProfileDrawer({
   isSuperAdmin: boolean;
   onSettingsItem: (item: string) => void;
 }) {
-  const { t, toggleTheme, setLanguage, getFollowRequests, acceptFollowRequest, rejectFollowRequest, users, currentUser, getLikedReels, getMyComments, reels } = useApp();
+  const { t, toggleTheme, setLanguage, getFollowRequests, acceptFollowRequest, rejectFollowRequest, users, currentUser, getLikedReels, getMyComments, getMyPostComments, getLikedPosts, reels } = useApp();
   const [page, setPage] = useState<DrawerPage>("settings");
   const followRequests = getFollowRequests();
   const likedReels = getLikedReels();
   const myComments = getMyComments();
+  const myPostComments = getMyPostComments();
+  const likedPosts = getLikedPosts();
 
   if (!visible) return null;
 
@@ -139,23 +141,82 @@ function ProfileDrawer({
 
           {page === "activity" && (
             <>
-              <Text style={[styles.activitySectionTitle, { color: colors.textSecondary }]}>المقاطع المعجب بها ({likedReels.length})</Text>
+              {/* Liked Posts */}
+              <Text style={[styles.activitySectionTitle, { color: colors.textSecondary }]}>
+                المنشورات المُعجَب بها ({likedPosts.length})
+              </Text>
+              {likedPosts.length === 0 ? (
+                <Text style={[styles.emptyActivity, { color: colors.textSecondary }]}>لم تعجب بأي منشور بعد</Text>
+              ) : likedPosts.slice(0, 5).map((p) => (
+                <TouchableOpacity
+                  key={p.id}
+                  onPress={() => { onClose(); router.push(`/post/${p.id}` as any); }}
+                  style={[styles.activityItem, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="heart" size={18} color="#E1306C" />
+                  <Text style={[styles.activityItemText, { color: colors.text }]} numberOfLines={1}>
+                    {p.content || (p.mediaType === "image" ? "📷 صورة" : p.mediaType === "video" ? "🎬 فيديو" : "منشور")}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+                </TouchableOpacity>
+              ))}
+
+              {/* Liked Reels */}
+              <Text style={[styles.activitySectionTitle, { color: colors.textSecondary, marginTop: 14 }]}>
+                المقاطع المُعجَب بها ({likedReels.length})
+              </Text>
               {likedReels.length === 0 ? (
                 <Text style={[styles.emptyActivity, { color: colors.textSecondary }]}>لم تعجب بأي مقطع بعد</Text>
               ) : likedReels.slice(0, 5).map((r) => (
-                <View key={r.id} style={[styles.activityItem, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-                  <Ionicons name="heart" size={18} color="#E1306C" />
+                <TouchableOpacity
+                  key={r.id}
+                  onPress={() => { onClose(); router.push("/(tabs)/reels" as any); }}
+                  style={[styles.activityItem, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="play-circle" size={18} color="#7C3AED" />
                   <Text style={[styles.activityItemText, { color: colors.text }]} numberOfLines={1}>{r.title || "مقطع بدون عنوان"}</Text>
-                </View>
+                  <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+                </TouchableOpacity>
               ))}
-              <Text style={[styles.activitySectionTitle, { color: colors.textSecondary, marginTop: 16 }]}>تعليقاتي الأخيرة ({myComments.length})</Text>
-              {myComments.length === 0 ? (
-                <Text style={[styles.emptyActivity, { color: colors.textSecondary }]}>لم تضف أي تعليق بعد</Text>
-              ) : myComments.slice(0, 5).map((c) => (
-                <View key={c.id} style={[styles.activityItem, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+
+              {/* My Post Comments */}
+              <Text style={[styles.activitySectionTitle, { color: colors.textSecondary, marginTop: 14 }]}>
+                تعليقاتي على المنشورات ({myPostComments.length})
+              </Text>
+              {myPostComments.length === 0 ? (
+                <Text style={[styles.emptyActivity, { color: colors.textSecondary }]}>لم تضف أي تعليق على منشور بعد</Text>
+              ) : myPostComments.slice(0, 5).map((c) => (
+                <TouchableOpacity
+                  key={c.id}
+                  onPress={() => { onClose(); router.push(`/post/${c.postId}` as any); }}
+                  style={[styles.activityItem, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+                  activeOpacity={0.8}
+                >
                   <Ionicons name="chatbubble-outline" size={18} color={colors.tint} />
                   <Text style={[styles.activityItemText, { color: colors.text }]} numberOfLines={1}>{c.content}</Text>
-                </View>
+                  <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+                </TouchableOpacity>
+              ))}
+
+              {/* My Reel Comments */}
+              <Text style={[styles.activitySectionTitle, { color: colors.textSecondary, marginTop: 14 }]}>
+                تعليقاتي على المقاطع ({myComments.length})
+              </Text>
+              {myComments.length === 0 ? (
+                <Text style={[styles.emptyActivity, { color: colors.textSecondary }]}>لم تضف أي تعليق على مقطع بعد</Text>
+              ) : myComments.slice(0, 5).map((c) => (
+                <TouchableOpacity
+                  key={c.id}
+                  onPress={() => { onClose(); router.push("/(tabs)/reels" as any); }}
+                  style={[styles.activityItem, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="chatbubble-outline" size={18} color={colors.tint} />
+                  <Text style={[styles.activityItemText, { color: colors.text }]} numberOfLines={1}>{c.content}</Text>
+                  <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+                </TouchableOpacity>
               ))}
             </>
           )}

@@ -3,6 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   FlatList,
   Image,
@@ -20,30 +21,52 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
-import type { PostComment } from "@/context/AppContext";
+import type { PostComment, PostFilter } from "@/context/AppContext";
 
-// ───── Share Sheet ─────
+// ─── Filter overlay ───
+const FILTER_OVERLAY: Record<string, string> = {
+  none: "transparent",
+  warm: "rgba(255,140,0,0.22)",
+  cool: "rgba(0,120,255,0.20)",
+  vintage: "rgba(160,100,40,0.28)",
+  grayscale: "transparent",
+};
+
+function FilteredImage({ uri, filter, style }: { uri: string; filter?: string; style?: any }) {
+  const overlay = FILTER_OVERLAY[filter ?? "none"] ?? "transparent";
+  return (
+    <View style={[style, { overflow: "hidden" }]}>
+      <Image
+        source={{ uri }}
+        style={[StyleSheet.absoluteFill, filter === "grayscale" && Platform.OS === "web" ? ({ filter: "grayscale(100%)" } as any) : {}]}
+        resizeMode="cover"
+      />
+      {overlay !== "transparent" && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: overlay }]} />
+      )}
+    </View>
+  );
+}
+
+// ─── Share Sheet ─────
 function SharePostSheet({
   postId,
-  postContent,
   visible,
   onClose,
   colors,
 }: {
   postId: string;
-  postContent?: string;
   visible: boolean;
   onClose: () => void;
   colors: any;
 }) {
-  const { users, currentUser, getConversation, sendPrivateMessage } = useApp();
+  const { users, currentUser, sharePostToDM } = useApp();
   const others = users.filter((u) => u.id !== currentUser?.id);
+  const [sent, setSent] = useState<string[]>([]);
 
   const handleShare = (userId: string) => {
-    const convo = getConversation(userId);
-    const snippet = postContent ? postContent.substring(0, 50) : "منشور";
-    sendPrivateMessage(convo.id, userId, `شارك منشوراً: "${snippet}"`, "text");
-    onClose();
+    sharePostToDM(postId, userId);
+    setSent((p) => [...p, userId]);
   };
 
   return (
@@ -63,27 +86,28 @@ function SharePostSheet({
           }
           renderItem={({ item }) => {
             const color = ACCENT_COLORS[(item.name?.length ?? 0) % ACCENT_COLORS.length];
+            const isSent = sent.includes(item.id);
             return (
               <TouchableOpacity
                 style={styles.shareUser}
-                onPress={() => handleShare(item.id)}
+                onPress={() => !isSent && handleShare(item.id)}
               >
                 <View style={[styles.miniAvatar, { backgroundColor: `${color}33` }]}>
                   {item.avatar ? (
                     <Image source={{ uri: item.avatar }} style={StyleSheet.absoluteFill as any} />
                   ) : (
-                    <Text style={[styles.miniAvatarText, { color }]}>
-                      {item.name[0]?.toUpperCase()}
-                    </Text>
+                    <Text style={[styles.miniAvatarText, { color }]}>{item.name[0]?.toUpperCase()}</Text>
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.shareUserName, { color: colors.text }]}>{item.name}</Text>
-                  <Text style={[styles.shareUserPhone, { color: colors.textSecondary }]}>
-                    {item.phone}
-                  </Text>
+                  <Text style={[styles.shareUserPhone, { color: colors.textSecondary }]}>{item.phone}</Text>
                 </View>
-                <Ionicons name="paper-plane-outline" size={18} color={colors.tint} />
+                {isSent ? (
+                  <Ionicons name="checkmark-circle" size={22} color="#10B981" />
+                ) : (
+                  <Ionicons name="paper-plane-outline" size={18} color={colors.tint} />
+                )}
               </TouchableOpacity>
             );
           }}
@@ -93,7 +117,207 @@ function SharePostSheet({
   );
 }
 
-// ───── Single Post View ─────
+// ─── Comments Bottom Sheet ─────
+function CommentsSheet({
+  postId,
+  postCreatorId,
+  visible,
+  onClose,
+  colors,
+}: {
+  postId: string;
+  postCreatorId: string;
+  visible: boolean;
+  onClose: () => void;
+  colors: any;
+}) {
+  const {
+    users, currentUser, getPostComments, addPostComment,
+    deletePostComment, likePostComment, isPostCommentLiked, pinPostComment, t,
+  } = useApp();
+  const [commentText, setCommentText] = useState("");
+  const comments = getPostComments(postId);
+  const insets = useSafeAreaInsets();
+  const botPad = Platform.OS === "web" ? 20 : insets.bottom;
+
+  const isPostOwner = currentUser?.id === postCreatorId;
+
+  const handleSend = () => {
+    if (!commentText.trim()) return;
+    addPostComment(postId, commentText.trim());
+    setCommentText("");
+  };
+
+  const handleCommentOptions = (comment: PostComment) => {
+    const isOwner = currentUser?.id === comment.userId;
+    const options: { text: string; onPress: () => void; style?: "destructive" | "cancel" }[] = [];
+
+    if (isPostOwner) {
+      options.push({
+        text: comment.isPinned ? t("unpinComment") : t("pinComment"),
+        onPress: () => pinPostComment(comment.id),
+      });
+    }
+    if (isOwner || isPostOwner) {
+      options.push({
+        text: t("deleteComment"),
+        style: "destructive",
+        onPress: () =>
+          Alert.alert("حذف التعليق", "هل تريد حذف هذا التعليق؟", [
+            { text: t("cancel"), style: "cancel" },
+            { text: "حذف", style: "destructive", onPress: () => deletePostComment(comment.id) },
+          ]),
+      });
+    }
+
+    if (options.length === 0) return;
+    Alert.alert("خيارات", "", [
+      ...options,
+      { text: t("cancel"), style: "cancel", onPress: () => {} },
+    ]);
+  };
+
+  const formatTime = (ts: number) => {
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "الآن";
+    if (mins < 60) return `${mins} دقيقة`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} ساعة`;
+    return `${Math.floor(hrs / 24)} يوم`;
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={[styles.commentsSheetContainer, { backgroundColor: colors.card, borderColor: colors.border }]}
+      >
+        {/* Handle */}
+        <View style={[styles.sheetHandle, { backgroundColor: colors.border, alignSelf: "center", marginTop: 10 }]} />
+
+        {/* Header */}
+        <View style={styles.commentsSheetHeader}>
+          <Text style={[styles.sheetTitle, { color: colors.text }]}>
+            التعليقات ({comments.length})
+          </Text>
+          <TouchableOpacity onPress={onClose} style={styles.sheetCloseBtn}>
+            <Ionicons name="close" size={22} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Comments list */}
+        <FlatList
+          data={comments}
+          keyExtractor={(c) => c.id}
+          showsVerticalScrollIndicator={false}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 8 }}
+          ListEmptyComponent={
+            <View style={{ alignItems: "center", padding: 40, gap: 12 }}>
+              <Ionicons name="chatbubble-outline" size={40} color={colors.border} />
+              <Text style={{ color: colors.textSecondary, fontFamily: "Inter_400Regular" }}>
+                لا توجد تعليقات — كن أول من يعلق!
+              </Text>
+            </View>
+          }
+          renderItem={({ item }) => {
+            const commenter = users.find((u) => u.id === item.userId);
+            const color = ACCENT_COLORS[(item.userId.length) % ACCENT_COLORS.length];
+            const liked = isPostCommentLiked(item.id);
+            const likesCount = item.likedBy.length;
+            const canOptions = currentUser?.id === item.userId || isPostOwner;
+
+            return (
+              <View
+                style={[
+                  styles.commentItem,
+                  {
+                    backgroundColor: item.isPinned ? `${colors.tint}12` : colors.backgroundSecondary,
+                    borderColor: item.isPinned ? colors.tint : colors.border,
+                  },
+                ]}
+              >
+                {item.isPinned && (
+                  <View style={styles.pinnedBadge}>
+                    <Ionicons name="pin" size={10} color={colors.tint} />
+                    <Text style={[styles.pinnedText, { color: colors.tint }]}>مثبّت</Text>
+                  </View>
+                )}
+                <View style={[styles.miniAvatar, { backgroundColor: `${color}33` }]}>
+                  {commenter?.avatar ? (
+                    <Image source={{ uri: commenter.avatar }} style={StyleSheet.absoluteFill as any} />
+                  ) : (
+                    <Text style={[styles.miniAvatarText, { color }]}>{item.userName[0]?.toUpperCase()}</Text>
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.commentUser, { color: colors.tint }]}>{item.userName}</Text>
+                  <Text style={[styles.commentContent, { color: colors.text }]}>{item.content}</Text>
+                  <Text style={[styles.commentTime, { color: colors.textSecondary }]}>{formatTime(item.createdAt)}</Text>
+                </View>
+                <View style={styles.commentActions}>
+                  <TouchableOpacity
+                    onPress={() => likePostComment(item.id)}
+                    style={styles.commentLikeBtn}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={liked ? "heart" : "heart-outline"}
+                      size={16}
+                      color={liked ? "#E1306C" : colors.textSecondary}
+                    />
+                    {likesCount > 0 && (
+                      <Text style={[styles.commentLikeCount, { color: liked ? "#E1306C" : colors.textSecondary }]}>
+                        {likesCount}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                  {canOptions && (
+                    <TouchableOpacity onPress={() => handleCommentOptions(item)} style={styles.commentMoreBtn}>
+                      <Ionicons name="ellipsis-horizontal" size={16} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            );
+          }}
+        />
+
+        {/* Input */}
+        <View
+          style={[
+            styles.commentInputBar,
+            { paddingBottom: botPad + 8, backgroundColor: colors.backgroundSecondary, borderTopColor: colors.border },
+          ]}
+        >
+          <View style={[styles.commentInputWrap, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+            <TextInput
+              style={[styles.commentInput, { color: colors.text }]}
+              value={commentText}
+              onChangeText={setCommentText}
+              placeholder="أضف تعليقاً..."
+              placeholderTextColor={colors.textSecondary}
+              textAlign="right"
+              multiline
+              returnKeyType="send"
+              onSubmitEditing={handleSend}
+            />
+          </View>
+          <TouchableOpacity
+            onPress={handleSend}
+            style={[styles.sendBtn, { backgroundColor: commentText.trim() ? colors.tint : colors.backgroundTertiary }]}
+          >
+            <Ionicons name="send" size={18} color={commentText.trim() ? "#fff" : colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ─── Single Post View ─────
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
@@ -104,8 +328,10 @@ export default function PostDetailScreen() {
     likePost,
     getPostLikesCount,
     getPostComments,
-    addPostComment,
+    deletePost,
+    hidePost,
     theme,
+    t,
   } = useApp();
 
   const colors = Colors[theme];
@@ -114,8 +340,8 @@ export default function PostDetailScreen() {
   const botPad = Platform.OS === "web" ? 20 : insets.bottom;
 
   const post = posts.find((p) => p.id === id);
-  const [commentText, setCommentText] = useState("");
   const [showShare, setShowShare] = useState(false);
+  const [showComments, setShowComments] = useState(false);
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const heartAnim = useRef(new Animated.Value(0)).current;
@@ -139,6 +365,7 @@ export default function PostDetailScreen() {
   const likesCount = getPostLikesCount(post.id);
   const comments = getPostComments(post.id);
   const accentColor = ACCENT_COLORS[(creator?.name?.length ?? 0) % ACCENT_COLORS.length];
+  const isMyPost = currentUser?.id === post.creatorId;
 
   const formatTime = (ts: number) => {
     const diff = Date.now() - ts;
@@ -175,10 +402,34 @@ export default function PostDetailScreen() {
     lastTapRef.current = now;
   };
 
-  const handleSendComment = () => {
-    if (!commentText.trim()) return;
-    addPostComment(post.id, commentText.trim());
-    setCommentText("");
+  const handlePostOptions = () => {
+    if (!isMyPost) return;
+    Alert.alert("خيارات المنشور", "", [
+      {
+        text: post.isHidden ? "إظهار المنشور" : t("hidePost"),
+        onPress: () => {
+          hidePost(post.id);
+          router.back();
+        },
+      },
+      {
+        text: t("deletePost"),
+        style: "destructive",
+        onPress: () =>
+          Alert.alert("حذف المنشور", "هل أنت متأكد من حذف هذا المنشور؟", [
+            { text: t("cancel"), style: "cancel" },
+            {
+              text: "حذف",
+              style: "destructive",
+              onPress: () => {
+                deletePost(post.id);
+                router.back();
+              },
+            },
+          ]),
+      },
+      { text: t("cancel"), style: "cancel" },
+    ]);
   };
 
   const header = (
@@ -195,16 +446,34 @@ export default function PostDetailScreen() {
           <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: colors.text }]}>المنشور</Text>
-        <TouchableOpacity
-          onPress={() => setShowShare(true)}
-          style={[styles.shareBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-        >
-          <Ionicons name="paper-plane-outline" size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity
+            onPress={() => setShowShare(true)}
+            style={[styles.shareBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <Ionicons name="paper-plane-outline" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+          {isMyPost && (
+            <TouchableOpacity
+              onPress={handlePostOptions}
+              style={[styles.shareBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <Ionicons name="ellipsis-vertical" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
       </LinearGradient>
 
       {/* ── Post Card ── */}
       <View style={[styles.postCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {/* Hidden badge */}
+        {post.isHidden && isMyPost && (
+          <View style={[styles.hiddenBadge, { backgroundColor: colors.backgroundSecondary }]}>
+            <Ionicons name="eye-off-outline" size={14} color={colors.textSecondary} />
+            <Text style={[styles.hiddenBadgeText, { color: colors.textSecondary }]}>مخفي عن الآخرين</Text>
+          </View>
+        )}
+
         <TouchableOpacity
           style={styles.postHeader}
           onPress={() => creator && router.push(`/profile/${creator.id}`)}
@@ -227,10 +496,14 @@ export default function PostDetailScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Media with double-tap */}
+        {/* Media with filter + double-tap */}
         {post.mediaUrl && post.mediaType === "image" && (
           <Pressable onPress={handleDoubleTap} style={{ position: "relative" }}>
-            <Image source={{ uri: post.mediaUrl }} style={styles.postMedia} resizeMode="cover" />
+            <FilteredImage
+              uri={post.mediaUrl}
+              filter={post.filter}
+              style={styles.postMedia}
+            />
             <Animated.View
               pointerEvents="none"
               style={[styles.heartOverlay, { opacity: heartAnim, transform: [{ scale: heartScale }] }]}
@@ -258,12 +531,12 @@ export default function PostDetailScreen() {
             <Text style={[styles.actionCount, { color: colors.textSecondary }]}>{likesCount}</Text>
           </TouchableOpacity>
 
-          <View style={styles.actionBtn}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => setShowComments(true)}>
             <Ionicons name="chatbubble-outline" size={24} color={colors.textSecondary} />
             <Text style={[styles.actionCount, { color: colors.textSecondary }]}>
               {comments.length}
             </Text>
-          </View>
+          </TouchableOpacity>
 
           <TouchableOpacity style={styles.actionBtn} onPress={() => setShowShare(true)}>
             <Ionicons name="paper-plane-outline" size={24} color={colors.textSecondary} />
@@ -271,108 +544,41 @@ export default function PostDetailScreen() {
         </View>
       </View>
 
-      {/* Comments Header */}
-      <Text style={[styles.commentsHeader, { color: colors.text, borderBottomColor: colors.border }]}>
-        التعليقات ({comments.length})
-      </Text>
+      {/* Open comments hint */}
+      <TouchableOpacity
+        onPress={() => setShowComments(true)}
+        style={[styles.openCommentsBtn, { borderBottomColor: colors.border }]}
+      >
+        <Ionicons name="chatbubble-outline" size={18} color={colors.tint} />
+        <Text style={[styles.openCommentsBtnText, { color: colors.tint }]}>
+          عرض التعليقات ({comments.length})
+        </Text>
+        <Ionicons name="chevron-up" size={16} color={colors.tint} />
+      </TouchableOpacity>
     </View>
   );
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={0}
-    >
-      <FlatList
-        data={comments}
-        keyExtractor={(c) => c.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: botPad + 80 }}
-        ListHeaderComponent={header}
-        ListEmptyComponent={
-          <View style={styles.emptyComments}>
-            <Ionicons name="chatbubble-outline" size={40} color={colors.border} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              لا توجد تعليقات بعد — كن أول من يعلق!
-            </Text>
-          </View>
-        }
-        renderItem={({ item }: { item: PostComment }) => {
-          const commenter = users.find((u) => u.id === item.userId);
-          const color = ACCENT_COLORS[(item.userId.length) % ACCENT_COLORS.length];
-          return (
-            <View
-              style={[
-                styles.commentItem,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
-            >
-              <View style={[styles.miniAvatar, { backgroundColor: `${color}33` }]}>
-                {commenter?.avatar ? (
-                  <Image source={{ uri: commenter.avatar }} style={StyleSheet.absoluteFill as any} />
-                ) : (
-                  <Text style={[styles.miniAvatarText, { color }]}>
-                    {item.userName[0]?.toUpperCase()}
-                  </Text>
-                )}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.commentUser, { color: colors.tint }]}>{item.userName}</Text>
-                <Text style={[styles.commentContent, { color: colors.text }]}>{item.content}</Text>
-                <Text style={[styles.commentTime, { color: colors.textSecondary }]}>
-                  {formatTime(item.createdAt)}
-                </Text>
-              </View>
-            </View>
-          );
-        }}
-      />
-
-      {/* Comment Input */}
-      <View
-        style={[
-          styles.inputBar,
-          {
-            paddingBottom: botPad + 8,
-            backgroundColor: colors.backgroundSecondary,
-            borderTopColor: colors.border,
-          },
-        ]}
-      >
-        <View
-          style={[
-            styles.inputWrap,
-            { backgroundColor: colors.inputBackground, borderColor: colors.border },
-          ]}
-        >
-          <TextInput
-            style={[styles.input, { color: colors.text }]}
-            value={commentText}
-            onChangeText={setCommentText}
-            placeholder="أضف تعليقاً..."
-            placeholderTextColor={colors.textSecondary}
-            textAlign="right"
-            multiline
-          />
-        </View>
-        <TouchableOpacity
-          onPress={handleSendComment}
-          style={[styles.sendBtn, { backgroundColor: colors.tint }]}
-        >
-          <Ionicons name="send" size={18} color="#fff" />
-        </TouchableOpacity>
-      </View>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {header}
 
       {/* Share Sheet */}
       <SharePostSheet
         postId={post.id}
-        postContent={post.content}
         visible={showShare}
         onClose={() => setShowShare(false)}
         colors={colors}
       />
-    </KeyboardAvoidingView>
+
+      {/* Comments Bottom Sheet */}
+      <CommentsSheet
+        postId={post.id}
+        postCreatorId={post.creatorId}
+        visible={showComments}
+        onClose={() => setShowComments(false)}
+        colors={colors}
+      />
+    </View>
   );
 }
 
@@ -387,14 +593,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
-  topBarTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  topBarTitle: { fontSize: 18, fontFamily: "Inter_700Bold", flex: 1, textAlign: "center" },
   backBtn: {
     width: 40, height: 40, borderRadius: 13,
     alignItems: "center", justifyContent: "center", borderWidth: 1,
   },
-  backBtn2: {
-    paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14,
-  },
+  backBtn2: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 },
   shareBtn: {
     width: 40, height: 40, borderRadius: 13,
     alignItems: "center", justifyContent: "center", borderWidth: 1,
@@ -402,6 +606,12 @@ const styles = StyleSheet.create({
   postCard: {
     margin: 12, borderRadius: 20, borderWidth: 1, overflow: "hidden",
   },
+  hiddenBadge: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  hiddenBadgeText: { fontSize: 12, fontFamily: "Inter_400Regular" },
   postHeader: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12 },
   avatar: {
     width: 44, height: 44, borderRadius: 14,
@@ -425,42 +635,11 @@ const styles = StyleSheet.create({
   },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
   actionCount: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  commentsHeader: {
-    fontSize: 16, fontFamily: "Inter_700Bold",
-    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
+  openCommentsBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1,
   },
-  commentItem: {
-    flexDirection: "row", gap: 12, padding: 14,
-    marginHorizontal: 12, marginBottom: 8,
-    borderRadius: 16, borderWidth: 1,
-  },
-  miniAvatar: {
-    width: 38, height: 38, borderRadius: 12,
-    overflow: "hidden", alignItems: "center", justifyContent: "center",
-  },
-  miniAvatarText: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  commentUser: { fontSize: 14, fontFamily: "Inter_600SemiBold", marginBottom: 3 },
-  commentContent: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
-  commentTime: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 4 },
-  emptyComments: {
-    alignItems: "center", justifyContent: "center",
-    padding: 40, gap: 12,
-  },
-  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
-  inputBar: {
-    flexDirection: "row", alignItems: "flex-end",
-    gap: 10, paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1,
-  },
-  inputWrap: {
-    flex: 1, borderRadius: 18, borderWidth: 1,
-    paddingHorizontal: 14, paddingVertical: 10,
-    minHeight: 44, maxHeight: 100,
-  },
-  input: { fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
-  sendBtn: {
-    width: 44, height: 44, borderRadius: 14,
-    alignItems: "center", justifyContent: "center",
-  },
+  openCommentsBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   // Share sheet
   sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
   commentSheet: {
@@ -475,4 +654,54 @@ const styles = StyleSheet.create({
   shareUser: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
   shareUserName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   shareUserPhone: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 20 },
+  // Comments Sheet
+  commentsSheetContainer: {
+    height: "80%",
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderWidth: 1, overflow: "hidden",
+  },
+  commentsSheetHeader: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 16, paddingBottom: 12, paddingTop: 8,
+  },
+  sheetCloseBtn: { padding: 6 },
+  commentItem: {
+    flexDirection: "row", gap: 10, padding: 12,
+    borderRadius: 16, borderWidth: 1, position: "relative",
+  },
+  pinnedBadge: {
+    position: "absolute", top: -1, right: 10,
+    flexDirection: "row", alignItems: "center", gap: 3,
+    backgroundColor: "rgba(124,58,237,0.2)", borderRadius: 6,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  pinnedText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  miniAvatar: {
+    width: 38, height: 38, borderRadius: 12,
+    overflow: "hidden", alignItems: "center", justifyContent: "center",
+    flexShrink: 0,
+  },
+  miniAvatarText: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  commentUser: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
+  commentContent: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  commentTime: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 4 },
+  commentActions: { flexDirection: "column", alignItems: "center", gap: 4 },
+  commentLikeBtn: { alignItems: "center", gap: 2 },
+  commentLikeCount: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  commentMoreBtn: { padding: 4 },
+  commentInputBar: {
+    flexDirection: "row", alignItems: "flex-end",
+    gap: 10, paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1,
+  },
+  commentInputWrap: {
+    flex: 1, borderRadius: 18, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 10,
+    minHeight: 44, maxHeight: 100,
+  },
+  commentInput: { fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
+  sendBtn: {
+    width: 44, height: 44, borderRadius: 14,
+    alignItems: "center", justifyContent: "center",
+  },
 });

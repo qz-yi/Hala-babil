@@ -5,11 +5,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Dimensions,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -22,26 +22,23 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ACCENT_COLORS, STORY_GRADIENT_COLORS } from "@/constants/colors";
+import Colors, { ACCENT_COLORS, STORY_GRADIENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { Post, PostComment, Story, User } from "@/context/AppContext";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const BG = "#000000";
-const CARD = "#121212";
-const BORDER = "#262626";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
 
 // ───── Gradient Story Ring ─────
 function GradientStoryRing({
   size = 68,
   hasUnseen,
   children,
+  bgColor,
 }: {
   size?: number;
   hasUnseen: boolean;
   children: React.ReactNode;
+  bgColor: string;
 }) {
   if (!hasUnseen) {
     return (
@@ -51,9 +48,9 @@ function GradientStoryRing({
           height: size,
           borderRadius: size / 2,
           borderWidth: 1.5,
-          borderColor: BORDER,
+          borderColor: "rgba(150,150,150,0.3)",
           padding: 2,
-          backgroundColor: BG,
+          backgroundColor: bgColor,
         }}
       >
         {children}
@@ -72,7 +69,7 @@ function GradientStoryRing({
           flex: 1,
           borderRadius: size / 2,
           overflow: "hidden",
-          backgroundColor: BG,
+          backgroundColor: bgColor,
           padding: 2,
         }}
       >
@@ -88,12 +85,13 @@ function StoryAvatar({
   hasUnseen,
   onPress,
   isMe,
+  colors,
 }: {
   user: User;
   stories: Story[];
   hasUnseen: boolean;
   onPress: () => void;
-  colors?: any;
+  colors: any;
   isMe?: boolean;
 }) {
   const accentColor = ACCENT_COLORS[(user.name?.length ?? 0) % ACCENT_COLORS.length];
@@ -107,7 +105,7 @@ function StoryAvatar({
       style={styles.storyItem}
       activeOpacity={0.85}
     >
-      <GradientStoryRing size={68} hasUnseen={hasUnseen}>
+      <GradientStoryRing size={68} hasUnseen={hasUnseen} bgColor={colors.background}>
         {user.avatar ? (
           <Image
             source={{ uri: user.avatar }}
@@ -131,14 +129,52 @@ function StoryAvatar({
         )}
       </GradientStoryRing>
       {isMe && (
-        <View style={styles.storyAddBtn}>
+        <View style={[styles.storyAddBtn, { borderColor: colors.background }]}>
           <Feather name="plus" size={10} color="#fff" strokeWidth={2.5} />
         </View>
       )}
-      <Text style={styles.storyName} numberOfLines={1}>
+      <Text style={[styles.storyName, { color: colors.text }]} numberOfLines={1}>
         {isMe ? "قصتي" : user.name.split(" ")[0]}
       </Text>
     </TouchableOpacity>
+  );
+}
+
+// ───── Custom Delete Confirm Modal ─────
+function DeleteConfirmModal({
+  visible,
+  onConfirm,
+  onCancel,
+  colors,
+}: {
+  visible: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  colors: any;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <Pressable style={styles.deleteBackdrop} onPress={onCancel} />
+      <View style={[styles.deleteModal, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.deleteIconWrap}>
+          <Feather name="trash-2" size={32} color="#FF3B5C" strokeWidth={1.5} />
+        </View>
+        <Text style={[styles.deleteTitle, { color: colors.text }]}>حذف المنشور</Text>
+        <Text style={[styles.deleteSubtitle, { color: colors.textSecondary }]}>
+          هل أنت متأكد من حذف هذا المنشور؟ لا يمكن التراجع عن هذا الإجراء.
+        </Text>
+        <TouchableOpacity onPress={onConfirm} style={styles.deleteConfirmBtn} activeOpacity={0.85}>
+          <Text style={styles.deleteConfirmText}>حذف المنشور</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onCancel}
+          style={[styles.deleteCancelBtn, { backgroundColor: colors.backgroundTertiary ?? colors.card }]}
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.deleteCancelText, { color: colors.textSecondary }]}>إلغاء</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
   );
 }
 
@@ -147,10 +183,12 @@ function CommentSheet({
   postId,
   visible,
   onClose,
+  colors,
 }: {
   postId: string;
   visible: boolean;
   onClose: () => void;
+  colors: any;
 }) {
   const { getPostComments, addPostComment, users } = useApp();
   const [text, setText] = useState("");
@@ -166,15 +204,20 @@ function CommentSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
-      <View style={styles.commentSheet}>
-        <View style={styles.sheetHandle} />
-        <Text style={styles.sheetTitle}>التعليقات</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={[styles.commentSheet, { backgroundColor: colors.card, borderColor: colors.border }]}
+      >
+        <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>التعليقات</Text>
         <FlatList
           data={comments}
           keyExtractor={(c) => c.id}
           style={{ maxHeight: 320 }}
           ListEmptyComponent={
-            <Text style={styles.emptyComments}>لا توجد تعليقات بعد — كن أول من يعلق!</Text>
+            <Text style={[styles.emptyComments, { color: colors.textSecondary }]}>
+              لا توجد تعليقات بعد — كن أول من يعلق!
+            </Text>
           }
           renderItem={({ item }: { item: PostComment }) => {
             const commenter = users.find((u) => u.id === item.userId);
@@ -192,27 +235,29 @@ function CommentSheet({
                 </View>
                 <View style={styles.commentBody}>
                   <Text style={[styles.commentUser, { color: "#3D91F4" }]}>{item.userName}</Text>
-                  <Text style={styles.commentText}>{item.content}</Text>
+                  <Text style={[styles.commentText, { color: colors.text }]}>{item.content}</Text>
                 </View>
               </View>
             );
           }}
         />
-        <View style={styles.commentInputRow}>
+        <View style={[styles.commentInputRow, { backgroundColor: colors.inputBackground ?? colors.backgroundSecondary, borderColor: colors.border }]}>
           <TextInput
-            style={styles.commentInputField}
+            style={[styles.commentInputField, { color: colors.text }]}
             value={text}
             onChangeText={setText}
             placeholder="أضف تعليقاً..."
-            placeholderTextColor={TEXT2}
+            placeholderTextColor={colors.textSecondary}
             textAlign="right"
-            multiline
+            multiline={false}
+            returnKeyType="send"
+            onSubmitEditing={handleSend}
           />
           <TouchableOpacity onPress={handleSend} style={styles.sendBtn}>
             <Feather name="send" size={18} color="#3D91F4" strokeWidth={1.5} />
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -222,10 +267,12 @@ function SharePostSheet({
   post,
   visible,
   onClose,
+  colors,
 }: {
   post: Post;
   visible: boolean;
   onClose: () => void;
+  colors: any;
 }) {
   const { users, currentUser, getConversation, sendPrivateMessage } = useApp();
   const others = users.filter((u) => u.id !== currentUser?.id);
@@ -241,15 +288,17 @@ function SharePostSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
-      <View style={styles.commentSheet}>
-        <View style={styles.sheetHandle} />
-        <Text style={styles.sheetTitle}>مشاركة مع</Text>
+      <View style={[styles.commentSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>مشاركة مع</Text>
         <FlatList
           data={others}
           keyExtractor={(u) => u.id}
           style={{ maxHeight: 320 }}
           ListEmptyComponent={
-            <Text style={styles.emptyComments}>لا يوجد أصدقاء للمشاركة معهم</Text>
+            <Text style={[styles.emptyComments, { color: colors.textSecondary }]}>
+              لا يوجد أصدقاء للمشاركة معهم
+            </Text>
           }
           renderItem={({ item }: { item: User }) => {
             const color = ACCENT_COLORS[(item.name?.length ?? 0) % ACCENT_COLORS.length];
@@ -265,9 +314,9 @@ function SharePostSheet({
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.commentUser}>{item.name}</Text>
+                  <Text style={[styles.commentUser, { color: colors.text }]}>{item.name}</Text>
                 </View>
-                <Feather name="send" size={16} color={TEXT2} strokeWidth={1.5} />
+                <Feather name="send" size={16} color={colors.textSecondary} strokeWidth={1.5} />
               </TouchableOpacity>
             );
           }}
@@ -278,7 +327,7 @@ function SharePostSheet({
 }
 
 // ───── Post Card (Instagram-style) ─────
-function PostCard({ post }: { post: Post }) {
+function PostCard({ post, colors }: { post: Post; colors: any }) {
   const { users, currentUser, isPostLiked, likePost, getPostLikesCount, getPostComments, deletePost } = useApp();
   const creator = users.find((u) => u.id === post.creatorId);
   const liked = isPostLiked(post.id);
@@ -290,6 +339,7 @@ function PostCard({ post }: { post: Post }) {
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const lastTapRef = useRef(0);
   const heartAnim = useRef(new Animated.Value(0)).current;
@@ -322,6 +372,12 @@ function PostCard({ post }: { post: Post }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  const handleConfirmDelete = () => {
+    deletePost(post.id);
+    setShowDeleteModal(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
   if (!creator) return null;
 
   const formatTime = (ts: number) => {
@@ -335,7 +391,7 @@ function PostCard({ post }: { post: Post }) {
   };
 
   return (
-    <View style={styles.postCard}>
+    <View style={[styles.postCard, { backgroundColor: colors.background }]}>
       {/* ── Header ── */}
       <TouchableOpacity
         style={styles.postHeader}
@@ -352,35 +408,15 @@ function PostCard({ post }: { post: Post }) {
           )}
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.postCreatorName}>{creator.name}</Text>
-          <Text style={styles.postTime}>{formatTime(post.createdAt)}</Text>
+          <Text style={[styles.postCreatorName, { color: colors.text }]}>{creator.name}</Text>
+          <Text style={[styles.postTime, { color: colors.textSecondary }]}>{formatTime(post.createdAt)}</Text>
         </View>
         {currentUser?.id === post.creatorId && (
           <TouchableOpacity
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            onPress={() => {
-              Alert.alert("خيارات المنشور", "", [
-                {
-                  text: "حذف المنشور",
-                  style: "destructive",
-                  onPress: () =>
-                    Alert.alert("حذف المنشور", "هل أنت متأكد من حذف هذا المنشور؟", [
-                      { text: "إلغاء", style: "cancel" },
-                      {
-                        text: "حذف",
-                        style: "destructive",
-                        onPress: () => {
-                          deletePost(post.id);
-                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        },
-                      },
-                    ]),
-                },
-                { text: "إلغاء", style: "cancel" },
-              ]);
-            }}
+            onPress={() => setShowDeleteModal(true)}
           >
-            <Feather name="more-horizontal" size={20} color={TEXT2} strokeWidth={1.5} />
+            <Feather name="more-horizontal" size={20} color={colors.textSecondary} strokeWidth={1.5} />
           </TouchableOpacity>
         )}
       </TouchableOpacity>
@@ -399,21 +435,25 @@ function PostCard({ post }: { post: Post }) {
       )}
 
       {/* ── Caption ── */}
-      {post.content ? <Text style={styles.postCaption}>{post.content}</Text> : null}
+      {post.content ? (
+        <Text style={[styles.postCaption, { color: colors.text }]}>{post.content}</Text>
+      ) : null}
 
       {/* ── Actions ── */}
-      <View style={styles.postActions}>
+      <View style={[styles.postActions, { borderTopColor: colors.border }]}>
         <View style={styles.postActionsLeft}>
           <TouchableOpacity style={styles.postActionBtn} onPress={handleLike}>
             <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
               <Feather
                 name="heart"
                 size={24}
-                color={liked ? "#FF3B5C" : TEXT}
+                color={liked ? "#FF3B5C" : colors.text}
                 strokeWidth={liked ? 0 : 1.5}
               />
             </Animated.View>
-            {likesCount > 0 && <Text style={styles.postActionCount}>{likesCount}</Text>}
+            {likesCount > 0 && (
+              <Text style={[styles.postActionCount, { color: colors.text }]}>{likesCount}</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -423,8 +463,10 @@ function PostCard({ post }: { post: Post }) {
               setShowComments(true);
             }}
           >
-            <Feather name="message-circle" size={24} color={TEXT} strokeWidth={1.5} />
-            {commentsCount > 0 && <Text style={styles.postActionCount}>{commentsCount}</Text>}
+            <Feather name="message-circle" size={24} color={colors.text} strokeWidth={1.5} />
+            {commentsCount > 0 && (
+              <Text style={[styles.postActionCount, { color: colors.text }]}>{commentsCount}</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -434,7 +476,7 @@ function PostCard({ post }: { post: Post }) {
               setShowShare(true);
             }}
           >
-            <Feather name="send" size={22} color={TEXT} strokeWidth={1.5} />
+            <Feather name="send" size={22} color={colors.text} strokeWidth={1.5} />
           </TouchableOpacity>
         </View>
 
@@ -447,14 +489,30 @@ function PostCard({ post }: { post: Post }) {
           <Feather
             name="bookmark"
             size={22}
-            color={bookmarked ? TEXT : TEXT}
+            color={bookmarked ? colors.tint : colors.text}
             strokeWidth={bookmarked ? 0 : 1.5}
           />
         </TouchableOpacity>
       </View>
 
-      <CommentSheet postId={post.id} visible={showComments} onClose={() => setShowComments(false)} />
-      <SharePostSheet post={post} visible={showShare} onClose={() => setShowShare(false)} />
+      <CommentSheet
+        postId={post.id}
+        visible={showComments}
+        onClose={() => setShowComments(false)}
+        colors={colors}
+      />
+      <SharePostSheet
+        post={post}
+        visible={showShare}
+        onClose={() => setShowShare(false)}
+        colors={colors}
+      />
+      <DeleteConfirmModal
+        visible={showDeleteModal}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setShowDeleteModal(false)}
+        colors={colors}
+      />
     </View>
   );
 }
@@ -473,6 +531,7 @@ export default function HomeScreen() {
     theme,
   } = useApp();
 
+  const colors = Colors[theme];
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 20 : insets.top;
 
@@ -504,25 +563,31 @@ export default function HomeScreen() {
 
   const handleStoryPress = (user: User) => {
     if (user.id === currentUser?.id) {
-      router.push("/create-story");
+      const myStories = getUserStories(currentUser.id);
+      const hasActive = myStories.some((s) => s.expiresAt > Date.now());
+      if (hasActive) {
+        router.push(`/story/${currentUser.id}` as any);
+      } else {
+        router.push("/create-story");
+      }
     } else {
-      router.push(`/story/${user.id}`);
+      router.push(`/story/${user.id}` as any);
     }
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* ── Header with Blur ── */}
-      <View style={[styles.headerWrap, { paddingTop: topPad }]}>
+      <View style={[styles.headerWrap, { paddingTop: topPad, borderBottomColor: colors.border }]}>
         {Platform.OS === "ios" && (
           <BlurView
             intensity={60}
-            tint="dark"
-            style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.5)" }]}
+            tint={theme === "dark" ? "dark" : "light"}
+            style={[StyleSheet.absoluteFill, { backgroundColor: theme === "dark" ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.7)" }]}
           />
         )}
         {Platform.OS !== "ios" && (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.92)" }]} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: theme === "dark" ? "rgba(0,0,0,0.92)" : "rgba(255,255,255,0.95)" }]} />
         )}
         <View style={styles.headerRow}>
           <View style={styles.headerIcons}>
@@ -533,7 +598,7 @@ export default function HomeScreen() {
                 router.push("/create-post");
               }}
             >
-              <Feather name="plus-square" size={24} color={TEXT} strokeWidth={1.5} />
+              <Feather name="plus-square" size={24} color={colors.text} strokeWidth={1.5} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.headerIconBtn}
@@ -542,7 +607,7 @@ export default function HomeScreen() {
                 router.push("/(tabs)/messages" as any);
               }}
             >
-              <Feather name="send" size={22} color={TEXT} strokeWidth={1.5} />
+              <Feather name="send" size={22} color={colors.text} strokeWidth={1.5} />
               {unreadMessages > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{unreadMessages}</Text>
@@ -556,7 +621,7 @@ export default function HomeScreen() {
                 router.push("/notifications");
               }}
             >
-              <Feather name="bell" size={22} color={TEXT} strokeWidth={1.5} />
+              <Feather name="bell" size={22} color={colors.text} strokeWidth={1.5} />
               {unreadNotifs > 0 && (
                 <View style={[styles.badge, { backgroundColor: "#FF3B5C" }]}>
                   <Text style={styles.badgeText}>{unreadNotifs > 9 ? "9+" : unreadNotifs}</Text>
@@ -577,7 +642,7 @@ export default function HomeScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.storiesBar}
-            style={styles.storiesContainer}
+            style={[styles.storiesContainer, { borderBottomColor: colors.border }]}
           >
             {storyUsers.length === 0 && currentUser ? (
               <StoryAvatar
@@ -587,6 +652,7 @@ export default function HomeScreen() {
                 hasUnseen={false}
                 onPress={() => router.push("/create-story")}
                 isMe
+                colors={colors}
               />
             ) : (
               storyUsers.map((user) => (
@@ -597,6 +663,7 @@ export default function HomeScreen() {
                   hasUnseen={hasUnseenStory(user.id)}
                   onPress={() => handleStoryPress(user)}
                   isMe={user.id === currentUser?.id}
+                  colors={colors}
                 />
               ))
             )}
@@ -604,25 +671,29 @@ export default function HomeScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyFeed}>
-            <Feather name="users" size={56} color={BORDER} strokeWidth={1} />
-            <Text style={styles.emptyTitle}>لا توجد منشورات</Text>
-            <Text style={styles.emptyDesc}>تابع أشخاصاً لترى منشوراتهم هنا</Text>
+            <Feather name="users" size={56} color={colors.border} strokeWidth={1} />
+            <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>لا توجد منشورات</Text>
+            <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
+              تابع أشخاصاً لترى منشوراتهم هنا
+            </Text>
             <TouchableOpacity
               onPress={() => router.push("/create-post")}
-              style={styles.createFirstPost}
+              style={[styles.createFirstPost, { backgroundColor: colors.tint }]}
             >
-              <Text style={styles.createFirstPostText}>أنشئ أول منشور</Text>
+              <Text style={[styles.createFirstPostText, { color: colors.background }]}>
+                أنشئ أول منشور
+              </Text>
             </TouchableOpacity>
           </View>
         }
-        renderItem={({ item }) => <PostCard post={item} />}
+        renderItem={({ item }) => <PostCard post={item} colors={colors} />}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+  container: { flex: 1 },
 
   // Header
   headerWrap: {
@@ -632,7 +703,6 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 100,
     borderBottomWidth: 0.5,
-    borderBottomColor: BORDER,
   },
   headerRow: {
     flexDirection: "row",
@@ -659,7 +729,7 @@ const styles = StyleSheet.create({
   badgeText: { color: "#fff", fontSize: 9, fontFamily: "Inter_700Bold" },
 
   // Stories
-  storiesContainer: { borderBottomWidth: 0.5, borderBottomColor: BORDER },
+  storiesContainer: { borderBottomWidth: 0.5 },
   storiesBar: { paddingHorizontal: 16, paddingVertical: 12, gap: 16 },
   storyItem: { alignItems: "center", gap: 6, width: 72, position: "relative" },
   storyAddBtn: {
@@ -673,12 +743,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: BG,
   },
-  storyName: { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT, textAlign: "center", width: 72 },
+  storyName: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center", width: 72 },
 
-  // Posts (Instagram style - borderless)
-  postCard: { backgroundColor: BG, marginBottom: 2 },
+  // Posts (Instagram style)
+  postCard: { marginBottom: 2 },
   postHeader: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
   postAvatar: {
     width: 34,
@@ -689,8 +758,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   postAvatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  postCreatorName: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT },
-  postTime: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2, marginTop: 1 },
+  postCreatorName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  postTime: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
   postMedia: { width: SCREEN_WIDTH, aspectRatio: 1 },
   heartOverlay: {
     position: "absolute",
@@ -707,7 +776,6 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: TEXT,
     lineHeight: 22,
   },
   postActions: {
@@ -719,56 +787,84 @@ const styles = StyleSheet.create({
   },
   postActionsLeft: { flexDirection: "row", alignItems: "center", gap: 16 },
   postActionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
-  postActionCount: { fontSize: 14, fontFamily: "Inter_500Medium", color: TEXT },
+  postActionCount: { fontSize: 14, fontFamily: "Inter_500Medium" },
 
   // Comment Sheet
   sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
   commentSheet: {
-    backgroundColor: CARD,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 0.5,
-    borderColor: BORDER,
     padding: 20,
     paddingBottom: 36,
     gap: 12,
   },
-  sheetHandle: { width: 36, height: 3, borderRadius: 2, backgroundColor: BORDER, alignSelf: "center", marginBottom: 4 },
-  sheetTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: TEXT, textAlign: "center" },
-  emptyComments: { color: TEXT2, textAlign: "center", fontFamily: "Inter_400Regular", paddingVertical: 24 },
+  sheetHandle: { width: 36, height: 3, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+  sheetTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  emptyComments: { textAlign: "center", fontFamily: "Inter_400Regular", paddingVertical: 24 },
   commentItem: { flexDirection: "row", gap: 10, paddingVertical: 8, alignItems: "flex-start" },
   commentAvatar: { width: 32, height: 32, borderRadius: 16, overflow: "hidden", alignItems: "center", justifyContent: "center" },
   commentAvatarImg: { width: "100%", height: "100%", borderRadius: 16 },
   commentAvatarText: { fontSize: 13, fontFamily: "Inter_700Bold" },
   commentBody: { flex: 1 },
-  commentUser: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT },
-  commentText: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT, marginTop: 2 },
+  commentUser: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  commentText: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
   commentInputRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: "#1C1C1C",
     borderRadius: 24,
     borderWidth: 0.5,
-    borderColor: BORDER,
     paddingHorizontal: 16,
     paddingVertical: 10,
     marginTop: 4,
   },
-  commentInputField: { flex: 1, color: TEXT, fontFamily: "Inter_400Regular", fontSize: 14, maxHeight: 80 },
+  commentInputField: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 14, maxHeight: 80 },
   sendBtn: { padding: 4 },
   shareUser: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
 
+  // Delete Confirm Modal
+  deleteBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)" },
+  deleteModal: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    padding: 24,
+    paddingBottom: 44,
+    alignItems: "center",
+    gap: 10,
+  },
+  deleteIconWrap: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: "#FF3B5C22",
+    alignItems: "center", justifyContent: "center",
+    marginVertical: 8,
+  },
+  deleteTitle: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
+  deleteSubtitle: {
+    fontSize: 14, fontFamily: "Inter_400Regular",
+    textAlign: "center", lineHeight: 20,
+    paddingHorizontal: 10, marginBottom: 8,
+  },
+  deleteConfirmBtn: {
+    width: "100%", backgroundColor: "#FF3B5C",
+    borderRadius: 20, paddingVertical: 16, alignItems: "center", marginTop: 4,
+  },
+  deleteConfirmText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
+  deleteCancelBtn: {
+    width: "100%", borderRadius: 20, paddingVertical: 16, alignItems: "center",
+  },
+  deleteCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+
   // Empty
   emptyFeed: { alignItems: "center", justifyContent: "center", paddingVertical: 80, gap: 16, paddingHorizontal: 40 },
-  emptyTitle: { fontSize: 20, fontFamily: "Inter_600SemiBold", color: TEXT2, textAlign: "center" },
-  emptyDesc: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center", lineHeight: 22 },
+  emptyTitle: { fontSize: 20, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  emptyDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
   createFirstPost: {
-    backgroundColor: TEXT,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 100,
     marginTop: 8,
   },
-  createFirstPostText: { color: BG, fontFamily: "Inter_600SemiBold", fontSize: 15 },
+  createFirstPostText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
 });

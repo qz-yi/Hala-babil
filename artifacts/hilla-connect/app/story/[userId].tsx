@@ -5,7 +5,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
-  GestureResponderEvent,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -17,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
@@ -95,7 +95,10 @@ function ShareStoryModal({
 
 export default function StoryViewerScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
-  const { users, getUserStories, viewStory, currentUser, theme, likeStory, replyToStory, stories: allStories } = useApp();
+  const {
+    users, getUserStories, viewStory, currentUser, theme,
+    likeStory, replyToStory, stories: allStories,
+  } = useApp();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 20 : insets.top;
@@ -111,33 +114,75 @@ export default function StoryViewerScreen() {
   const [replyText, setReplyText] = useState("");
   const [replySent, setReplySent] = useState(false);
 
+  // Progress animation — properly handles pause/resume
   const progressAnim = useRef(new Animated.Value(0)).current;
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
   const heartScale = useRef(new Animated.Value(1)).current;
+
+  // Track elapsed ms for proper resume-without-reset
+  const elapsedRef = useRef(0);
+  const pauseStartRef = useRef(0);
 
   const currentStory: Story | undefined = stories[currentIndex];
   const accentColor = ACCENT_COLORS[(user?.name?.length ?? 0) % ACCENT_COLORS.length];
   const isMyStory = currentUser?.id === userId;
 
-  // Compute ordered list of users who have active stories (for auto-advance)
+  // Users with active stories for auto-advance
   const usersWithStories = users.filter((u) => {
     const now = Date.now();
     return allStories.some((s) => s.creatorId === u.id && s.expiresAt > now);
   });
   const currentUserIndex = usersWithStories.findIndex((u) => u.id === userId);
 
+  // Reset elapsed when story changes
   useEffect(() => {
-    if (!currentStory || paused) return;
-    progressAnim.setValue(0);
+    elapsedRef.current = 0;
+  }, [currentIndex, currentStory?.id]);
+
+  useEffect(() => {
+    if (!currentStory) return;
+
+    if (paused) {
+      // Pause: stop the animation, record when we paused
+      animRef.current?.stop();
+      pauseStartRef.current = Date.now();
+      return;
+    }
+
+    // If we're resuming after a pause, don't add extra elapsed
+    // (elapsedRef was already updated in stop cleanup)
+    const remaining = STORY_DURATION - elapsedRef.current;
+    if (remaining <= 0) {
+      handleNext();
+      return;
+    }
+
+    // Set progress bar to current position
+    const startFraction = elapsedRef.current / STORY_DURATION;
+    progressAnim.setValue(startFraction);
+
+    const startTime = Date.now();
+
     animRef.current = Animated.timing(progressAnim, {
       toValue: 1,
-      duration: STORY_DURATION,
+      duration: remaining,
       useNativeDriver: false,
     });
+
     animRef.current.start(({ finished }) => {
-      if (finished) handleNext();
+      if (finished) {
+        elapsedRef.current = STORY_DURATION;
+        handleNext();
+      }
     });
-    return () => { animRef.current?.stop(); };
+
+    return () => {
+      animRef.current?.stop();
+      // Update elapsed with how much time passed since we started this segment
+      const timeNow = Date.now();
+      const segmentElapsed = timeNow - startTime;
+      elapsedRef.current = Math.min(STORY_DURATION, elapsedRef.current + segmentElapsed);
+    };
   }, [currentIndex, currentStory?.id, paused]);
 
   useEffect(() => {
@@ -154,7 +199,6 @@ export default function StoryViewerScreen() {
     if (currentIndex < stories.length - 1) {
       setCurrentIndex((i) => i + 1);
     } else {
-      // Auto-advance to next user's stories
       const nextUserIndex = currentUserIndex + 1;
       if (nextUserIndex < usersWithStories.length) {
         const nextUser = usersWithStories[nextUserIndex];
@@ -166,7 +210,10 @@ export default function StoryViewerScreen() {
   };
 
   const handlePrev = () => {
-    if (currentIndex > 0) setCurrentIndex((i) => i - 1);
+    if (currentIndex > 0) {
+      elapsedRef.current = 0;
+      setCurrentIndex((i) => i - 1);
+    }
   };
 
   const handleLike = () => {
@@ -187,9 +234,8 @@ export default function StoryViewerScreen() {
     setPaused(false);
   };
 
-  // Long press handlers for pause/resume
+  // Long press = pause, release = resume
   const handlePressIn = () => {
-    animRef.current?.stop();
     setPaused(true);
   };
 
@@ -226,7 +272,32 @@ export default function StoryViewerScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       {currentStory.mediaUrl ? (
-        <Image source={{ uri: currentStory.mediaUrl }} style={styles.storyMedia} resizeMode="cover" />
+        <View style={styles.storyMedia}>
+          <Image source={{ uri: currentStory.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          {/* Filter overlay */}
+          {currentStory.filter && currentStory.filter !== "none" && (() => {
+            const filterOverlays: Record<string, string> = {
+              warm: "rgba(255,140,0,0.25)",
+              cool: "rgba(0,120,255,0.22)",
+              vintage: "rgba(160,100,40,0.28)",
+              grayscale: "rgba(0,0,0,0)",
+            };
+            const overlay = filterOverlays[currentStory.filter];
+            return overlay ? (
+              <View
+                style={[
+                  StyleSheet.absoluteFill,
+                  {
+                    backgroundColor: overlay,
+                    ...(currentStory.filter === "grayscale" && Platform.OS === "web"
+                      ? ({ filter: "grayscale(100%)" } as any)
+                      : {}),
+                  },
+                ]}
+              />
+            ) : null;
+          })()}
+        </View>
       ) : (
         <LinearGradient colors={[accentColor, "#0A0A14"]} style={styles.storyMedia} />
       )}
@@ -256,7 +327,14 @@ export default function StoryViewerScreen() {
         ))}
       </View>
 
-      {/* ─── User info row — CLICKABLE to go to profile ─── */}
+      {/* Pause indicator */}
+      {paused && (
+        <View style={styles.pauseIndicator}>
+          <Ionicons name="pause" size={28} color="rgba(255,255,255,0.9)" />
+        </View>
+      )}
+
+      {/* User info row */}
       <View style={[styles.userRow, { top: topPad + 36 }]}>
         <TouchableOpacity
           onPress={() => {
@@ -292,10 +370,9 @@ export default function StoryViewerScreen() {
         </View>
       ) : null}
 
-      {/* ─── Bottom bar for non-owner ─── */}
+      {/* Bottom bar for non-owner */}
       {!isMyStory && (
         <View style={[styles.bottomBar, { paddingBottom: botPad + 8 }]}>
-          {/* Reply input */}
           <View style={styles.replyRow}>
             {replySent ? (
               <View style={styles.replySentRow}>
@@ -325,15 +402,12 @@ export default function StoryViewerScreen() {
             )}
           </View>
 
-          {/* Action buttons row: views (left) + heart+share (right) */}
           <View style={styles.actionsRow}>
-            {/* Views count — bottom left */}
             <View style={styles.viewsBadge}>
               <Ionicons name="eye-outline" size={15} color="rgba(255,255,255,0.85)" />
               <Text style={styles.viewsText}>{currentStory.viewerIds.length}</Text>
             </View>
 
-            {/* Heart + Share — bottom right */}
             <View style={styles.reactionBtns}>
               <TouchableOpacity onPress={handleLike} style={styles.reactionBtn} activeOpacity={0.8}>
                 <Animated.View style={{ transform: [{ scale: heartScale }] }}>
@@ -356,33 +430,39 @@ export default function StoryViewerScreen() {
         </View>
       )}
 
-      {/* My story: just show views at bottom */}
+      {/* My story: show views + "add more" button */}
       {isMyStory && (
         <View style={[styles.myStoryBottom, { bottom: botPad + 16 }]}>
           <View style={styles.viewsBadge}>
             <Ionicons name="eye-outline" size={15} color="rgba(255,255,255,0.85)" />
             <Text style={styles.viewsText}>{currentStory.viewerIds.length} مشاهدة</Text>
           </View>
+          <TouchableOpacity
+            onPress={() => router.push("/create-story")}
+            style={styles.addMoreBtn}
+          >
+            <Ionicons name="add-circle-outline" size={18} color="#fff" />
+            <Text style={styles.addMoreText}>أضف قصة</Text>
+          </TouchableOpacity>
         </View>
       )}
 
-      {/* Tap areas — support long press to pause */}
+      {/* Tap areas — long press to pause */}
       <Pressable
         style={styles.tapLeft}
         onPress={handlePrev}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        delayLongPress={200}
+        delayLongPress={150}
       />
       <Pressable
         style={styles.tapRight}
         onPress={handleNext}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        delayLongPress={200}
+        delayLongPress={150}
       />
 
-      {/* Share modal */}
       <ShareStoryModal
         visible={showShare}
         onClose={() => { setShowShare(false); setPaused(false); }}
@@ -401,6 +481,15 @@ const styles = StyleSheet.create({
   progressRow: { position: "absolute", left: 12, right: 12, flexDirection: "row", gap: 4, zIndex: 10 },
   progressBar: { flex: 1, height: 2.5, borderRadius: 2, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 2 },
+  pauseIndicator: {
+    position: "absolute",
+    top: "45%",
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderRadius: 40,
+    padding: 14,
+    zIndex: 20,
+  },
   userRow: {
     position: "absolute", left: 16, right: 16, zIndex: 10,
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
@@ -422,7 +511,7 @@ const styles = StyleSheet.create({
   tapLeft: { position: "absolute", left: 0, top: 100, bottom: 160, width: "40%", zIndex: 5 },
   tapRight: { position: "absolute", right: 0, top: 100, bottom: 160, width: "60%", zIndex: 5 },
 
-  // ─── Bottom bar (non-owner) ───
+  // Bottom bar (non-owner)
   bottomBar: {
     position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 10,
     paddingHorizontal: 16, paddingTop: 8, gap: 8,
@@ -445,7 +534,6 @@ const styles = StyleSheet.create({
   replySentRow: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12 },
   replySentText: { color: "#10B981", fontFamily: "Inter_600SemiBold", fontSize: 14 },
 
-  // ─── Actions row ───
   actionsRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 4, paddingVertical: 4,
@@ -463,10 +551,17 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
 
-  // ─── My story bottom ───
+  // My story bottom
   myStoryBottom: {
-    position: "absolute", left: 16, zIndex: 10,
+    position: "absolute", left: 16, right: 16, zIndex: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
   },
+  addMoreBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
+  },
+  addMoreText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 },
 });
 
 // Share modal styles

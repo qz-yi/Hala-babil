@@ -10,10 +10,9 @@ name = "expo"
 version = "1.0.0"
 
 [[services]]
-ensurePreviewReachable = "/status"
 name = "expo"
 paths = [ "/" ]
-localPort = 24494
+localPort = 8080
 
 [services.development]
 run = "pnpm --filter @workspace/hilla-connect-v2 run dev"
@@ -23,5 +22,5 @@ build = [ "pnpm", "--filter", "@workspace/hilla-connect-v2", "run", "build" ]
 run = [ "pnpm", "--filter", "@workspace/hilla-connect-v2", "run", "serve" ]
 
 [services.env]
-PORT = "24494"
+PORT = "8080"
 BASE_PATH = "/"

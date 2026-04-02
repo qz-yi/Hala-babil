@@ -14,16 +14,108 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { AppProvider, useApp } from "@/context/AppContext";
+import { ToastProvider } from "@/components/Toast";
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
+  const { theme } = useApp();
+  const bg = theme === "dark" ? "#000000" : "#FFFFFF";
+
   return (
-    <Stack screenOptions={{ headerBackTitle: "Back" }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: bg },
+        animation: "fade_from_bottom",
+      }}
+    >
+      <Stack.Screen name="index" />
+      <Stack.Screen
+        name="(auth)"
+        options={{
+          headerShown: false,
+          animation: "slide_from_bottom",
+        }}
+      />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen
+        name="room/[id]"
+        options={{
+          presentation: "modal",
+          headerShown: false,
+          animation: "slide_from_bottom",
+        }}
+      />
+      <Stack.Screen
+        name="chat/[id]"
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="profile/[id]"
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="restaurant/[id]"
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="admin"
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="notifications"
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="post/[id]"
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
+        name="create-post"
+        options={{
+          presentation: "modal",
+          headerShown: false,
+          animation: "slide_from_bottom",
+        }}
+      />
+      <Stack.Screen
+        name="create-story"
+        options={{
+          presentation: "modal",
+          headerShown: false,
+          animation: "slide_from_bottom",
+        }}
+      />
+      <Stack.Screen
+        name="story/[userId]"
+        options={{
+          presentation: "fullScreenModal",
+          headerShown: false,
+          animation: "fade",
+        }}
+      />
     </Stack>
   );
 }
@@ -48,11 +140,15 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView>
-            <KeyboardProvider>
-              <RootLayoutNav />
-            </KeyboardProvider>
-          </GestureHandlerRootView>
+          <AppProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <KeyboardProvider>
+                <ToastProvider>
+                  <RootLayoutNav />
+                </ToastProvider>
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          </AppProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

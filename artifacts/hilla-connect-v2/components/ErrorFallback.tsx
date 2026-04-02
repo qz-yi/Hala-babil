@@ -9,10 +9,9 @@ import {
   StyleSheet,
   Text,
   View,
+  useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-import { useColors } from "@/hooks/useColors";
 
 export type ErrorFallbackProps = {
   error: Error;
@@ -20,8 +19,18 @@ export type ErrorFallbackProps = {
 };
 
 export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
-  const colors = useColors();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
   const insets = useSafeAreaInsets();
+
+  const theme = {
+    background: isDark ? "#000000" : "#FFFFFF",
+    backgroundSecondary: isDark ? "#1C1C1E" : "#F2F2F7",
+    text: isDark ? "#FFFFFF" : "#000000",
+    textSecondary: isDark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
+    link: "#007AFF",
+    buttonText: "#FFFFFF",
+  };
 
   const [isModalVisible, setIsModalVisible] = useState(false);
 
@@ -49,7 +58,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
   });
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       {__DEV__ ? (
         <Pressable
           onPress={() => setIsModalVisible(true)}
@@ -59,21 +68,21 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
             styles.topButton,
             {
               top: insets.top + 16,
-              backgroundColor: colors.card,
+              backgroundColor: theme.backgroundSecondary,
               opacity: pressed ? 0.8 : 1,
             },
           ]}
         >
-          <Feather name="alert-circle" size={20} color={colors.foreground} />
+          <Feather name="alert-circle" size={20} color={theme.text} />
         </Pressable>
       ) : null}
 
       <View style={styles.content}>
-        <Text style={[styles.title, { color: colors.foreground }]}>
+        <Text style={[styles.title, { color: theme.text }]}>
           Something went wrong
         </Text>
 
-        <Text style={[styles.message, { color: colors.mutedForeground }]}>
+        <Text style={[styles.message, { color: theme.textSecondary }]}>
           Please reload the app to continue.
         </Text>
 
@@ -82,18 +91,13 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
           style={({ pressed }) => [
             styles.button,
             {
-              backgroundColor: colors.primary,
+              backgroundColor: theme.link,
               opacity: pressed ? 0.9 : 1,
               transform: [{ scale: pressed ? 0.98 : 1 }],
             },
           ]}
         >
-          <Text
-            style={[
-              styles.buttonText,
-              { color: colors.primaryForeground },
-            ]}
-          >
+          <Text style={[styles.buttonText, { color: theme.buttonText }]}>
             Try Again
           </Text>
         </Pressable>
@@ -110,16 +114,20 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
             <View
               style={[
                 styles.modalContainer,
-                { backgroundColor: colors.background },
+                { backgroundColor: theme.background },
               ]}
             >
               <View
                 style={[
                   styles.modalHeader,
-                  { borderBottomColor: colors.border },
+                  {
+                    borderBottomColor: isDark
+                      ? "rgba(255, 255, 255, 0.1)"
+                      : "rgba(0, 0, 0, 0.1)",
+                  },
                 ]}
               >
-                <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>
                   Error Details
                 </Text>
                 <Pressable
@@ -131,7 +139,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
                     { opacity: pressed ? 0.6 : 1 },
                   ]}
                 >
-                  <Feather name="x" size={24} color={colors.foreground} />
+                  <Feather name="x" size={24} color={theme.text} />
                 </Pressable>
               </View>
 
@@ -146,14 +154,14 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
                 <View
                   style={[
                     styles.errorContainer,
-                    { backgroundColor: colors.card },
+                    { backgroundColor: theme.backgroundSecondary },
                   ]}
                 >
                   <Text
                     style={[
                       styles.errorText,
                       {
-                        color: colors.foreground,
+                        color: theme.text,
                         fontFamily: monoFont,
                       },
                     ]}

@@ -1,0 +1,478 @@
+import { Feather } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import React, { useState } from "react";
+import {
+  Alert,
+  Animated,
+  FlatList,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { ACCENT_COLORS } from "@/constants/colors";
+import { useApp } from "@/context/AppContext";
+import type { Room } from "@/context/AppContext";
+
+const BG = "#000000";
+const CARD = "#121212";
+const BORDER = "#262626";
+const TEXT = "#FFFFFF";
+const TEXT2 = "#8E8E93";
+
+function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t }: any) {
+  const scaleAnim = React.useRef(new Animated.Value(1)).current;
+  const occupied = room.seats.filter((s: any) => s !== null).length;
+  const accentColor = ACCENT_COLORS[room.name.length % ACCENT_COLORS.length];
+  const ownerUser =
+    room.seatUsers?.find((u: any) => u?.id === room.ownerId) ??
+    room.seatUsers?.find((u: any) => !!u) ??
+    null;
+
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 0.97, duration: 80, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
+    ]).start();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <Pressable onPress={handlePress} style={styles.roomCard}>
+        <BlurView
+          intensity={30}
+          tint="dark"
+          style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
+        />
+        <LinearGradient
+          colors={[`${accentColor}18`, "transparent"]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={[styles.roomColorBar, { backgroundColor: accentColor }]} />
+
+        <View style={styles.roomHeader}>
+          <View style={[styles.roomAvatar, { backgroundColor: `${accentColor}33` }]}>
+            {ownerUser?.avatar ? (
+              <Image source={{ uri: ownerUser.avatar }} style={styles.roomAvatarImg} />
+            ) : (
+              <Text style={styles.roomAvatarText}>
+                {(ownerUser?.name?.[0] ?? room.name?.[0])?.toUpperCase() || "R"}
+              </Text>
+            )}
+          </View>
+          <View style={styles.roomInfo}>
+            <Text style={styles.roomName} numberOfLines={1}>
+              {room.name}
+            </Text>
+            <Text style={styles.roomOwner}>{room.ownerName}</Text>
+          </View>
+          {(isOwner || isSuperAdmin) && (
+            <TouchableOpacity
+              onPress={() => onDelete(room.id)}
+              style={styles.deleteBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Feather name="trash-2" size={16} color="#FF3B5C" strokeWidth={1.5} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={styles.seatsRow}>
+          {Array(6)
+            .fill(null)
+            .map((_, i) => {
+              const user = room.seatUsers[i];
+              return (
+                <View
+                  key={i}
+                  style={[
+                    styles.seat,
+                    {
+                      backgroundColor: user ? `${accentColor}33` : "#1C1C1C",
+                      borderColor: user ? accentColor : BORDER,
+                    },
+                  ]}
+                >
+                  {user ? (
+                    user.avatar ? (
+                      <Image source={{ uri: user.avatar }} style={styles.seatAvatarImg} />
+                    ) : (
+                      <Text style={[styles.seatText, { color: accentColor }]}>
+                        {user.name[0]?.toUpperCase()}
+                      </Text>
+                    )
+                  ) : (
+                    <Feather name="mic-off" size={12} color={TEXT2} strokeWidth={1.5} />
+                  )}
+                </View>
+              );
+            })}
+        </View>
+
+        <View style={styles.roomFooter}>
+          <View style={styles.occupancyBadge}>
+            <View
+              style={[
+                styles.liveIndicator,
+                { backgroundColor: occupied > 0 ? "#34D399" : TEXT2 },
+              ]}
+            />
+            <Text style={styles.occupancyText}>{occupied}/6 مستمع</Text>
+          </View>
+          <View style={[styles.joinBtn, { backgroundColor: accentColor }]}>
+            <Text style={styles.joinBtnText}>دخول</Text>
+          </View>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function CreateRoomModal({ onClose, onCreate, t }: any) {
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleCreate = async () => {
+    if (!name.trim()) return;
+    setLoading(true);
+    await onCreate(name.trim());
+    setLoading(false);
+    onClose();
+  };
+
+  return (
+    <View style={styles.modalOverlay}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      <View style={styles.modalCard}>
+        <Text style={styles.modalTitle}>{t("createRoom")}</Text>
+        <View style={styles.inputWrapper}>
+          <Feather name="mic" size={18} color={TEXT2} strokeWidth={1.5} />
+          <TextInput
+            style={styles.inputField}
+            placeholder={t("roomName")}
+            placeholderTextColor={TEXT2}
+            value={name}
+            onChangeText={setName}
+            textAlign="right"
+            autoFocus
+          />
+        </View>
+        <View style={styles.modalBtns}>
+          <TouchableOpacity onPress={onClose} style={styles.modalCancel}>
+            <Text style={{ color: TEXT2, fontFamily: "Inter_500Medium" }}>{t("cancel")}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleCreate} disabled={loading} style={styles.modalConfirm}>
+            <Text style={styles.modalConfirmText}>{loading ? "..." : t("createRoom")}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <View style={styles.searchBar}>
+      <Feather name="search" size={16} color={TEXT2} strokeWidth={1.5} />
+      <TextInput
+        style={styles.searchInput}
+        value={value}
+        onChangeText={onChange}
+        placeholder="ابحث عن مستخدم..."
+        placeholderTextColor={TEXT2}
+        textAlign="right"
+        returnKeyType="search"
+      />
+      {value.length > 0 && (
+        <TouchableOpacity onPress={() => onChange("")}>
+          <Feather name="x" size={16} color={TEXT2} strokeWidth={1.5} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+export default function RoomsScreen() {
+  const { rooms, currentUser, isSuperAdmin, createRoom, deleteRoom, searchUsers, t } = useApp();
+  const insets = useSafeAreaInsets();
+  const [showCreate, setShowCreate] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  const visibleRooms = rooms.filter((r) => !r.isHidden || r.ownerId === currentUser?.id);
+  const myRoom = currentUser ? rooms.find((r) => r.ownerId === currentUser.id) : null;
+  const searchResults = searchUsers(searchQuery);
+  const isSearching = searchQuery.trim().length > 0;
+
+  const handleCreateRoom = async (name: string) => {
+    if (myRoom) {
+      Alert.alert(t("error"), t("noRoomSlot"));
+      return;
+    }
+    await createRoom(name);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleDeleteRoom = (roomId: string) => {
+    Alert.alert(t("deleteRoom"), "هل أنت متأكد؟", [
+      { text: t("cancel"), style: "cancel" },
+      {
+        text: t("deleteRoom"),
+        style: "destructive",
+        onPress: () => {
+          deleteRoom(roomId);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        },
+      },
+    ]);
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: topPad }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerGreeting}>مرحباً،</Text>
+          <Text style={styles.headerName} numberOfLines={1}>
+            {currentUser?.name || t("hillaConnect")}
+          </Text>
+        </View>
+        {isSuperAdmin && (
+          <TouchableOpacity
+            onPress={() => router.push("/admin")}
+            style={styles.adminBtn}
+          >
+            <Text style={{ fontSize: 18 }}>👑</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowCreate(true);
+          }}
+          style={styles.createBtn}
+        >
+          <Feather name="plus" size={22} color="#000" strokeWidth={2} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+        <SearchBar value={searchQuery} onChange={setSearchQuery} />
+      </View>
+
+      {isSearching ? (
+        <FlatList
+          data={searchResults}
+          keyExtractor={(u) => u.id}
+          contentContainerStyle={[styles.searchList, { paddingBottom: insets.bottom + 90 }]}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={
+            <View style={styles.noResults}>
+              <Feather name="search" size={36} color={BORDER} strokeWidth={1} />
+              <Text style={styles.noResultsText}>لا توجد نتائج</Text>
+            </View>
+          }
+          renderItem={({ item }) => {
+            const color = ACCENT_COLORS[item.id.length % ACCENT_COLORS.length];
+            return (
+              <TouchableOpacity
+                style={styles.searchResult}
+                onPress={() => router.push(`/profile/${item.id}`)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.searchAvatar, { backgroundColor: `${color}33` }]}>
+                  {item.avatar ? (
+                    <Image source={{ uri: item.avatar }} style={styles.searchAvatarImg} />
+                  ) : (
+                    <Text style={[styles.searchAvatarText, { color }]}>
+                      {item.name[0]?.toUpperCase()}
+                    </Text>
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.searchName}>{item.name}</Text>
+                  <Text style={styles.searchPhone}>{item.phone}</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={TEXT2} strokeWidth={1.5} />
+              </TouchableOpacity>
+            );
+          }}
+        />
+      ) : visibleRooms.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Feather name="mic" size={56} color={BORDER} strokeWidth={1} />
+          <Text style={styles.emptyTitle}>{t("noRooms")}</Text>
+          <Text style={styles.emptyDesc}>{t("createFirst")}</Text>
+          <TouchableOpacity onPress={() => setShowCreate(true)} style={styles.emptyBtn}>
+            <Text style={styles.emptyBtnText}>{t("createRoom")}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={visibleRooms}
+          keyExtractor={(r) => r.id}
+          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 90 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item }) => (
+            <RoomCard
+              room={item}
+              onPress={() => router.push(`/room/${item.id}`)}
+              onDelete={handleDeleteRoom}
+              isOwner={item.ownerId === currentUser?.id}
+              isSuperAdmin={isSuperAdmin}
+              t={t}
+            />
+          )}
+        />
+      )}
+
+      {showCreate && (
+        <CreateRoomModal
+          onClose={() => setShowCreate(false)}
+          onCreate={handleCreateRoom}
+          t={t}
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: BG },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: BORDER,
+    marginBottom: 12,
+  },
+  headerGreeting: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2 },
+  headerName: { fontSize: 22, fontFamily: "Inter_700Bold", color: TEXT },
+  adminBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#1C1C1C",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 0.5,
+    borderColor: "#FFD70066",
+  },
+  createBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: TEXT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1C1C1C",
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: BORDER,
+    paddingHorizontal: 14,
+    height: 44,
+    gap: 10,
+  },
+  searchInput: { flex: 1, fontSize: 15, color: TEXT, fontFamily: "Inter_400Regular" },
+  list: { padding: 16, gap: 12 },
+  roomCard: {
+    borderRadius: 20,
+    borderWidth: 0.5,
+    borderColor: BORDER,
+    overflow: "hidden",
+    backgroundColor: CARD,
+  },
+  roomColorBar: { height: 2, width: "100%" },
+  roomHeader: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
+  roomAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  roomAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT },
+  roomAvatarImg: { width: "100%", height: "100%", borderRadius: 22, resizeMode: "cover" },
+  roomInfo: { flex: 1 },
+  roomName: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: TEXT },
+  roomOwner: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2, marginTop: 2 },
+  deleteBtn: { padding: 8 },
+  seatsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingBottom: 12 },
+  seat: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", borderWidth: 0.5, overflow: "hidden" },
+  seatText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  seatAvatarImg: { width: "100%", height: "100%", resizeMode: "cover" },
+  roomFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingBottom: 14 },
+  occupancyBadge: { flexDirection: "row", alignItems: "center", gap: 6 },
+  liveIndicator: { width: 7, height: 7, borderRadius: 4 },
+  occupancyText: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2 },
+  joinBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 100 },
+  joinBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  searchList: { padding: 16, gap: 8 },
+  searchResult: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: BORDER,
+  },
+  searchAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  searchAvatarImg: { width: "100%", height: "100%", borderRadius: 22 },
+  searchAvatarText: { fontSize: 17, fontFamily: "Inter_700Bold" },
+  searchName: { fontSize: 15, fontFamily: "Inter_500Medium", color: TEXT },
+  searchPhone: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2, marginTop: 2 },
+  noResults: { alignItems: "center", justifyContent: "center", paddingVertical: 48, gap: 12 },
+  noResultsText: { fontFamily: "Inter_400Regular", fontSize: 15, color: TEXT2 },
+  emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, padding: 32 },
+  emptyTitle: { fontSize: 20, fontFamily: "Inter_600SemiBold", color: TEXT2, textAlign: "center" },
+  emptyDesc: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center" },
+  emptyBtn: { backgroundColor: TEXT, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 100, marginTop: 8 },
+  emptyBtnText: { color: BG, fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+    padding: 24,
+  },
+  modalCard: {
+    width: "100%",
+    borderRadius: 24,
+    borderWidth: 0.5,
+    borderColor: BORDER,
+    backgroundColor: CARD,
+    padding: 24,
+    gap: 16,
+  },
+  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT, textAlign: "center" },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1C1C1C",
+    borderRadius: 14,
+    borderWidth: 0.5,
+    borderColor: BORDER,
+    paddingHorizontal: 14,
+    height: 52,
+    gap: 10,
+  },
+  inputField: { flex: 1, height: "100%", fontSize: 16, color: TEXT, fontFamily: "Inter_400Regular" },
+  modalBtns: { flexDirection: "row", gap: 12 },
+  modalCancel: { flex: 1, height: 50, borderRadius: 100, borderWidth: 0.5, borderColor: BORDER, alignItems: "center", justifyContent: "center" },
+  modalConfirm: { flex: 1, height: 50, borderRadius: 100, backgroundColor: TEXT, alignItems: "center", justifyContent: "center" },
+  modalConfirmText: { color: BG, fontFamily: "Inter_600SemiBold", fontSize: 15 },
+});

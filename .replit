@@ -49,10 +49,3 @@ timeoutMs = 20000
 [nix]
 packages = ["zip", "nano"]
 channel = "stable-25_05"
-
-[[ports]]
-localPort = 8082
-
-[[ports]]
-localPort = 8083
-externalPort = 80

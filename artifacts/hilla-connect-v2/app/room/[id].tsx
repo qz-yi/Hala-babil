@@ -535,7 +535,11 @@ export default function RoomScreen() {
       </View>
 
       {/* Chat */}
-      <View style={[styles.chatArea, { backgroundColor: colors.backgroundSecondary, borderTopColor: colors.border }]}>
+      <KeyboardAvoidingView
+        style={[styles.chatArea, { backgroundColor: colors.backgroundSecondary, borderTopColor: colors.border }]}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      >
         <FlatList
           ref={flatRef}
           data={[...room.chat].reverse()}
@@ -561,86 +565,84 @@ export default function RoomScreen() {
           }
         />
 
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
-          {/* Attachment Menu */}
-          {showAttach && (
-            <View style={[styles.attachMenu, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
-              <TouchableOpacity
-                onPress={handlePickRoomImage}
-                style={[styles.attachItem, { backgroundColor: `${accentColor}18` }]}
-              >
-                <Ionicons name="image-outline" size={22} color={accentColor} />
-                <Text style={[styles.attachLabel, { color: accentColor }]}>صورة</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handlePickRoomVideo}
-                style={[styles.attachItem, { backgroundColor: "#E1306C18" }]}
-              >
-                <Ionicons name="videocam-outline" size={22} color="#E1306C" />
-                <Text style={[styles.attachLabel, { color: "#E1306C" }]}>فيديو</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <View
-            style={[
-              styles.inputRow,
-              { paddingBottom: botPad + 8, borderTopColor: colors.border, backgroundColor: colors.backgroundSecondary },
-            ]}
-          >
-            {/* زر الخروج من الغرفة */}
-            <TouchableOpacity onPress={handleLeaveRoom} style={[styles.roundBtn, { backgroundColor: `${colors.danger}22` }]}>
-              <Ionicons name="exit-outline" size={20} color={colors.danger} />
-            </TouchableOpacity>
-
-            {/* زر المرفقات */}
+        {/* Attachment Menu */}
+        {showAttach && (
+          <View style={[styles.attachMenu, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
             <TouchableOpacity
-              onPress={() => setShowAttach((v) => !v)}
-              style={[styles.roundBtn, { backgroundColor: showAttach ? `${accentColor}22` : colors.backgroundTertiary }]}
+              onPress={handlePickRoomImage}
+              style={[styles.attachItem, { backgroundColor: `${accentColor}18` }]}
             >
-              <Ionicons name={showAttach ? "close" : "attach"} size={20} color={showAttach ? accentColor : colors.textSecondary} />
+              <Ionicons name="image-outline" size={22} color={accentColor} />
+              <Text style={[styles.attachLabel, { color: accentColor }]}>صورة</Text>
             </TouchableOpacity>
-
-            <View style={[styles.inputWrap, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
-              <TextInput
-                style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
-                placeholder={t("typeMessage")}
-                placeholderTextColor={colors.textSecondary}
-                value={message}
-                onChangeText={setMessage}
-                onSubmitEditing={handleSend}
-                returnKeyType="send"
-                textAlign="right"
-              />
-            </View>
-
-            {/* زر القلب */}
             <TouchableOpacity
-              onPress={() => triggerReaction("❤️")}
-              style={[styles.roundBtn, { backgroundColor: "rgba(225,48,108,0.12)" }]}
+              onPress={handlePickRoomVideo}
+              style={[styles.attachItem, { backgroundColor: "#E1306C18" }]}
             >
-              <Text style={{ fontSize: 18 }}>❤️</Text>
-            </TouchableOpacity>
-
-            {/* زر الضحك */}
-            <TouchableOpacity
-              onPress={() => triggerReaction("😂")}
-              style={[styles.roundBtn, { backgroundColor: "rgba(245,200,0,0.12)" }]}
-            >
-              <Text style={{ fontSize: 18 }}>😂</Text>
-            </TouchableOpacity>
-
-            {/* زر الإرسال */}
-            <TouchableOpacity
-              onPress={handleSend}
-              disabled={!message.trim()}
-              style={[styles.roundBtn, { backgroundColor: message.trim() ? accentColor : colors.backgroundTertiary }]}
-            >
-              <Ionicons name="send" size={18} color={message.trim() ? "#fff" : colors.textSecondary} />
+              <Ionicons name="videocam-outline" size={22} color="#E1306C" />
+              <Text style={[styles.attachLabel, { color: "#E1306C" }]}>فيديو</Text>
             </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
-      </View>
+        )}
+
+        <View
+          style={[
+            styles.inputRow,
+            { paddingBottom: botPad + 8, borderTopColor: colors.border, backgroundColor: colors.backgroundSecondary },
+          ]}
+        >
+          {/* زر الخروج من الغرفة */}
+          <TouchableOpacity onPress={handleLeaveRoom} style={[styles.roundBtn, { backgroundColor: `${colors.danger}22` }]}>
+            <Ionicons name="exit-outline" size={20} color={colors.danger} />
+          </TouchableOpacity>
+
+          {/* زر المرفقات */}
+          <TouchableOpacity
+            onPress={() => setShowAttach((v) => !v)}
+            style={[styles.roundBtn, { backgroundColor: showAttach ? `${accentColor}22` : colors.backgroundTertiary }]}
+          >
+            <Ionicons name={showAttach ? "close" : "attach"} size={20} color={showAttach ? accentColor : colors.textSecondary} />
+          </TouchableOpacity>
+
+          <View style={[styles.inputWrap, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+            <TextInput
+              style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
+              placeholder={t("typeMessage")}
+              placeholderTextColor={colors.textSecondary}
+              value={message}
+              onChangeText={setMessage}
+              onSubmitEditing={handleSend}
+              returnKeyType="send"
+              textAlign="right"
+            />
+          </View>
+
+          {/* زر القلب */}
+          <TouchableOpacity
+            onPress={() => triggerReaction("❤️")}
+            style={[styles.roundBtn, { backgroundColor: "rgba(225,48,108,0.12)" }]}
+          >
+            <Text style={{ fontSize: 18 }}>❤️</Text>
+          </TouchableOpacity>
+
+          {/* زر الضحك */}
+          <TouchableOpacity
+            onPress={() => triggerReaction("😂")}
+            style={[styles.roundBtn, { backgroundColor: "rgba(245,200,0,0.12)" }]}
+          >
+            <Text style={{ fontSize: 18 }}>😂</Text>
+          </TouchableOpacity>
+
+          {/* زر الإرسال */}
+          <TouchableOpacity
+            onPress={handleSend}
+            disabled={!message.trim()}
+            style={[styles.roundBtn, { backgroundColor: message.trim() ? accentColor : colors.backgroundTertiary }]}
+          >
+            <Ionicons name="send" size={18} color={message.trim() ? "#fff" : colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
 
       {/* User Actions Modal */}
       <UserActionsModal

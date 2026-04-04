@@ -218,8 +218,8 @@ function CommentSheet({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        behavior="padding"
+        keyboardVerticalOffset={0}
         style={[styles.commentSheet, { backgroundColor: CARD, borderColor: BORDER }]}
       >
         <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
@@ -227,7 +227,7 @@ function CommentSheet({
         <FlatList
           data={comments}
           keyExtractor={(c) => c.id}
-          style={{ flex: 1, maxHeight: 320 }}
+          style={{ flex: 1 }}
           contentContainerStyle={{ flexGrow: 1 }}
           ListEmptyComponent={
             <Text style={[styles.emptyComments, { color: TEXT2 }]}>

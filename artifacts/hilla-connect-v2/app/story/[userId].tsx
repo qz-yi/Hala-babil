@@ -8,7 +8,6 @@ import {
   FlatList,
   Image,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -287,11 +286,7 @@ export default function StoryViewerScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-    >
+    <View style={styles.container}>
       {currentStory.mediaUrl ? (
         <View style={styles.storyMedia}>
           <Image source={{ uri: currentStory.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -578,7 +573,7 @@ export default function StoryViewerScreen() {
         storyId={currentStory.id}
         colors={colors}
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

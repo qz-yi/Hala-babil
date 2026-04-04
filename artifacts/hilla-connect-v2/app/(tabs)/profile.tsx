@@ -363,7 +363,7 @@ function PostGridItem({ post, colors }: { post: Post; colors: any }) {
     <TouchableOpacity
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        router.push(`/post/${post.id}` as any);
+        router.push(`/user-posts/${post.creatorId}?startId=${post.id}` as any);
       }}
       style={[styles.gridItem, { backgroundColor: colors.card }]}
       activeOpacity={0.8}

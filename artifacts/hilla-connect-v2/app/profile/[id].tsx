@@ -29,7 +29,7 @@ function GridPostItem({ post, colors }: { post: any; colors: any }) {
   return (
     <TouchableOpacity
       style={styles.gridItem}
-      onPress={() => router.push(`/post/${post.id}`)}
+      onPress={() => router.push(`/user-posts/${post.creatorId}?startId=${post.id}` as any)}
       activeOpacity={0.85}
     >
       {post.mediaUrl && post.mediaType === "image" ? (

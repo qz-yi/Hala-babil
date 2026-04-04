@@ -3,6 +3,7 @@ import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useRef, useState } from "react";
 import {
   Animated,
@@ -205,7 +206,8 @@ function CommentSheet({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior="padding"
+        keyboardVerticalOffset={0}
         style={[styles.commentSheet, { backgroundColor: colors.card, borderColor: colors.border }]}
       >
         <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
@@ -213,7 +215,7 @@ function CommentSheet({
         <FlatList
           data={comments}
           keyExtractor={(c) => c.id}
-          style={{ maxHeight: 320 }}
+          style={{ flex: 1 }}
           ListEmptyComponent={
             <Text style={[styles.emptyComments, { color: colors.textSecondary }]}>
               لا توجد تعليقات بعد — كن أول من يعلق!
@@ -327,6 +329,41 @@ function SharePostSheet({
         />
       </View>
     </Modal>
+  );
+}
+
+// ───── Post Video Player ─────
+function PostVideoPlayer({ uri }: { uri: string }) {
+  const [playing, setPlaying] = useState(false);
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = false;
+  });
+
+  const toggle = () => {
+    if (playing) {
+      player.pause();
+    } else {
+      player.play();
+    }
+    setPlaying((v) => !v);
+  };
+
+  return (
+    <TouchableOpacity onPress={toggle} activeOpacity={0.95} style={{ position: "relative" }}>
+      <VideoView
+        player={player}
+        style={{ width: SCREEN_WIDTH, aspectRatio: 16 / 9, backgroundColor: "#000" }}
+        contentFit="contain"
+        nativeControls={false}
+      />
+      {!playing && (
+        <View style={styles.videoPlayOverlay}>
+          <View style={styles.videoPlayBtn}>
+            <Ionicons name="play" size={32} color="#fff" />
+          </View>
+        </View>
+      )}
+    </TouchableOpacity>
   );
 }
 
@@ -478,6 +515,8 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
             <Feather name="heart" size={90} color="#FF3B5C" strokeWidth={0} />
           </Animated.View>
         </Pressable>
+      ) : post.mediaUrl && post.mediaType === "video" ? (
+        <PostVideoPlayer uri={post.mediaUrl} />
       ) : null}
 
       {/* ── Caption ── */}
@@ -862,11 +901,12 @@ const styles = StyleSheet.create({
   // Comment Sheet
   sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
   commentSheet: {
+    maxHeight: "78%",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 0.5,
     padding: 20,
-    paddingBottom: 36,
+    paddingBottom: 20,
     gap: 12,
   },
   sheetHandle: { width: 36, height: 3, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
@@ -937,4 +977,20 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   createFirstPostText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
+
+  // Video Player
+  videoPlayOverlay: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.25)",
+  },
+  videoPlayBtn: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingLeft: 4,
+  },
 });

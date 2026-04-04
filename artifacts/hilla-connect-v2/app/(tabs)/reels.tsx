@@ -10,6 +10,7 @@ import {
   Dimensions,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -198,7 +199,7 @@ function CommentSheet({
   visible: boolean;
   onClose: () => void;
 }) {
-  const { getReelComments, addReelComment } = useApp();
+  const { getReelComments, addReelComment, users } = useApp();
   const [text, setText] = useState("");
   const comments = getReelComments(reelId);
 
@@ -208,41 +209,58 @@ function CommentSheet({
     setText("");
   };
 
+  const handleNavigateToProfile = (userId: string) => {
+    onClose();
+    router.push(`/profile/${userId}` as any);
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
-      <View style={[styles.commentSheet, { backgroundColor: CARD, borderColor: BORDER }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        style={[styles.commentSheet, { backgroundColor: CARD, borderColor: BORDER }]}
+      >
         <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
         <Text style={[styles.sheetTitle, { color: TEXT }]}>التعليقات</Text>
         <FlatList
           data={comments}
           keyExtractor={(c) => c.id}
-          style={{ maxHeight: 320 }}
+          style={{ flex: 1, maxHeight: 320 }}
+          contentContainerStyle={{ flexGrow: 1 }}
           ListEmptyComponent={
             <Text style={[styles.emptyComments, { color: TEXT2 }]}>
               لا توجد تعليقات بعد
             </Text>
           }
-          renderItem={({ item }) => (
-            <View style={styles.commentItem}>
-              <View
-                style={[
-                  styles.commentAvatar,
-                  { backgroundColor: ACCENT_COLORS[item.userId.length % ACCENT_COLORS.length] },
-                ]}
-              >
-                {item.userAvatar ? (
-                  <Image source={{ uri: item.userAvatar }} style={styles.commentAvatarImg} />
-                ) : (
-                  <Text style={styles.commentAvatarText}>{item.userName[0]?.toUpperCase()}</Text>
-                )}
+          renderItem={({ item }) => {
+            const accentColor = ACCENT_COLORS[item.userId.length % ACCENT_COLORS.length];
+            return (
+              <View style={styles.commentItem}>
+                <TouchableOpacity
+                  onPress={() => handleNavigateToProfile(item.userId)}
+                  activeOpacity={0.8}
+                  style={[
+                    styles.commentAvatar,
+                    { backgroundColor: accentColor },
+                  ]}
+                >
+                  {item.userAvatar ? (
+                    <Image source={{ uri: item.userAvatar }} style={styles.commentAvatarImg} />
+                  ) : (
+                    <Text style={styles.commentAvatarText}>{item.userName[0]?.toUpperCase()}</Text>
+                  )}
+                </TouchableOpacity>
+                <View style={styles.commentBody}>
+                  <TouchableOpacity onPress={() => handleNavigateToProfile(item.userId)} activeOpacity={0.8}>
+                    <Text style={[styles.commentUser, { color: "#3D91F4" }]}>{item.userName}</Text>
+                  </TouchableOpacity>
+                  <Text style={[styles.commentText, { color: TEXT }]}>{item.content}</Text>
+                </View>
               </View>
-              <View style={styles.commentBody}>
-                <Text style={[styles.commentUser, { color: "#3D91F4" }]}>{item.userName}</Text>
-                <Text style={[styles.commentText, { color: TEXT }]}>{item.content}</Text>
-              </View>
-            </View>
-          )}
+            );
+          }}
         />
         <View
           style={[
@@ -266,7 +284,7 @@ function CommentSheet({
             <Feather name="send" size={18} color="#3D91F4" strokeWidth={1.5} />
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

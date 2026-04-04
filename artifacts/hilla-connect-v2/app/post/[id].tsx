@@ -215,6 +215,7 @@ function CommentsSheet({
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         style={[styles.commentsSheetContainer, { backgroundColor: colors.card, borderColor: colors.border }]}
       >
         {/* Handle */}

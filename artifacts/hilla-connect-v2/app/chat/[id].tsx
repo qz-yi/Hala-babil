@@ -463,7 +463,7 @@ const recStyles = StyleSheet.create({
 // ───── Chat Screen ─────
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { conversations, currentUser, sendPrivateMessage, blockUser, t, theme } = useApp();
+  const { conversations, currentUser, sendPrivateMessage, blockUser, unblockUser, isBlocked, t, theme } = useApp();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
   const [message, setMessage] = useState("");
@@ -832,28 +832,51 @@ export default function ChatScreen() {
         />
       )}
 
-      {/* Custom Block Modal */}
+      {/* Custom Block / Unblock Modal */}
       <Modal visible={showBlockModal} transparent animationType="fade" onRequestClose={() => setShowBlockModal(false)}>
         <Pressable style={blockModalStyles.backdrop} onPress={() => setShowBlockModal(false)} />
         <View style={[blockModalStyles.sheet, { backgroundColor: CARD, borderColor: BORDER }]}>
           <View style={[blockModalStyles.handle, { backgroundColor: BORDER }]} />
-          <View style={blockModalStyles.iconWrap}>
-            <Feather name="slash" size={36} color="#FF3B5C" strokeWidth={1.5} />
-          </View>
-          <Text style={[blockModalStyles.title, { color: TEXT }]}>حظر المستخدم</Text>
-          <Text style={[blockModalStyles.subtitle, { color: TEXT2 }]}>
-            هل تريد حظر {otherUser?.name}؟ لن تتلقى منه رسائل أو تفاعلات بعد الآن.
-          </Text>
-          <TouchableOpacity
-            onPress={() => {
-              setShowBlockModal(false);
-              if (otherUser) blockUser(otherUser.id);
-              router.back();
-            }}
-            style={blockModalStyles.blockBtn}
-          >
-            <Text style={blockModalStyles.blockBtnText}>نعم، احظر المستخدم</Text>
-          </TouchableOpacity>
+          {otherUser && isBlocked(otherUser.id) ? (
+            <>
+              <View style={[blockModalStyles.iconWrap, { backgroundColor: "#10B98122" }]}>
+                <Feather name="user-check" size={36} color="#10B981" strokeWidth={1.5} />
+              </View>
+              <Text style={[blockModalStyles.title, { color: TEXT }]}>إلغاء الحظر</Text>
+              <Text style={[blockModalStyles.subtitle, { color: TEXT2 }]}>
+                {otherUser?.name} محظور حالياً. هل تريد إلغاء الحظر والسماح له بالتواصل معك مجدداً؟
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowBlockModal(false);
+                  if (otherUser) unblockUser(otherUser.id);
+                }}
+                style={[blockModalStyles.blockBtn, { backgroundColor: "#10B981" }]}
+              >
+                <Text style={blockModalStyles.blockBtnText}>نعم، إلغاء الحظر</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={blockModalStyles.iconWrap}>
+                <Feather name="slash" size={36} color="#FF3B5C" strokeWidth={1.5} />
+              </View>
+              <Text style={[blockModalStyles.title, { color: TEXT }]}>حظر المستخدم</Text>
+              <Text style={[blockModalStyles.subtitle, { color: TEXT2 }]}>
+                هل تريد حظر {otherUser?.name}؟ لن تتلقى منه رسائل أو تفاعلات بعد الآن.
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowBlockModal(false);
+                  if (otherUser) blockUser(otherUser.id);
+                  router.back();
+                }}
+                style={blockModalStyles.blockBtn}
+              >
+                <Text style={blockModalStyles.blockBtnText}>نعم، احظر المستخدم</Text>
+              </TouchableOpacity>
+            </>
+          )}
           <TouchableOpacity
             onPress={() => setShowBlockModal(false)}
             style={[blockModalStyles.cancelBtn, { backgroundColor: "#1C1C1C" }]}

@@ -7,6 +7,7 @@ import {
   Animated,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -115,6 +116,23 @@ export default function StoryViewerScreen() {
   const [showViewers, setShowViewers] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [replySent, setReplySent] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Track keyboard height for absolutely-positioned bottom bar
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Progress animation — properly handles pause/resume
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -272,6 +290,7 @@ export default function StoryViewerScreen() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       {currentStory.mediaUrl ? (
         <View style={styles.storyMedia}>
@@ -374,7 +393,7 @@ export default function StoryViewerScreen() {
 
       {/* Bottom bar for non-owner */}
       {!isMyStory && (
-        <View style={[styles.bottomBar, { paddingBottom: botPad + 8 }]}>
+        <View style={[styles.bottomBar, { paddingBottom: keyboardHeight > 0 ? 12 : botPad + 8, bottom: keyboardHeight }]}>
           <View style={styles.replyRow}>
             {replySent ? (
               <View style={styles.replySentRow}>

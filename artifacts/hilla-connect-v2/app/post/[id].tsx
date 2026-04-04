@@ -434,6 +434,9 @@ export default function PostDetailScreen() {
     getPostComments,
     deletePost,
     hidePost,
+    isPostSaved,
+    savePost,
+    unsavePost,
     theme,
     t,
   } = useApp();
@@ -599,27 +602,43 @@ export default function PostDetailScreen() {
         ) : null}
 
         {/* Actions */}
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
-            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-              <Ionicons
-                name={liked ? "heart" : "heart-outline"}
-                size={26}
-                color={liked ? "#E1306C" : colors.textSecondary}
-              />
-            </Animated.View>
-            <Text style={[styles.actionCount, { color: colors.textSecondary }]}>{likesCount}</Text>
-          </TouchableOpacity>
+        <View style={[styles.actions, { justifyContent: "space-between" }]}>
+          <View style={{ flexDirection: "row", gap: 4 }}>
+            <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
+              <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                <Ionicons
+                  name={liked ? "heart" : "heart-outline"}
+                  size={26}
+                  color={liked ? "#E1306C" : colors.textSecondary}
+                />
+              </Animated.View>
+              <Text style={[styles.actionCount, { color: colors.textSecondary }]}>{likesCount}</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionBtn} onPress={() => setShowComments(true)}>
-            <Ionicons name="chatbubble-outline" size={24} color={colors.textSecondary} />
-            <Text style={[styles.actionCount, { color: colors.textSecondary }]}>
-              {comments.length}
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.actionBtn} onPress={() => setShowComments(true)}>
+              <Ionicons name="chatbubble-outline" size={24} color={colors.textSecondary} />
+              <Text style={[styles.actionCount, { color: colors.textSecondary }]}>
+                {comments.length}
+              </Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionBtn} onPress={() => setShowShare(true)}>
-            <Ionicons name="paper-plane-outline" size={24} color={colors.textSecondary} />
+            <TouchableOpacity style={styles.actionBtn} onPress={() => setShowShare(true)}>
+              <Ionicons name="paper-plane-outline" size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => {
+              if (isPostSaved(post.id)) unsavePost(post.id);
+              else savePost(post.id);
+            }}
+          >
+            <Ionicons
+              name={isPostSaved(post.id) ? "bookmark" : "bookmark-outline"}
+              size={24}
+              color={isPostSaved(post.id) ? colors.tint : colors.textSecondary}
+            />
           </TouchableOpacity>
         </View>
       </View>

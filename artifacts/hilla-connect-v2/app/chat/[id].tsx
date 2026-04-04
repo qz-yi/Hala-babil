@@ -113,6 +113,7 @@ function SharedContentPreview({
   isMe: boolean;
   colors: any;
 }) {
+  const { stories } = useApp();
   const ICONS: Record<string, string> = {
     post: "image",
     reel: "play-circle",
@@ -128,7 +129,10 @@ function SharedContentPreview({
     if (sharedContent.type === "post") {
       router.push(`/post/${sharedContent.id}` as any);
     } else if (sharedContent.type === "story") {
-      router.push(`/story/${sharedContent.id}` as any);
+      const story = stories.find((s) => s.id === sharedContent.id);
+      if (story) {
+        router.push(`/story/${story.creatorId}` as any);
+      }
     }
   };
 

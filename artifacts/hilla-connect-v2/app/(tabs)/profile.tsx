@@ -30,7 +30,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_ITEM_SIZE = (SCREEN_WIDTH - 3) / 3;
 
 type GridTab = "posts" | "reels";
-type DrawerPage = "settings" | "activity" | "requests";
+type DrawerPage = "settings" | "activity" | "requests" | "saved";
 
 // ───── Followers / Following Modal ─────
 function FollowListModal({
@@ -150,12 +150,14 @@ function ProfileDrawer({
     getMyComments,
     getMyPostComments,
     getLikedPosts,
+    getSavedPosts,
   } = useApp();
   const [page, setPage] = useState<DrawerPage>("settings");
   const followRequests = getFollowRequests();
   const likedReels = getLikedReels();
   const myPostComments = getMyPostComments();
   const likedPosts = getLikedPosts();
+  const savedPostsList = getSavedPosts();
 
   if (!visible) return null;
 
@@ -171,6 +173,7 @@ function ProfileDrawer({
             { key: "settings", label: "الإعدادات", icon: "settings" },
             { key: "activity", label: "نشاطي", icon: "activity" },
             { key: "requests", label: "الطلبات", icon: "users" },
+            { key: "saved", label: "محفوظ", icon: "bookmark" },
           ].map((tab) => (
             <TouchableOpacity
               key={tab.key}
@@ -272,10 +275,15 @@ function ProfileDrawer({
               {myPostComments.length === 0 ? (
                 <Text style={[styles.emptyActivity, { color: colors.textSecondary }]}>لم تعلق على أي منشور بعد</Text>
               ) : myPostComments.slice(0, 5).map((c: any) => (
-                <View key={c.id} style={[styles.activityItem, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+                <TouchableOpacity
+                  key={c.id}
+                  onPress={() => { onClose(); router.push(`/post/${c.postId}` as any); }}
+                  style={[styles.activityItem, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+                >
                   <Feather name="message-circle" size={16} color="#3D91F4" strokeWidth={1.5} />
                   <Text style={[styles.activityItemText, { color: colors.text }]} numberOfLines={1}>{c.content}</Text>
-                </View>
+                  <Feather name="chevron-right" size={13} color={colors.textSecondary} strokeWidth={1.5} />
+                </TouchableOpacity>
               ))}
             </>
           )}
@@ -319,6 +327,30 @@ function ProfileDrawer({
               })}
             </>
           )}
+
+          {page === "saved" && (
+            <>
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>المنشورات المحفوظة ({savedPostsList.length})</Text>
+              {savedPostsList.length === 0 ? (
+                <View style={{ alignItems: "center", paddingVertical: 32, gap: 8 }}>
+                  <Feather name="bookmark" size={36} color={colors.border} strokeWidth={1} />
+                  <Text style={[styles.emptyActivity, { color: colors.textSecondary }]}>لم تحفظ أي منشور بعد</Text>
+                </View>
+              ) : savedPostsList.map((p: any) => (
+                <TouchableOpacity
+                  key={p.id}
+                  onPress={() => { onClose(); router.push(`/post/${p.id}` as any); }}
+                  style={[styles.activityItem, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+                >
+                  <Feather name="bookmark" size={16} color={colors.tint} strokeWidth={0} />
+                  <Text style={[styles.activityItemText, { color: colors.text }]} numberOfLines={1}>
+                    {p.content || (p.mediaType === "image" ? "📷 صورة" : p.mediaType === "video" ? "🎬 فيديو" : "منشور")}
+                  </Text>
+                  <Feather name="chevron-right" size={13} color={colors.textSecondary} strokeWidth={1.5} />
+                </TouchableOpacity>
+              ))}
+            </>
+          )}
         </ScrollView>
       </View>
     </Modal>
@@ -348,6 +380,8 @@ function PostGridItem({ post, colors }: { post: Post; colors: any }) {
 }
 
 function ReelGridItem({ reel, colors }: { reel: Reel; colors: any }) {
+  const [thumbError, setThumbError] = useState(false);
+  const thumbUrl = (reel as any).thumbnailUrl || reel.videoUrl;
   return (
     <TouchableOpacity
       onPress={() => {
@@ -357,11 +391,16 @@ function ReelGridItem({ reel, colors }: { reel: Reel; colors: any }) {
       style={[styles.gridItem, { backgroundColor: colors.card }]}
       activeOpacity={0.8}
     >
-      {(reel as any).thumbnailUrl ? (
-        <Image source={{ uri: (reel as any).thumbnailUrl }} style={StyleSheet.absoluteFill as any} resizeMode="cover" />
+      {thumbUrl && !thumbError ? (
+        <Image
+          source={{ uri: thumbUrl }}
+          style={StyleSheet.absoluteFill as any}
+          resizeMode="cover"
+          onError={() => setThumbError(true)}
+        />
       ) : (
-        <View style={[styles.gridTextPlaceholder, { backgroundColor: colors.backgroundTertiary ?? colors.card }]}>
-          <Feather name="film" size={24} color={colors.textSecondary} strokeWidth={1} />
+        <View style={[StyleSheet.absoluteFill as any, { backgroundColor: "#1a1a2e", alignItems: "center", justifyContent: "center" }]}>
+          <Feather name="film" size={26} color="#7C3AED" strokeWidth={1} />
         </View>
       )}
       <View style={styles.reelPlayBadge}>

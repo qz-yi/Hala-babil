@@ -169,7 +169,14 @@ function ChatBubble({ msg, isMe, colors, onMediaPress }: any) {
   const color = ACCENT_COLORS[msg.senderName.length % ACCENT_COLORS.length];
   return (
     <View style={[styles.chatMsg, isMe ? styles.chatMsgRight : styles.chatMsgLeft]}>
-      {!isMe && <Text style={[styles.chatSender, { color }]}>{msg.senderName}</Text>}
+      {!isMe && (
+        <TouchableOpacity
+          onPress={() => msg.senderId && router.push(`/profile/${msg.senderId}` as any)}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.chatSender, { color }]}>{msg.senderName}</Text>
+        </TouchableOpacity>
+      )}
       <View
         style={[
           styles.chatBubble,

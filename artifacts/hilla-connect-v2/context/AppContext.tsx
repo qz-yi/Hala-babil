@@ -301,6 +301,12 @@ interface AppContextValue {
   getMyComments: () => ReelComment[];
   getMyPostComments: () => PostComment[];
   getLikedPosts: () => Post[];
+  // Saved Posts
+  savedPosts: string[];
+  savePost: (postId: string) => void;
+  unsavePost: (postId: string) => void;
+  isPostSaved: (postId: string) => boolean;
+  getSavedPosts: () => Post[];
   t: (key: string) => string;
 }
 
@@ -696,6 +702,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [stories, setStories] = useState<Story[]>([]);
   const [follows, setFollows] = useState<Follow[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [savedPosts, setSavedPostsState] = useState<string[]>([]);
 
   useEffect(() => {
     loadData();
@@ -707,7 +714,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         "language", "theme", "currentUser", "users", "rooms", "conversations",
         "restaurants", "passwords", "blockedUsers", "reels", "reelLikes",
         "reelComments", "posts", "postLikes", "postComments", "stories",
-        "follows", "notifications",
+        "follows", "notifications", "savedPosts",
       ];
       const values = await AsyncStorage.multiGet(keys);
       const data = Object.fromEntries(values.map(([k, v]) => [k, v]));
@@ -742,6 +749,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.stories) setStories(JSON.parse(data.stories));
       if (data.follows) setFollows(JSON.parse(data.follows));
       if (data.notifications) setNotifications(JSON.parse(data.notifications));
+      if (data.savedPosts) setSavedPostsState(JSON.parse(data.savedPosts));
     } catch (e) {}
   };
 
@@ -758,6 +766,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const saveStories = (s: Story[]) => { setStories(s); AsyncStorage.setItem("stories", JSON.stringify(s)); };
   const saveFollows = (f: Follow[]) => { setFollows(f); AsyncStorage.setItem("follows", JSON.stringify(f)); };
   const saveNotifications = (n: AppNotification[]) => { setNotifications(n); AsyncStorage.setItem("notifications", JSON.stringify(n)); };
+  const saveSavedPostsData = (s: string[]) => { setSavedPostsState(s); AsyncStorage.setItem("savedPosts", JSON.stringify(s)); };
+
+  const savePost = useCallback((postId: string) => {
+    setSavedPostsState((prev) => {
+      if (prev.includes(postId)) return prev;
+      const next = [...prev, postId];
+      AsyncStorage.setItem("savedPosts", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const unsavePost = useCallback((postId: string) => {
+    setSavedPostsState((prev) => {
+      const next = prev.filter((id) => id !== postId);
+      AsyncStorage.setItem("savedPosts", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const isPostSaved = useCallback((postId: string) => savedPosts.includes(postId), [savedPosts]);
+
+  const getSavedPosts = useCallback(() => posts.filter((p) => savedPosts.includes(p.id)), [posts, savedPosts]);
 
   const setLanguage = useCallback((lang: Language) => {
     setLanguageState(lang);
@@ -2011,6 +2041,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markNotificationRead, markAllNotificationsRead, getUnreadNotificationsCount,
       getFeedPosts, getFeedReels, getLikedReels, getMyComments, getMyPostComments, getLikedPosts,
       getUserPosts, getUserReels,
+      savedPosts, savePost, unsavePost, isPostSaved, getSavedPosts,
       t,
     }),
     [

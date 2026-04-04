@@ -328,7 +328,7 @@ function SharePostSheet({
 
 // ───── Post Card (Instagram-style) ─────
 function PostCard({ post, colors }: { post: Post; colors: any }) {
-  const { users, currentUser, isPostLiked, likePost, getPostLikesCount, getPostComments, deletePost } = useApp();
+  const { users, currentUser, isPostLiked, likePost, getPostLikesCount, getPostComments, deletePost, isPostSaved, savePost, unsavePost } = useApp();
   const creator = users.find((u) => u.id === post.creatorId);
   const liked = isPostLiked(post.id);
   const likesCount = getPostLikesCount(post.id);
@@ -338,8 +338,8 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
 
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const bookmarked = isPostSaved(post.id);
 
   const lastTapRef = useRef(0);
   const heartAnim = useRef(new Animated.Value(0)).current;
@@ -482,7 +482,8 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
 
         <TouchableOpacity
           onPress={() => {
-            setBookmarked(!bookmarked);
+            if (bookmarked) unsavePost(post.id);
+            else savePost(post.id);
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }}
         >

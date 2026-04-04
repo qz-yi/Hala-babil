@@ -24,10 +24,22 @@ const GRID_SIZE = (SCREEN_WIDTH - 3) / 3;
 type GridTab = "posts" | "reels";
 
 function GridPostItem({ post, colors }: { post: any; colors: any }) {
+  const hasMultiple = post.mediaUrls && post.mediaUrls.length > 1;
   return (
-    <View style={styles.gridItem}>
+    <TouchableOpacity
+      style={styles.gridItem}
+      onPress={() => router.push(`/post/${post.id}`)}
+      activeOpacity={0.85}
+    >
       {post.mediaUrl && post.mediaType === "image" ? (
-        <Image source={{ uri: post.mediaUrl }} style={StyleSheet.absoluteFill as any} resizeMode="cover" />
+        <>
+          <Image source={{ uri: post.mediaUrl }} style={StyleSheet.absoluteFill as any} resizeMode="cover" />
+          {hasMultiple && (
+            <View style={{ position: "absolute", top: 6, right: 6 }}>
+              <Ionicons name="copy-outline" size={16} color="#fff" />
+            </View>
+          )}
+        </>
       ) : post.mediaUrl && post.mediaType === "video" ? (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111", alignItems: "center", justifyContent: "center" }]}>
           <Ionicons name="play-circle" size={32} color="rgba(255,255,255,0.8)" />
@@ -39,20 +51,24 @@ function GridPostItem({ post, colors }: { post: any; colors: any }) {
           </Text>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
-function GridReelItem() {
+function GridReelItem({ reelId }: { reelId: string }) {
   return (
-    <View style={styles.gridItem}>
+    <TouchableOpacity
+      style={styles.gridItem}
+      onPress={() => router.push("/(tabs)/reels" as any)}
+      activeOpacity={0.85}
+    >
       <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111", alignItems: "center", justifyContent: "center" }]}>
         <Ionicons name="play-circle" size={32} color="rgba(255,255,255,0.8)" />
       </View>
       <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.2)", alignItems: "center", justifyContent: "center" }]}>
         <Ionicons name="play" size={18} color="rgba(255,255,255,0.9)" />
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -257,7 +273,7 @@ export default function UserProfileScreen() {
           gridTab === "posts" ? (
             <GridPostItem post={item} colors={colors} />
           ) : (
-            <GridReelItem />
+            <GridReelItem reelId={item.id} />
           )
         }
       />

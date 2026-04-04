@@ -128,9 +128,11 @@ function SharedContentPreview({
   const handleTap = () => {
     if (sharedContent.type === "post") {
       router.push(`/post/${sharedContent.id}` as any);
+    } else if (sharedContent.type === "reel") {
+      router.push("/(tabs)/reels" as any);
     } else if (sharedContent.type === "story") {
       const story = stories.find((s) => s.id === sharedContent.id);
-      if (story) {
+      if (story && story.expiresAt > Date.now()) {
         router.push(`/story/${story.creatorId}` as any);
       }
     }
@@ -688,7 +690,7 @@ export default function ChatScreen() {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
         <FlatList
           ref={flatRef}

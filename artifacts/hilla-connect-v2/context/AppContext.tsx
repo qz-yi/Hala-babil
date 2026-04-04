@@ -132,6 +132,7 @@ export interface Post {
   creatorId: string;
   content?: string;
   mediaUrl?: string;
+  mediaUrls?: string[];
   mediaType: "none" | "image" | "video";
   filter?: PostFilter;
   isHidden?: boolean;
@@ -253,7 +254,7 @@ interface AppContextValue {
   shareStoryToDM: (storyId: string, receiverId: string) => void;
   searchUsers: (query: string) => User[];
   // Posts
-  addPost: (content?: string, mediaUrl?: string, mediaType?: "none" | "image" | "video", filter?: PostFilter) => void;
+  addPost: (content?: string, mediaUrl?: string, mediaType?: "none" | "image" | "video", filter?: PostFilter, mediaUrls?: string[]) => void;
   deletePost: (postId: string) => void;
   hidePost: (postId: string) => void;
   likePost: (postId: string) => void;
@@ -1422,13 +1423,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // POSTS
   // ============================
   const addPost = useCallback(
-    (content?: string, mediaUrl?: string, mediaType: "none" | "image" | "video" = "none", filter: PostFilter = "none") => {
+    (content?: string, mediaUrl?: string, mediaType: "none" | "image" | "video" = "none", filter: PostFilter = "none", mediaUrls?: string[]) => {
       if (!currentUser) return;
       const post: Post = {
         id: generateId(),
         creatorId: currentUser.id,
         content,
-        mediaUrl,
+        mediaUrl: mediaUrls && mediaUrls.length > 0 ? mediaUrls[0] : mediaUrl,
+        mediaUrls: mediaUrls && mediaUrls.length > 0 ? mediaUrls : undefined,
         mediaType,
         filter,
         isHidden: false,

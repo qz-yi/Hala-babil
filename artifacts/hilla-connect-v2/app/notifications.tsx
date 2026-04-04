@@ -124,8 +124,16 @@ export default function NotificationsScreen() {
     } else if (notif.type === "like" || notif.type === "comment" || notif.type === "post") {
       if (notif.referenceId) router.push(`/post/${notif.referenceId}`);
       else router.push(`/profile/${notif.senderId}`);
-    } else if (notif.type === "story" || notif.type === "story_like" || notif.type === "story_reply") {
+    } else if (notif.type === "story" || notif.type === "story_like") {
       router.push(`/story/${notif.senderId}`);
+    } else if (notif.type === "story_reply") {
+      const convo = conversations.find(
+        (c) =>
+          c.participants.includes(currentUser?.id ?? "") &&
+          c.participants.includes(notif.senderId)
+      );
+      if (convo) router.push(`/chat/${convo.id}`);
+      else router.push("/(tabs)/messages" as any);
     } else if (notif.type === "message") {
       const convo = conversations.find(
         (c) =>

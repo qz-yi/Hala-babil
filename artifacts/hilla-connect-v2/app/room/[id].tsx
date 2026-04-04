@@ -561,7 +561,7 @@ export default function RoomScreen() {
           }
         />
 
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
           {/* Attachment Menu */}
           {showAttach && (
             <View style={[styles.attachMenu, { backgroundColor: colors.card, borderTopColor: colors.border }]}>

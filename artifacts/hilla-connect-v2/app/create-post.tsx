@@ -6,6 +6,8 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
+  FlatList,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -17,12 +19,16 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
+
 import type { PostFilter } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 type MediaTab = "image" | "video";
 type MediaType = "none" | "image" | "video";
@@ -78,6 +84,7 @@ export default function CreatePostScreen() {
   const [activeTab, setActiveTab] = useState<MediaTab>("image");
   const [content, setContent] = useState("");
   const [mediaUri, setMediaUri] = useState<string | null>(null);
+  const [mediaUris, setMediaUris] = useState<string[]>([]);
   const [mediaType, setMediaType] = useState<MediaType>("none");
   const [selectedFilter, setSelectedFilter] = useState<PostFilter>("none");
   const [publishing, setPublishing] = useState(false);
@@ -89,12 +96,19 @@ export default function CreatePostScreen() {
     if (status !== "granted") { showToast("يرجى السماح بالوصول للمعرض", "error"); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
+      allowsMultipleSelection: true,
       quality: 0.85,
+      selectionLimit: 10,
     });
-    if (!result.canceled && result.assets[0]) {
-      setMediaUri(result.assets[0].uri);
+    if (!result.canceled && result.assets.length > 0) {
+      const uris = result.assets.map((a) => a.uri);
+      if (uris.length === 1) {
+        setMediaUri(uris[0]);
+        setMediaUris([]);
+      } else {
+        setMediaUris(uris);
+        setMediaUri(uris[0]);
+      }
       setMediaType("image");
       setSelectedFilter("none");
     }
@@ -118,9 +132,9 @@ export default function CreatePostScreen() {
 
   const handleTabPress = (tab: MediaTab) => {
     setActiveTab(tab);
-    // Clear current media if switching tabs
-    if (tab !== mediaType && mediaUri) {
+    if (tab !== mediaType && (mediaUri || mediaUris.length > 0)) {
       setMediaUri(null);
+      setMediaUris([]);
       setMediaType("none");
       setSelectedFilter("none");
     }
@@ -131,22 +145,46 @@ export default function CreatePostScreen() {
     else handlePickVideo();
   };
 
+  const handleRemoveImage = (idx: number) => {
+    if (mediaUris.length > 0) {
+      const updated = mediaUris.filter((_, i) => i !== idx);
+      if (updated.length === 0) {
+        setMediaUris([]);
+        setMediaUri(null);
+        setMediaType("none");
+      } else if (updated.length === 1) {
+        setMediaUris([]);
+        setMediaUri(updated[0]);
+      } else {
+        setMediaUris(updated);
+        setMediaUri(updated[0]);
+      }
+    } else {
+      setMediaUri(null);
+      setMediaType("none");
+      setSelectedFilter("none");
+    }
+  };
+
   const handlePublish = async () => {
-    if (!content.trim() && !mediaUri) {
+    if (!content.trim() && !mediaUri && mediaUris.length === 0) {
       showToast("أضف نصاً أو وسائط على الأقل", "error");
       return;
     }
     setPublishing(true);
-    let finalUri = mediaUri || undefined;
 
-    // Apply filter to image before saving
-    if (finalUri && mediaType === "image" && selectedFilter !== "none") {
-      setApplyingFilter(true);
-      finalUri = await applyFilterToImage(finalUri, selectedFilter);
-      setApplyingFilter(false);
+    if (mediaUris.length > 1) {
+      await addPost(content.trim() || undefined, mediaUris[0], mediaType, selectedFilter, mediaUris);
+    } else {
+      let finalUri = mediaUri || undefined;
+      if (finalUri && mediaType === "image" && selectedFilter !== "none") {
+        setApplyingFilter(true);
+        finalUri = await applyFilterToImage(finalUri, selectedFilter);
+        setApplyingFilter(false);
+      }
+      await addPost(content.trim() || undefined, finalUri, mediaType, selectedFilter);
     }
 
-    await addPost(content.trim() || undefined, finalUri, mediaType, selectedFilter);
     setPublishing(false);
     showToast("تم نشر المنشور!", "success");
     router.back();
@@ -223,21 +261,51 @@ export default function CreatePostScreen() {
           returnKeyType="default"
         />
 
-        {/* Media Preview */}
-        {mediaUri && mediaType === "image" ? (
+        {/* Media Preview — multi-image grid or single */}
+        {mediaUris.length > 1 && mediaType === "image" ? (
+          <View style={styles.multiImageWrap}>
+            <FlatList
+              data={mediaUris}
+              horizontal
+              keyExtractor={(_, i) => String(i)}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingHorizontal: 4 }}
+              renderItem={({ item, index }) => (
+                <View style={styles.multiThumb}>
+                  <Image source={{ uri: item }} style={StyleSheet.absoluteFill as any} resizeMode="cover" />
+                  <TouchableOpacity
+                    onPress={() => handleRemoveImage(index)}
+                    style={styles.multiThumbRemove}
+                  >
+                    <Ionicons name="close-circle" size={22} color="#fff" />
+                  </TouchableOpacity>
+                  {index === 0 && (
+                    <View style={styles.multiThumbBadge}>
+                      <Text style={styles.multiThumbBadgeText}>الغلاف</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            />
+            <TouchableOpacity onPress={handlePickImage} style={styles.addMoreImgBtn}>
+              <Ionicons name="add-circle-outline" size={22} color="#7C3AED" />
+              <Text style={styles.addMoreImgText}>إضافة صور</Text>
+            </TouchableOpacity>
+          </View>
+        ) : mediaUri && mediaType === "image" ? (
           <View style={styles.mediaPreviewWrap}>
             <FilteredImage uri={mediaUri} filter={selectedFilter} style={styles.mediaPreviewInner} />
             <TouchableOpacity
-              onPress={() => { setMediaUri(null); setMediaType("none"); setSelectedFilter("none"); }}
+              onPress={() => handleRemoveImage(0)}
               style={styles.removeMedia}
             >
               <Ionicons name="close-circle" size={30} color="#fff" />
             </TouchableOpacity>
-            {/* Crop / re-pick button */}
+            {/* Re-pick + add more */}
             <TouchableOpacity onPress={handlePickImage} style={styles.cropBtn}>
               <View style={styles.cropBtnInner}>
-                <Ionicons name="crop-outline" size={16} color="#fff" />
-                <Text style={styles.cropBtnText}>قص</Text>
+                <Ionicons name="images-outline" size={16} color="#fff" />
+                <Text style={styles.cropBtnText}>إضافة / تغيير</Text>
               </View>
             </TouchableOpacity>
             {selectedFilter !== "none" && (
@@ -382,6 +450,25 @@ const styles = StyleSheet.create({
   },
   mediaPickerText: { fontSize: 15, fontFamily: "Inter_500Medium", textAlign: "center" },
   mediaPickerHint: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center", opacity: 0.7 },
+  multiImageWrap: { gap: 10, paddingVertical: 4 },
+  multiThumb: {
+    width: 110, height: 110, borderRadius: 14, overflow: "hidden",
+    backgroundColor: "#111", position: "relative",
+  },
+  multiThumbRemove: { position: "absolute", top: 4, right: 4, zIndex: 2 },
+  multiThumbBadge: {
+    position: "absolute", bottom: 4, left: 4,
+    backgroundColor: "rgba(124,58,237,0.85)",
+    borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3,
+  },
+  multiThumbBadgeText: { color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold" },
+  addMoreImgBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingVertical: 10, paddingHorizontal: 12,
+    borderRadius: 14, borderWidth: 1.5, borderStyle: "dashed",
+    borderColor: "#7C3AED", justifyContent: "center",
+  },
+  addMoreImgText: { color: "#7C3AED", fontFamily: "Inter_600SemiBold", fontSize: 14 },
   // Filters
   filtersSection: { gap: 10 },
   filtersSectionTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", paddingHorizontal: 2 },

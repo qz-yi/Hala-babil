@@ -111,6 +111,7 @@ export default function StoryViewerScreen() {
   const [paused, setPaused] = useState(false);
   const [liked, setLiked] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showViewers, setShowViewers] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [replySent, setReplySent] = useState(false);
 
@@ -433,10 +434,14 @@ export default function StoryViewerScreen() {
       {/* My story: show views + "add more" button */}
       {isMyStory && (
         <View style={[styles.myStoryBottom, { bottom: botPad + 16 }]}>
-          <View style={styles.viewsBadge}>
+          <TouchableOpacity
+            style={styles.viewsBadge}
+            onPress={() => { setPaused(true); setShowViewers(true); }}
+            activeOpacity={0.85}
+          >
             <Ionicons name="eye-outline" size={15} color="rgba(255,255,255,0.85)" />
             <Text style={styles.viewsText}>{currentStory.viewerIds.length} مشاهدة</Text>
-          </View>
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => router.push("/create-story")}
             style={styles.addMoreBtn}
@@ -446,6 +451,63 @@ export default function StoryViewerScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Viewers Modal — visible only for story owner */}
+      <Modal
+        visible={showViewers}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setShowViewers(false); setPaused(false); }}
+      >
+        <Pressable
+          style={ss.backdrop}
+          onPress={() => { setShowViewers(false); setPaused(false); }}
+        />
+        <View style={[ss.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[ss.handle, { backgroundColor: colors.border }]} />
+          <Text style={[ss.sheetTitle, { color: colors.text }]}>
+            المشاهدون ({currentStory.viewerIds.length})
+          </Text>
+          {currentStory.viewerIds.length === 0 ? (
+            <Text style={[ss.emptyText, { color: colors.textSecondary }]}>لا أحد شاهد هذه القصة بعد</Text>
+          ) : (
+            <FlatList
+              data={currentStory.viewerIds}
+              keyExtractor={(id) => id}
+              style={{ maxHeight: 360 }}
+              renderItem={({ item: viewerId }) => {
+                const viewer = users.find((u) => u.id === viewerId);
+                if (!viewer) return null;
+                const vColor = ACCENT_COLORS[(viewer.name?.length ?? 0) % ACCENT_COLORS.length];
+                return (
+                  <TouchableOpacity
+                    style={ss.userRow}
+                    onPress={() => {
+                      setShowViewers(false);
+                      setPaused(false);
+                      router.push(`/profile/${viewer.id}` as any);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[ss.miniAvatar, { backgroundColor: `${vColor}33` }]}>
+                      {viewer.avatar ? (
+                        <Image source={{ uri: viewer.avatar }} style={StyleSheet.absoluteFill as any} />
+                      ) : (
+                        <Text style={[ss.miniAvatarText, { color: vColor }]}>{viewer.name[0]?.toUpperCase()}</Text>
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[ss.userName, { color: colors.text }]}>{viewer.name}</Text>
+                      <Text style={[ss.userPhone, { color: colors.textSecondary }]}>{viewer.phone}</Text>
+                    </View>
+                    <Ionicons name="eye-outline" size={18} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          )}
+        </View>
+      </Modal>
 
       {/* Tap areas — long press to pause */}
       <Pressable

@@ -5,23 +5,28 @@ import React, { useRef, useState } from "react";
 import {
   Alert,
   Animated,
+  Dimensions,
   FlatList,
   Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { PostComment, PostFilter } from "@/context/AppContext";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // ─── Filter overlay ───
 const FILTER_OVERLAY: Record<string, string> = {
@@ -245,15 +250,21 @@ function CommentsSheet({
                     <Text style={[styles.pinnedText, { color: colors.tint }]}>مثبّت</Text>
                   </View>
                 )}
-                <View style={[styles.miniAvatar, { backgroundColor: `${color}33` }]}>
+                <TouchableOpacity
+                  onPress={() => commenter && router.push(`/profile/${commenter.id}`)}
+                  style={[styles.miniAvatar, { backgroundColor: `${color}33` }]}
+                  activeOpacity={0.8}
+                >
                   {commenter?.avatar ? (
                     <Image source={{ uri: commenter.avatar }} style={StyleSheet.absoluteFill as any} />
                   ) : (
                     <Text style={[styles.miniAvatarText, { color }]}>{item.userName[0]?.toUpperCase()}</Text>
                   )}
-                </View>
+                </TouchableOpacity>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.commentUser, { color: colors.tint }]}>{item.userName}</Text>
+                  <TouchableOpacity onPress={() => commenter && router.push(`/profile/${commenter.id}`)} activeOpacity={0.8}>
+                    <Text style={[styles.commentUser, { color: colors.tint }]}>{item.userName}</Text>
+                  </TouchableOpacity>
                   <Text style={[styles.commentContent, { color: colors.text }]}>{item.content}</Text>
                   <Text style={[styles.commentTime, { color: colors.textSecondary }]}>{formatTime(item.createdAt)}</Text>
                 </View>
@@ -450,6 +461,7 @@ export default function PostDetailScreen() {
   const [showShare, setShowShare] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
+  const [carouselIndex, setCarouselIndex] = useState(0);
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const heartAnim = useRef(new Animated.Value(0)).current;
@@ -579,8 +591,44 @@ export default function PostDetailScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Media with filter + double-tap */}
-        {post.mediaUrl && post.mediaType === "image" && (
+        {/* Media with filter + double-tap — single or multi-image carousel */}
+        {post.mediaType === "image" && post.mediaUrls && post.mediaUrls.length > 1 ? (
+          <View>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onScroll={(e) => {
+                const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                setCarouselIndex(idx);
+              }}
+              scrollEventThrottle={16}
+            >
+              {post.mediaUrls.map((uri, idx) => (
+                <Pressable key={idx} onPress={handleDoubleTap} style={{ width: SCREEN_WIDTH }}>
+                  <FilteredImage uri={uri} filter={post.filter} style={[styles.postMedia, { width: SCREEN_WIDTH }]} />
+                </Pressable>
+              ))}
+            </ScrollView>
+            <View style={styles.carouselDots}>
+              {post.mediaUrls.map((_, idx) => (
+                <View
+                  key={idx}
+                  style={[
+                    styles.carouselDot,
+                    { backgroundColor: idx === carouselIndex ? "#fff" : "rgba(255,255,255,0.4)" },
+                  ]}
+                />
+              ))}
+            </View>
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.heartOverlay, { opacity: heartAnim, transform: [{ scale: heartScale }] }]}
+            >
+              <Ionicons name="heart" size={90} color="#E1306C" />
+            </Animated.View>
+          </View>
+        ) : post.mediaUrl && post.mediaType === "image" ? (
           <Pressable onPress={handleDoubleTap} style={{ position: "relative" }}>
             <FilteredImage
               uri={post.mediaUrl}
@@ -594,7 +642,7 @@ export default function PostDetailScreen() {
               <Ionicons name="heart" size={90} color="#E1306C" />
             </Animated.View>
           </Pressable>
-        )}
+        ) : null}
 
         {/* Caption */}
         {post.content ? (
@@ -730,6 +778,11 @@ const styles = StyleSheet.create({
   creatorName: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   timeText: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   postMedia: { width: "100%", aspectRatio: 1 },
+  carouselDots: {
+    position: "absolute", bottom: 8, left: 0, right: 0,
+    flexDirection: "row", justifyContent: "center", gap: 5, zIndex: 2,
+  },
+  carouselDot: { width: 7, height: 7, borderRadius: 4 },
   heartOverlay: {
     position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
     alignItems: "center", justifyContent: "center",

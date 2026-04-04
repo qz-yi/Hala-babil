@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
@@ -274,15 +274,14 @@ function SharePostSheet({
   onClose: () => void;
   colors: any;
 }) {
-  const { users, currentUser, getConversation, sendPrivateMessage } = useApp();
+  const { users, currentUser, sharePostToDM } = useApp();
   const others = users.filter((u) => u.id !== currentUser?.id);
+  const [sent, setSent] = useState<string[]>([]);
 
-  const handleShare = (user: User) => {
-    const convo = getConversation(user.id);
-    const snippet = post.content ? post.content.substring(0, 50) : "منشور";
-    sendPrivateMessage(convo.id, user.id, `📸 شارك منشوراً: "${snippet}"`, "text");
+  const handleShare = (userId: string) => {
+    sharePostToDM(post.id, userId);
+    setSent((p) => [...p, userId]);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onClose();
   };
 
   return (
@@ -302,8 +301,9 @@ function SharePostSheet({
           }
           renderItem={({ item }: { item: User }) => {
             const color = ACCENT_COLORS[(item.name?.length ?? 0) % ACCENT_COLORS.length];
+            const isSent = sent.includes(item.id);
             return (
-              <TouchableOpacity style={styles.shareUser} onPress={() => handleShare(item)}>
+              <TouchableOpacity style={styles.shareUser} onPress={() => !isSent && handleShare(item.id)} activeOpacity={isSent ? 1 : 0.7}>
                 <View style={[styles.commentAvatar, { backgroundColor: `${color}33` }]}>
                   {item.avatar ? (
                     <Image source={{ uri: item.avatar }} style={styles.commentAvatarImg} />
@@ -316,7 +316,11 @@ function SharePostSheet({
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.commentUser, { color: colors.text }]}>{item.name}</Text>
                 </View>
-                <Feather name="send" size={16} color={colors.textSecondary} strokeWidth={1.5} />
+                {isSent ? (
+                  <Ionicons name="checkmark-circle" size={22} color="#10B981" />
+                ) : (
+                  <Feather name="send" size={16} color={colors.textSecondary} strokeWidth={1.5} />
+                )}
               </TouchableOpacity>
             );
           }}
@@ -339,6 +343,7 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [carouselIndex, setCarouselIndex] = useState(0);
   const bookmarked = isPostSaved(post.id);
 
   const lastTapRef = useRef(0);
@@ -422,7 +427,48 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
       </TouchableOpacity>
 
       {/* ── Media ── */}
-      {post.mediaUrl && post.mediaType === "image" && (
+      {post.mediaType === "image" && post.mediaUrls && post.mediaUrls.length > 1 ? (
+        <View style={{ position: "relative" }}>
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={(e) => {
+              const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+              setCarouselIndex(idx);
+            }}
+            scrollEventThrottle={16}
+          >
+            {post.mediaUrls.map((uri, idx) => (
+              <Pressable key={idx} onPress={handleDoubleTap} style={{ width: SCREEN_WIDTH }}>
+                <Image source={{ uri }} style={[styles.postMedia, { width: SCREEN_WIDTH }]} resizeMode="cover" />
+              </Pressable>
+            ))}
+          </ScrollView>
+          {/* Pagination dots */}
+          <View style={styles.carouselDots}>
+            {post.mediaUrls.map((_, idx) => (
+              <View
+                key={idx}
+                style={[
+                  styles.carouselDot,
+                  { backgroundColor: idx === carouselIndex ? colors.tint : `${colors.tint}44` },
+                ]}
+              />
+            ))}
+          </View>
+          {/* Multi-image badge */}
+          <View style={styles.multiImageBadge}>
+            <Ionicons name="copy-outline" size={14} color="#fff" />
+          </View>
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.heartOverlay, { opacity: heartAnim, transform: [{ scale: heartScale }] }]}
+          >
+            <Feather name="heart" size={90} color="#FF3B5C" strokeWidth={0} />
+          </Animated.View>
+        </View>
+      ) : post.mediaUrl && post.mediaType === "image" ? (
         <Pressable onPress={handleDoubleTap} style={{ position: "relative" }}>
           <Image source={{ uri: post.mediaUrl }} style={styles.postMedia} resizeMode="cover" />
           <Animated.View
@@ -432,7 +478,7 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
             <Feather name="heart" size={90} color="#FF3B5C" strokeWidth={0} />
           </Animated.View>
         </Pressable>
-      )}
+      ) : null}
 
       {/* ── Caption ── */}
       {post.content ? (
@@ -762,6 +808,29 @@ const styles = StyleSheet.create({
   postCreatorName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   postTime: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
   postMedia: { width: SCREEN_WIDTH, aspectRatio: 1 },
+  carouselDots: {
+    position: "absolute",
+    bottom: 10,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 5,
+  },
+  carouselDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  multiImageBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 8,
+    padding: 5,
+  },
   heartOverlay: {
     position: "absolute",
     top: 0,

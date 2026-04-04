@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
+import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useRef, useState } from "react";
 import {
   Alert,
@@ -27,6 +28,23 @@ import { useApp } from "@/context/AppContext";
 import type { PostComment, PostFilter } from "@/context/AppContext";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// ─── Video Post Component ─────
+function PostVideo({ uri, style }: { uri: string; style?: any }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+    p.play();
+  });
+  return (
+    <VideoView
+      player={player}
+      style={[style, { backgroundColor: "#000" }]}
+      contentFit="contain"
+      allowsFullscreen
+      allowsPictureInPicture={false}
+    />
+  );
+}
 
 // ─── Filter overlay ───
 const FILTER_OVERLAY: Record<string, string> = {
@@ -642,6 +660,8 @@ export default function PostDetailScreen() {
               <Ionicons name="heart" size={90} color="#E1306C" />
             </Animated.View>
           </Pressable>
+        ) : post.mediaUrl && post.mediaType === "video" ? (
+          <PostVideo uri={post.mediaUrl} style={styles.postMedia} />
         ) : null}
 
         {/* Caption */}

@@ -3,6 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   Dimensions,
   FlatList,
   Image,
@@ -80,6 +81,7 @@ export default function UserProfileScreen() {
     followUser, unfollowUser, isFollowing,
     getPostLikesCount, getReelLikesCount, getReelComments, getPostComments,
     hasUnseenStory, getUserStories,
+    blockUser, unblockUser, isBlocked,
     theme, t,
   } = useApp();
   const colors = Colors[theme];
@@ -110,8 +112,37 @@ export default function UserProfileScreen() {
   const followingCount = getFollowingCount(id);
   const hasStory = hasUnseenStory(id);
 
+  const userIsBlocked = isBlocked(id);
+
   const canViewContent =
-    user.accountType === "public" || isMe || followStatus === "following";
+    !userIsBlocked && (user.accountType === "public" || isMe || followStatus === "following");
+
+  const handleBlock = () => {
+    if (userIsBlocked) {
+      Alert.alert("إلغاء الحظر", `هل تريد إلغاء حظر ${user.name}؟`, [
+        { text: "إلغاء", style: "cancel" },
+        {
+          text: "إلغاء الحظر",
+          onPress: () => {
+            unblockUser(id);
+            showToast("تم إلغاء الحظر", "success");
+          },
+        },
+      ]);
+    } else {
+      Alert.alert("حظر المستخدم", `هل تريد حظر ${user.name}؟ لن يتمكن من رؤية منشوراتك.`, [
+        { text: "إلغاء", style: "cancel" },
+        {
+          text: "حظر",
+          style: "destructive",
+          onPress: () => {
+            blockUser(id);
+            showToast("تم الحظر", "info");
+          },
+        },
+      ]);
+    }
+  };
 
   const handleFollow = () => {
     if (followStatus === "none") {
@@ -202,36 +233,55 @@ export default function UserProfileScreen() {
               {/* Action Buttons */}
               {!isMe && (
                 <View style={styles.actionRow}>
+                  {userIsBlocked ? (
+                    <View style={[styles.blockedBanner, { backgroundColor: "#FF3B5C18", borderColor: "#FF3B5C33" }]}>
+                      <Ionicons name="ban-outline" size={18} color="#FF3B5C" />
+                      <Text style={styles.blockedBannerText}>تم حظر هذا الحساب</Text>
+                    </View>
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        onPress={handleFollow}
+                        style={{ flex: 1 }}
+                      >
+                        {followStatus === "following" ? (
+                          <View style={[styles.followingBtn, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                            <Ionicons name="checkmark" size={16} color={colors.text} />
+                            <Text style={[styles.followingBtnText, { color: colors.text }]}>{t("following")}</Text>
+                          </View>
+                        ) : followStatus === "pending" ? (
+                          <View style={[styles.followingBtn, { borderColor: colors.tint, backgroundColor: `${colors.tint}22` }]}>
+                            <Ionicons name="time-outline" size={16} color={colors.tint} />
+                            <Text style={[styles.followingBtnText, { color: colors.tint }]}>{t("pendingRequest")}</Text>
+                          </View>
+                        ) : (
+                          <LinearGradient colors={["#7C3AED", "#4F46E5"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.followBtn}>
+                            <Ionicons name="person-add-outline" size={16} color="#fff" />
+                            <Text style={styles.followBtnText}>{t("follow")}</Text>
+                          </LinearGradient>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={handleMessage}
+                        style={[styles.messageBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
+                      >
+                        <Ionicons name="chatbubble-outline" size={18} color={colors.text} />
+                        <Text style={[styles.messageBtnText, { color: colors.text }]}>{t("sendMessage")}</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                  {/* Block / Unblock button */}
                   <TouchableOpacity
-                    onPress={handleFollow}
-                    style={{ flex: 1 }}
+                    onPress={handleBlock}
+                    style={[styles.bellBtn, {
+                      borderColor: userIsBlocked ? "#FF3B5C55" : colors.border,
+                      backgroundColor: userIsBlocked ? "#FF3B5C18" : colors.card,
+                    }]}
                   >
-                    {followStatus === "following" ? (
-                      <View style={[styles.followingBtn, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                        <Ionicons name="checkmark" size={16} color={colors.text} />
-                        <Text style={[styles.followingBtnText, { color: colors.text }]}>{t("following")}</Text>
-                      </View>
-                    ) : followStatus === "pending" ? (
-                      <View style={[styles.followingBtn, { borderColor: colors.tint, backgroundColor: `${colors.tint}22` }]}>
-                        <Ionicons name="time-outline" size={16} color={colors.tint} />
-                        <Text style={[styles.followingBtnText, { color: colors.tint }]}>{t("pendingRequest")}</Text>
-                      </View>
-                    ) : (
-                      <LinearGradient colors={["#7C3AED", "#4F46E5"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.followBtn}>
-                        <Ionicons name="person-add-outline" size={16} color="#fff" />
-                        <Text style={styles.followBtnText}>{t("follow")}</Text>
-                      </LinearGradient>
-                    )}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={handleMessage}
-                    style={[styles.messageBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
-                  >
-                    <Ionicons name="chatbubble-outline" size={18} color={colors.text} />
-                    <Text style={[styles.messageBtnText, { color: colors.text }]}>{t("sendMessage")}</Text>
+                    <Ionicons name={userIsBlocked ? "ban" : "ban-outline"} size={20} color={userIsBlocked ? "#FF3B5C" : colors.textSecondary} />
                   </TouchableOpacity>
                   {/* Bell */}
-                  {followStatus === "following" && (
+                  {!userIsBlocked && followStatus === "following" && (
                     <TouchableOpacity style={[styles.bellBtn, { borderColor: colors.border, backgroundColor: colors.card }]}>
                       <Ionicons name="notifications-outline" size={20} color={colors.text} />
                     </TouchableOpacity>

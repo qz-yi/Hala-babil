@@ -3,6 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   FlatList,
   Image,
@@ -97,7 +98,7 @@ export default function StoryViewerScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const {
     users, getUserStories, viewStory, currentUser, theme,
-    likeStory, replyToStory, stories: allStories,
+    likeStory, replyToStory, deleteStory, stories: allStories,
   } = useApp();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
@@ -431,7 +432,7 @@ export default function StoryViewerScreen() {
         </View>
       )}
 
-      {/* My story: show views + "add more" button */}
+      {/* My story: show views + "add more" button + delete */}
       {isMyStory && (
         <View style={[styles.myStoryBottom, { bottom: botPad + 16 }]}>
           <TouchableOpacity
@@ -448,6 +449,33 @@ export default function StoryViewerScreen() {
           >
             <Ionicons name="add-circle-outline" size={18} color="#fff" />
             <Text style={styles.addMoreText}>أضف قصة</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.deleteStoryBtn}
+            activeOpacity={0.85}
+            onPress={() => {
+              Alert.alert("حذف القصة", "هل تريد حذف هذه القصة؟", [
+                { text: "إلغاء", style: "cancel" },
+                {
+                  text: "حذف",
+                  style: "destructive",
+                  onPress: () => {
+                    deleteStory(currentStory.id);
+                    const remaining = stories.filter(
+                      (s) => s.creatorId === userId && s.expiresAt > Date.now() && s.id !== currentStory.id
+                    );
+                    if (remaining.length > 0) {
+                      const nextIdx = currentIndex > 0 ? currentIndex - 1 : 0;
+                      setCurrentIndex(nextIdx);
+                    } else {
+                      router.back();
+                    }
+                  },
+                },
+              ]);
+            }}
+          >
+            <Ionicons name="trash-outline" size={18} color="#FF3B5C" />
           </TouchableOpacity>
         </View>
       )}
@@ -624,6 +652,12 @@ const styles = StyleSheet.create({
     borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
   },
   addMoreText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  deleteStoryBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: "rgba(255,59,92,0.2)",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderColor: "rgba(255,59,92,0.5)",
+  },
 });
 
 // Share modal styles

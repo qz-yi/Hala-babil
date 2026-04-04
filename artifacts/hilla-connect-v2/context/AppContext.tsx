@@ -234,7 +234,10 @@ interface AppContextValue {
   muteUserInRoom: (roomId: string, userId: string) => void;
   getConversation: (otherUserId: string) => Conversation;
   sendPrivateMessage: (conversationId: string, receiverId: string, content: string, type?: "text" | "image" | "video" | "audio" | "shared", mediaUrl?: string, duration?: number, sharedContent?: SharedContent, storyRef?: string) => void;
+  blockedUsers: string[];
   blockUser: (userId: string) => void;
+  unblockUser: (userId: string) => void;
+  isBlocked: (userId: string) => boolean;
   deleteConversation: (conversationId: string) => void;
   addRestaurant: (restaurant: Omit<Restaurant, "id" | "createdAt">) => void;
   updateRestaurant: (id: string, data: Partial<Restaurant>) => void;
@@ -1118,6 +1121,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setBlockedUsers(newBlocked);
       AsyncStorage.setItem("blockedUsers", JSON.stringify(newBlocked));
     },
+    [blockedUsers]
+  );
+
+  const unblockUser = useCallback(
+    (userId: string) => {
+      const newBlocked = blockedUsers.filter((id) => id !== userId);
+      setBlockedUsers(newBlocked);
+      AsyncStorage.setItem("blockedUsers", JSON.stringify(newBlocked));
+    },
+    [blockedUsers]
+  );
+
+  const isBlocked = useCallback(
+    (userId: string) => blockedUsers.includes(userId),
     [blockedUsers]
   );
 
@@ -2031,7 +2048,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isSuperAdmin, users, rooms, conversations, restaurants, reels, reelLikes, reelComments,
       posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
-      sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom, getConversation, sendPrivateMessage, blockUser, deleteConversation,
+      sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom, getConversation, sendPrivateMessage,
+      blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, getReelComments,
       shareReelToConversation, sharePostToDM, shareStoryToDM, searchUsers,
@@ -2050,7 +2068,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       language, theme, currentUser, isSuperAdmin, users, rooms, conversations, restaurants,
       reels, reelLikes, reelComments, posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
-      sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom, getConversation, sendPrivateMessage, blockUser, deleteConversation,
+      sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom, getConversation, sendPrivateMessage,
+      blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, getReelComments,
       shareReelToConversation, sharePostToDM, shareStoryToDM, searchUsers,

@@ -28,6 +28,7 @@ import { useApp } from "@/context/AppContext";
 import type { User } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 import UserActionsModal from "@/components/UserActionsModal";
+import GameEngine from "@/components/games/GameEngine";
 
 const SUPER_ADMIN_PHONE = "07719820537";
 
@@ -365,6 +366,7 @@ export default function RoomScreen() {
   const [announcementText, setAnnouncementText] = useState("");
   const [showShareModal, setShowShareModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [showGameEngine, setShowGameEngine] = useState(false);
   const flatRef = useRef<FlatList>(null);
 
   const topPad = Platform.OS === "web" ? 30 : insets.top;
@@ -622,6 +624,17 @@ export default function RoomScreen() {
             ]}
           >
             <Ionicons name={effectiveMuted ? "mic-off" : "mic"} size={20} color={effectiveMuted ? colors.danger : accentColor} />
+          </TouchableOpacity>
+
+          {/* زر الألعاب */}
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setShowGameEngine(true);
+            }}
+            style={[styles.headerBtn, { backgroundColor: "#6A1B9A22", borderColor: "#6A1B9A55" }]}
+          >
+            <Text style={{ fontSize: 18 }}>🎮</Text>
           </TouchableOpacity>
 
           {/* زر القائمة — ثلاث نقاط */}
@@ -1282,6 +1295,20 @@ export default function RoomScreen() {
           onClose={() => setMediaModal(null)}
         />
       )}
+
+      {/* 🎮 Game Engine Overlay */}
+      <GameEngine
+        visible={showGameEngine}
+        onClose={() => setShowGameEngine(false)}
+        roomId={room.id}
+        currentUserId={currentUser?.id ?? ""}
+        isOwner={isOwner || isSuperAdmin}
+        seatedUsers={(room.seatUsers ?? []).filter(Boolean).map((u: any) => ({
+          id: u.id,
+          name: u.name,
+          avatar: u.avatar,
+        }))}
+      />
     </View>
   );
 }

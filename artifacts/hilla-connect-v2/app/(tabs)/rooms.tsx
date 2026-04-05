@@ -32,6 +32,7 @@ const TEXT2 = "#8E8E93";
 function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t }: any) {
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
   const occupied = room.seats.filter((s: any) => s !== null).length;
+  const totalSeats = room.seats.length || 8;
   const accentColor = ACCENT_COLORS[room.name.length % ACCENT_COLORS.length];
   const ownerUser =
     room.seatUsers?.find((u: any) => u?.id === room.ownerId) ??
@@ -77,6 +78,12 @@ function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t }: any) {
             </Text>
             <Text style={styles.roomOwner}>{room.ownerName}</Text>
           </View>
+          {room.roomCode && (
+            <View style={[styles.codeTag, { backgroundColor: `${accentColor}22`, borderColor: `${accentColor}55` }]}>
+              <Feather name="hash" size={10} color={accentColor} strokeWidth={2} />
+              <Text style={[styles.codeTagText, { color: accentColor }]}>{room.roomCode}</Text>
+            </View>
+          )}
           {(isOwner || isSuperAdmin) && (
             <TouchableOpacity
               onPress={() => onDelete(room.id)}
@@ -89,22 +96,25 @@ function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t }: any) {
         </View>
 
         <View style={styles.seatsRow}>
-          {Array(6)
+          {Array(totalSeats)
             .fill(null)
             .map((_, i) => {
-              const user = room.seatUsers[i];
+              const user = room.seatUsers?.[i];
+              const isLocked = room.lockedSeats?.[i];
               return (
                 <View
                   key={i}
                   style={[
                     styles.seat,
                     {
-                      backgroundColor: user ? `${accentColor}33` : "#1C1C1C",
-                      borderColor: user ? accentColor : BORDER,
+                      backgroundColor: isLocked ? "#1C1C1C" : user ? `${accentColor}33` : "#1C1C1C",
+                      borderColor: isLocked ? "#FF3B5C44" : user ? accentColor : BORDER,
                     },
                   ]}
                 >
-                  {user ? (
+                  {isLocked ? (
+                    <Feather name="lock" size={10} color="#FF3B5C" strokeWidth={1.5} />
+                  ) : user ? (
                     user.avatar ? (
                       <Image source={{ uri: user.avatar }} style={styles.seatAvatarImg} />
                     ) : (
@@ -113,7 +123,7 @@ function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t }: any) {
                       </Text>
                     )
                   ) : (
-                    <Feather name="mic-off" size={12} color={TEXT2} strokeWidth={1.5} />
+                    <Feather name="mic-off" size={10} color={TEXT2} strokeWidth={1.5} />
                   )}
                 </View>
               );
@@ -128,7 +138,7 @@ function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t }: any) {
                 { backgroundColor: occupied > 0 ? "#34D399" : TEXT2 },
               ]}
             />
-            <Text style={styles.occupancyText}>{occupied}/6 مستمع</Text>
+            <Text style={styles.occupancyText}>{occupied}/{totalSeats} مستمع</Text>
           </View>
           <View style={[styles.joinBtn, { backgroundColor: accentColor }]}>
             <Text style={styles.joinBtnText}>دخول</Text>
@@ -181,7 +191,7 @@ function CreateRoomModal({ onClose, onCreate, t }: any) {
   );
 }
 
-function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function SearchBar({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
     <View style={styles.searchBar}>
       <Feather name="search" size={16} color={TEXT2} strokeWidth={1.5} />
@@ -189,10 +199,11 @@ function SearchBar({ value, onChange }: { value: string; onChange: (v: string) =
         style={styles.searchInput}
         value={value}
         onChangeText={onChange}
-        placeholder="ابحث عن مستخدم..."
+        placeholder={placeholder}
         placeholderTextColor={TEXT2}
         textAlign="right"
         returnKeyType="search"
+        keyboardType="default"
       />
       {value.length > 0 && (
         <TouchableOpacity onPress={() => onChange("")}>
@@ -204,7 +215,7 @@ function SearchBar({ value, onChange }: { value: string; onChange: (v: string) =
 }
 
 export default function RoomsScreen() {
-  const { rooms, currentUser, isSuperAdmin, createRoom, deleteRoom, searchUsers, t } = useApp();
+  const { rooms, currentUser, isSuperAdmin, createRoom, deleteRoom, searchUsers, searchRoomByCode, t } = useApp();
   const insets = useSafeAreaInsets();
   const [showCreate, setShowCreate] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -212,8 +223,23 @@ export default function RoomsScreen() {
 
   const visibleRooms = rooms.filter((r) => !r.isHidden || r.ownerId === currentUser?.id);
   const myRoom = currentUser ? rooms.find((r) => r.ownerId === currentUser.id) : null;
-  const searchResults = searchUsers(searchQuery);
   const isSearching = searchQuery.trim().length > 0;
+
+  const isNumericSearch = /^\d{6,}$/.test(searchQuery.trim());
+  const searchResults = isNumericSearch ? [] : searchUsers(searchQuery);
+  const roomByCode = isNumericSearch ? searchRoomByCode(searchQuery.trim()) : null;
+
+  const handleSearchSubmit = () => {
+    if (isNumericSearch) {
+      const found = searchRoomByCode(searchQuery.trim());
+      if (found) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        router.push(`/room/${found.id}`);
+      } else {
+        Alert.alert(t("error"), t("roomCodeNotFound"));
+      }
+    }
+  };
 
   const handleCreateRoom = async (name: string) => {
     if (myRoom) {
@@ -268,10 +294,23 @@ export default function RoomsScreen() {
       </View>
 
       <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
-        <SearchBar value={searchQuery} onChange={setSearchQuery} />
+        <SearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder={t("searchByCode")}
+        />
+        {isNumericSearch && (
+          <TouchableOpacity onPress={handleSearchSubmit} style={styles.codeSearchBtn}>
+            <Feather name="hash" size={14} color="#fff" strokeWidth={2} />
+            <Text style={styles.codeSearchBtnText}>
+              {roomByCode ? `دخول غرفة "${roomByCode.name}"` : "بحث بكود الغرفة"}
+            </Text>
+            <Feather name="arrow-left" size={14} color="#fff" strokeWidth={2} />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {isSearching ? (
+      {isSearching && !isNumericSearch ? (
         <FlatList
           data={searchResults}
           keyExtractor={(u) => u.id}
@@ -393,6 +432,17 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   searchInput: { flex: 1, fontSize: 15, color: TEXT, fontFamily: "Inter_400Regular" },
+  codeSearchBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 10,
+    backgroundColor: "#4F46E5",
+    borderRadius: 12,
+    paddingVertical: 11,
+  },
+  codeSearchBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 14 },
   list: { padding: 16, gap: 12 },
   roomCard: {
     borderRadius: 20,
@@ -402,17 +452,27 @@ const styles = StyleSheet.create({
     backgroundColor: CARD,
   },
   roomColorBar: { height: 2, width: "100%" },
-  roomHeader: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
+  roomHeader: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10 },
   roomAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   roomAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT },
   roomAvatarImg: { width: "100%", height: "100%", borderRadius: 22, resizeMode: "cover" },
   roomInfo: { flex: 1 },
   roomName: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: TEXT },
   roomOwner: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2, marginTop: 2 },
+  codeTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+  },
+  codeTagText: { fontSize: 11, fontFamily: "Inter_700Bold" },
   deleteBtn: { padding: 8 },
-  seatsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 14, paddingBottom: 12 },
-  seat: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", borderWidth: 0.5, overflow: "hidden" },
-  seatText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  seatsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 14, paddingBottom: 12 },
+  seat: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", borderWidth: 0.5, overflow: "hidden" },
+  seatText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   seatAvatarImg: { width: "100%", height: "100%", resizeMode: "cover" },
   roomFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingBottom: 14 },
   occupancyBadge: { flexDirection: "row", alignItems: "center", gap: 6 },

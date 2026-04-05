@@ -44,7 +44,7 @@ Arabic-first social communication platform built with Expo React Native.
 
 ### Tab Navigation (v2.0)
 1. **الرئيسية (Home)** — Instagram-like feed with stories bar + post cards + header icons (messages + notifications)
-2. **الغرف (Rooms)** — Voice Rooms (moved from old home tab); includes user search bar
+2. **الغرف (Rooms)** — Voice Rooms with room code search, 8 numbered seats, admin panel
 3. **الريلز (Reels)** — Short video reels feed
 4. **المطاعم (Restaurants)** — Restaurant directory with menu + call/WhatsApp
 5. **الملف (Profile)** — Personal profile with grid (posts/reels), right-side drawer (settings/activity/follow-requests)
@@ -76,14 +76,24 @@ Arabic-first social communication platform built with Expo React Native.
 - Mark individual or all as read
 - Badge count on home header
 
-#### Voice Rooms (updated)
+#### Voice Rooms (v2 — Full Redesign)
+- **Room Identity**: Every room gets a unique 8-digit `roomCode` on creation; shown on card with `#` badge
+- **Search by code**: Rooms screen search detects numeric input (6+ digits) and offers direct navigation to room
+- **Rooms persist**: Rooms no longer auto-hide when all users leave; always searchable
+- **8 Numbered Seats**: Grid of 8 seats (NO.1–NO.8), each labeled with its number
+- **Lock Seat**: Admin can lock/unlock any seat from the seat card; locked seats show 🔒 icon, block entry
+- **Announcement Card**: Shown at top of room if admin has set one; admin can edit via admin panel
+- **Admin Panel**: Settings icon (⚙️) in header opens bottom sheet with: change background, remove background, edit announcement
+- **Background Change**: Admin picks image from phone gallery; shown as full-screen blurred background
+- **System Messages**: Entry/exit events automatically shown as centered grey bubbles in chat (e.g. "علي دخل الغرفة 🎤")
+- **Share Room**: 🔗 button in header opens bottom sheet with room poster + friends list; sends DM invite with room code
+- **Floating Reactions**: ⭐ ❤️ 😂 buttons with animated floating reactions
 - Role system: users enter as Listeners (no mic, no seat) by default
-- "هل تريد الصعود للميكروفون؟" confirmation modal before joining a seat
+- "هل تريد الصعود للميكروفون؟" confirmation modal before joining a seat (shows NO.X)
 - Leave Seat button (↓ arrow) lets speakers leave seat without leaving room
 - Room chat supports image/video: paperclip button opens attach menu, media shown in chat bubbles (tap to expand)
-- Live reactions: ❤️ and 😂 buttons with floating emoji animations that rise from bottom
 - Admin controls: mute/unmute + kick any user via UserActionsModal; muted badge shown on member list
-- `mutedUsers` array persisted in Room state; `muteUserInRoom` in AppContext
+- `mutedUsers`, `lockedSeats`, `background`, `announcement`, `roomCode` persisted in Room state
 
 #### Multimedia DMs
 - Chat screen (`/chat/[id]`) supports: text, image (picker), video (picker), audio (simulated mic)

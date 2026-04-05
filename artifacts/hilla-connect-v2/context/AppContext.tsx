@@ -33,22 +33,26 @@ export interface Message {
   senderId: string;
   senderName: string;
   content: string;
-  type: "text" | "image" | "video" | "gif";
+  type: "text" | "image" | "video" | "gif" | "system";
   mediaUrl?: string;
   timestamp: number;
 }
 
 export interface Room {
   id: string;
+  roomCode: string;
   name: string;
   image?: string;
+  background?: string;
   ownerId: string;
   ownerName: string;
   seats: (string | null)[];
   seatUsers: (User | null)[];
+  lockedSeats: boolean[];
   chat: Message[];
   bannedUsers: string[];
   mutedUsers: string[];
+  announcement?: string;
   isHidden: boolean;
   createdAt: number;
 }
@@ -228,10 +232,16 @@ interface AppContextValue {
   deleteRoom: (roomId: string) => Promise<void>;
   joinRoomSeat: (roomId: string, seatIndex: number) => void;
   leaveRoomSeat: (roomId: string) => void;
-  sendRoomMessage: (roomId: string, content: string, type?: "text" | "image" | "video" | "gif", mediaUrl?: string) => void;
+  sendRoomMessage: (roomId: string, content: string, type?: "text" | "image" | "video" | "gif" | "system", mediaUrl?: string) => void;
   kickFromRoom: (roomId: string, userId: string) => void;
   banFromRoom: (roomId: string, userId: string) => void;
   muteUserInRoom: (roomId: string, userId: string) => void;
+  updateRoomBackground: (roomId: string, background: string) => void;
+  setRoomAnnouncement: (roomId: string, text: string) => void;
+  lockSeat: (roomId: string, seatIndex: number) => void;
+  unlockSeat: (roomId: string, seatIndex: number) => void;
+  shareRoomToDM: (roomId: string, receiverId: string) => void;
+  searchRoomByCode: (code: string) => Room | null;
   getConversation: (otherUserId: string) => Conversation;
   sendPrivateMessage: (conversationId: string, receiverId: string, content: string, type?: "text" | "image" | "video" | "audio" | "shared", mediaUrl?: string, duration?: number, sharedContent?: SharedContent, storyRef?: string) => void;
   blockedUsers: string[];
@@ -498,6 +508,25 @@ const translations: Record<Language, Record<string, string>> = {
     likedYourStory: "أعجب بقصتك",
     repliedToStory: "رد على قصتك",
     storyReply: "رد على القصة",
+    roomCode: "كود الغرفة",
+    searchByCode: "ابحث بكود الغرفة أو اسم مستخدم...",
+    roomCodeNotFound: "لم يتم العثور على غرفة بهذا الكود",
+    changeBackground: "تغيير الخلفية",
+    backgroundChanged: "تم تغيير الخلفية",
+    announcement: "إعلان",
+    editAnnouncement: "تعديل الإعلان",
+    announcementPlaceholder: "اكتب إعلانك هنا...",
+    lockSeat: "قفل المقعد",
+    unlockSeat: "فتح المقعد",
+    seatLocked: "المقعد مقفل",
+    shareRoom: "مشاركة الغرفة",
+    roomInvite: "دعوة لغرفة",
+    joinNow: "دخول مباشر",
+    selectFriend: "اختر صديقاً",
+    inviteSent: "تم إرسال الدعوة",
+    enteredRoom: "دخل الغرفة",
+    leftRoom: "غادر الغرفة",
+    seatNo: "مقعد رقم",
   },
   en: {
     home: "Home",
@@ -680,11 +709,34 @@ const translations: Record<Language, Record<string, string>> = {
     likedYourStory: "liked your story",
     repliedToStory: "replied to your story",
     storyReply: "Story Reply",
+    roomCode: "Room Code",
+    searchByCode: "Search by room code or username...",
+    roomCodeNotFound: "No room found with that code",
+    changeBackground: "Change Background",
+    backgroundChanged: "Background changed",
+    announcement: "Announcement",
+    editAnnouncement: "Edit Announcement",
+    announcementPlaceholder: "Write your announcement here...",
+    lockSeat: "Lock Seat",
+    unlockSeat: "Unlock Seat",
+    seatLocked: "Seat Locked",
+    shareRoom: "Share Room",
+    roomInvite: "Room Invitation",
+    joinNow: "Join Now",
+    selectFriend: "Select a Friend",
+    inviteSent: "Invitation sent",
+    enteredRoom: "entered the room",
+    leftRoom: "left the room",
+    seatNo: "Seat No.",
   },
 };
 
 function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+}
+
+function generateRoomCode(): string {
+  return String(Math.floor(10000000 + Math.random() * 90000000));
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -915,12 +967,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (existingRoom) return null;
       const newRoom: Room = {
         id: generateId(),
+        roomCode: generateRoomCode(),
         name,
         image,
         ownerId: currentUser.id,
         ownerName: currentUser.name,
-        seats: Array(6).fill(null),
-        seatUsers: Array(6).fill(null),
+        seats: Array(8).fill(null),
+        seatUsers: Array(8).fill(null),
+        lockedSeats: Array(8).fill(false),
         chat: [],
         bannedUsers: [],
         mutedUsers: [],
@@ -949,12 +1003,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const updated = rooms.map((r) => {
         if (r.id !== roomId) return r;
         if (r.bannedUsers.includes(currentUser.id)) return r;
+        const lockedSeats = r.lockedSeats ?? Array(8).fill(false);
+        if (lockedSeats[seatIndex]) return r;
         const seats = [...r.seats];
         const seatUsers = [...r.seatUsers];
         const existingSeat = seats.indexOf(currentUser.id);
         if (existingSeat !== -1) { seats[existingSeat] = null; seatUsers[existingSeat] = null; }
         if (seats[seatIndex] === null) { seats[seatIndex] = currentUser.id; seatUsers[seatIndex] = currentUser; }
-        return { ...r, seats, seatUsers };
+        const systemMsg: Message = {
+          id: generateId(),
+          senderId: "system",
+          senderName: "system",
+          content: `${currentUser.name} دخل الغرفة 🎤`,
+          type: "system",
+          timestamp: Date.now(),
+        };
+        return { ...r, seats, seatUsers, chat: [...r.chat.slice(-100), systemMsg] };
       });
       saveRooms(updated);
     },
@@ -970,10 +1034,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const seatUsers = [...r.seatUsers];
         const idx = seats.indexOf(currentUser.id);
         if (idx !== -1) { seats[idx] = null; seatUsers[idx] = null; }
-        const hasGuests = seats.some((s) => s !== null);
-        const isOwner = r.ownerId === currentUser.id;
-        const isHidden = isOwner && !hasGuests;
-        return { ...r, seats, seatUsers, isHidden };
+        const systemMsg: Message = {
+          id: generateId(),
+          senderId: "system",
+          senderName: "system",
+          content: `${currentUser.name} غادر الغرفة 👋`,
+          type: "system",
+          timestamp: Date.now(),
+        };
+        return { ...r, seats, seatUsers, isHidden: false, chat: [...r.chat.slice(-100), systemMsg] };
       });
       saveRooms(updated);
     },
@@ -1041,6 +1110,107 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       saveRooms(updated);
     },
     [rooms]
+  );
+
+  const updateRoomBackground = useCallback(
+    (roomId: string, background: string) => {
+      const updated = rooms.map((r) => r.id !== roomId ? r : { ...r, background });
+      saveRooms(updated);
+    },
+    [rooms]
+  );
+
+  const setRoomAnnouncement = useCallback(
+    (roomId: string, text: string) => {
+      const updated = rooms.map((r) => r.id !== roomId ? r : { ...r, announcement: text });
+      saveRooms(updated);
+    },
+    [rooms]
+  );
+
+  const lockSeat = useCallback(
+    (roomId: string, seatIndex: number) => {
+      const updated = rooms.map((r) => {
+        if (r.id !== roomId) return r;
+        const lockedSeats = [...(r.lockedSeats ?? Array(8).fill(false))];
+        lockedSeats[seatIndex] = true;
+        const seats = [...r.seats];
+        const seatUsers = [...r.seatUsers];
+        if (seats[seatIndex]) { seats[seatIndex] = null; seatUsers[seatIndex] = null; }
+        return { ...r, lockedSeats, seats, seatUsers };
+      });
+      saveRooms(updated);
+    },
+    [rooms]
+  );
+
+  const unlockSeat = useCallback(
+    (roomId: string, seatIndex: number) => {
+      const updated = rooms.map((r) => {
+        if (r.id !== roomId) return r;
+        const lockedSeats = [...(r.lockedSeats ?? Array(8).fill(false))];
+        lockedSeats[seatIndex] = false;
+        return { ...r, lockedSeats };
+      });
+      saveRooms(updated);
+    },
+    [rooms]
+  );
+
+  const searchRoomByCode = useCallback(
+    (code: string): Room | null => {
+      return rooms.find((r) => r.roomCode === code.trim()) ?? null;
+    },
+    [rooms]
+  );
+
+  const shareRoomToDM = useCallback(
+    (roomId: string, receiverId: string) => {
+      if (!currentUser) return;
+      const room = rooms.find((r) => r.id === roomId);
+      if (!room) return;
+      const convo = (() => {
+        const existing = conversations.find(
+          (c) => c.participants.includes(currentUser.id) && c.participants.includes(receiverId)
+        );
+        if (existing) return existing;
+        const otherUser = users.find((u) => u.id === receiverId);
+        const newConvo: Conversation = {
+          id: generateId(),
+          participants: [currentUser.id, receiverId],
+          participantUsers: [currentUser, otherUser!].filter(Boolean),
+          messages: [],
+          updatedAt: Date.now(),
+        };
+        saveConversations([...conversations, newConvo]);
+        return newConvo;
+      })();
+      const sharedContent: SharedContent = {
+        id: roomId,
+        type: "post",
+        title: `🎙️ ${room.name} — كود الغرفة: ${room.roomCode}`,
+        creatorName: room.ownerName,
+      };
+      const msg: PrivateMessage = {
+        id: generateId(),
+        senderId: currentUser.id,
+        receiverId,
+        content: `دعوة للانضمام لغرفة "${room.name}"`,
+        type: "shared",
+        timestamp: Date.now(),
+        read: false,
+        sharedContent,
+      };
+      const updatedConvos = conversations.map((c) => {
+        if (c.id !== convo.id) return c;
+        const msgs = c.messages || [];
+        return { ...c, messages: [...msgs, msg], lastMessage: msg, updatedAt: Date.now() };
+      });
+      const found = updatedConvos.find((c) => c.id === convo.id);
+      if (!found) saveConversations([...updatedConvos, { ...convo, messages: [msg], lastMessage: msg }]);
+      else saveConversations(updatedConvos);
+    },
+    [currentUser, rooms, conversations, users]
   );
 
   const getConversation = useCallback(
@@ -2048,7 +2218,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isSuperAdmin, users, rooms, conversations, restaurants, reels, reelLikes, reelComments,
       posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
-      sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom, getConversation, sendPrivateMessage,
+      sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom,
+      updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, shareRoomToDM, searchRoomByCode,
+      getConversation, sendPrivateMessage,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, getReelComments,
@@ -2068,7 +2240,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       language, theme, currentUser, isSuperAdmin, users, rooms, conversations, restaurants,
       reels, reelLikes, reelComments, posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
-      sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom, getConversation, sendPrivateMessage,
+      sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom,
+      updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, shareRoomToDM, searchRoomByCode,
+      getConversation, sendPrivateMessage,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, getReelComments,

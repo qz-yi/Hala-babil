@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
@@ -363,6 +364,7 @@ export default function RoomScreen() {
   const [showAnnouncementEdit, setShowAnnouncementEdit] = useState(false);
   const [announcementText, setAnnouncementText] = useState("");
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const flatRef = useRef<FlatList>(null);
 
   const topPad = Platform.OS === "web" ? 30 : insets.top;
@@ -492,6 +494,13 @@ export default function RoomScreen() {
     }
   };
 
+  const copyRoomCode = async () => {
+    if (!room.roomCode) return;
+    await Clipboard.setStringAsync(room.roomCode);
+    showToast("تم نسخ كود الغرفة ✅", "success");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
   const handleSaveAnnouncement = () => {
     setRoomAnnouncement(room.id, announcementText.trim());
     setShowAnnouncementEdit(false);
@@ -574,16 +583,22 @@ export default function RoomScreen() {
 
           <View style={styles.headerInfo}>
             <Text style={[styles.roomTitle, { color: colors.text }]} numberOfLines={1}>{room.name}</Text>
-            {room.roomCode ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <Text style={[styles.roomOwner, { color: colors.textSecondary }]}>
-                  👤 {room.ownerName}
-                </Text>
-                <Text style={[styles.roomCodeText, { color: accentColor }]}>#{room.roomCode}</Text>
-              </View>
-            ) : (
-              <Text style={[styles.roomOwner, { color: colors.textSecondary }]}>👤 {room.ownerName}</Text>
-            )}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Text style={[styles.roomOwner, { color: colors.textSecondary }]}>
+                👤 {room.ownerName}
+              </Text>
+              {room.roomCode ? (
+                <>
+                  <Text style={[styles.roomCodeText, { color: accentColor }]}>#{room.roomCode}</Text>
+                  <TouchableOpacity
+                    onPress={copyRoomCode}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="copy-outline" size={11} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </>
+              ) : null}
+            </View>
           </View>
 
           <TouchableOpacity
@@ -609,31 +624,16 @@ export default function RoomScreen() {
             <Ionicons name={effectiveMuted ? "mic-off" : "mic"} size={20} color={effectiveMuted ? colors.danger : accentColor} />
           </TouchableOpacity>
 
-          {/* زر مشاركة الغرفة */}
+          {/* زر القائمة — ثلاث نقاط */}
           <TouchableOpacity
-            onPress={() => setShowShareModal(true)}
-            style={[styles.headerBtn, { backgroundColor: `${accentColor}22`, borderColor: `${accentColor}55` }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowOptionsMenu(true);
+            }}
+            style={[styles.headerBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
-            <Ionicons name="share-social-outline" size={18} color={accentColor} />
+            <Ionicons name="ellipsis-vertical" size={20} color={colors.text} />
           </TouchableOpacity>
-
-          {canAdmin && (
-            <TouchableOpacity
-              onPress={() => setShowAdminPanel(true)}
-              style={[styles.headerBtn, { backgroundColor: "#FFD70022", borderColor: "#FFD70044" }]}
-            >
-              <Ionicons name="settings-outline" size={18} color="#FFD700" />
-            </TouchableOpacity>
-          )}
-
-          {(isOwner || isSuperAdmin) && (
-            <TouchableOpacity
-              onPress={() => setDeleteModal(true)}
-              style={[styles.headerBtn, { backgroundColor: `${colors.danger}22`, borderColor: `${colors.danger}44` }]}
-            >
-              <Ionicons name="trash-outline" size={18} color={colors.danger} />
-            </TouchableOpacity>
-          )}
         </View>
 
         {isSuperAdminUser && (
@@ -704,7 +704,7 @@ export default function RoomScreen() {
 
       {/* Chat */}
       <KeyboardAvoidingView
-        style={[styles.chatArea, { backgroundColor: colors.backgroundSecondary, borderTopColor: colors.border }]}
+        style={[styles.chatArea, { borderTopColor: `${colors.border}55` }]}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
@@ -735,7 +735,7 @@ export default function RoomScreen() {
 
         {/* Attachment Menu */}
         {showAttach && (
-          <View style={[styles.attachMenu, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+          <View style={[styles.attachMenu, { backgroundColor: "rgba(0,0,0,0.5)", borderTopColor: `${colors.border}55` }]}>
             <TouchableOpacity
               onPress={handlePickRoomImage}
               style={[styles.attachItem, { backgroundColor: `${accentColor}18` }]}
@@ -756,7 +756,7 @@ export default function RoomScreen() {
         <View
           style={[
             styles.inputRow,
-            { paddingBottom: botPad + 8, borderTopColor: colors.border, backgroundColor: colors.backgroundSecondary },
+            { paddingBottom: botPad + 8, borderTopColor: `${colors.border}55`, backgroundColor: "rgba(0,0,0,0.45)" },
           ]}
         >
           {/* زر الخروج */}
@@ -1113,6 +1113,77 @@ export default function RoomScreen() {
         </View>
       </Modal>
 
+      {/* Options Menu Modal — ثلاث نقاط */}
+      <Modal
+        visible={showOptionsMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowOptionsMenu(false)}
+      >
+        <Pressable style={styles.presenceOverlay} onPress={() => setShowOptionsMenu(false)} />
+        <View style={[styles.optionsSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.sheetHandle} />
+
+          {/* مشاركة الغرفة */}
+          <TouchableOpacity
+            style={[styles.optionsItem, { borderBottomColor: colors.border }]}
+            onPress={() => { setShowOptionsMenu(false); setShowShareModal(true); }}
+          >
+            <View style={[styles.optionsIconWrap, { backgroundColor: `${accentColor}18` }]}>
+              <Ionicons name="share-social-outline" size={20} color={accentColor} />
+            </View>
+            <Text style={[styles.optionsLabel, { color: colors.text }]}>مشاركة الغرفة</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          {/* تغيير الخلفية — أدمن فقط */}
+          {canAdmin && (
+            <TouchableOpacity
+              style={[styles.optionsItem, { borderBottomColor: colors.border }]}
+              onPress={() => { setShowOptionsMenu(false); handleChangeBackground(); }}
+            >
+              <View style={[styles.optionsIconWrap, { backgroundColor: "#6366F118" }]}>
+                <Ionicons name="image-outline" size={20} color="#6366F1" />
+              </View>
+              <Text style={[styles.optionsLabel, { color: colors.text }]}>تغيير الخلفية</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+
+          {/* تعديل الإعلان — أدمن فقط */}
+          {canAdmin && (
+            <TouchableOpacity
+              style={[styles.optionsItem, { borderBottomColor: colors.border }]}
+              onPress={() => {
+                setAnnouncementText(room.announcement ?? "");
+                setShowOptionsMenu(false);
+                setShowAnnouncementEdit(true);
+              }}
+            >
+              <View style={[styles.optionsIconWrap, { backgroundColor: "#F59E0B18" }]}>
+                <Ionicons name="megaphone-outline" size={20} color="#F59E0B" />
+              </View>
+              <Text style={[styles.optionsLabel, { color: colors.text }]}>تعديل الإعلان</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+
+          {/* حذف الغرفة — أدمن/مالك فقط */}
+          {(isOwner || isSuperAdmin) && (
+            <TouchableOpacity
+              style={[styles.optionsItem, { borderBottomColor: "transparent" }]}
+              onPress={() => { setShowOptionsMenu(false); setDeleteModal(true); }}
+            >
+              <View style={[styles.optionsIconWrap, { backgroundColor: `${colors.danger}18` }]}>
+                <Ionicons name="trash-outline" size={20} color={colors.danger} />
+              </View>
+              <Text style={[styles.optionsLabel, { color: colors.danger }]}>حذف الغرفة</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.danger} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </Modal>
+
       {/* Delete Room Confirmation Modal */}
       <Modal visible={deleteModal} transparent animationType="fade" onRequestClose={() => setDeleteModal(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setDeleteModal(false)}>
@@ -1215,7 +1286,7 @@ export default function RoomScreen() {
   );
 }
 
-const SEAT_SIZE = 88;
+const SEAT_SIZE = 66;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -1224,7 +1295,7 @@ const styles = StyleSheet.create({
     zIndex: 998,
   },
   header: { paddingHorizontal: 16, paddingBottom: 12 },
-  headerRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "nowrap" },
   headerBtn: {
     width: 40, height: 40, borderRadius: 12,
     alignItems: "center", justifyContent: "center", borderWidth: 1,
@@ -1264,55 +1335,55 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: "right",
   },
-  seatsSection: { paddingHorizontal: 12, paddingBottom: 4 },
-  seatsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" },
+  seatsSection: { paddingHorizontal: 10, paddingBottom: 4 },
+  seatsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center" },
   seat: {
     width: SEAT_SIZE, height: SEAT_SIZE + 24,
-    borderRadius: 18, overflow: "visible", position: "relative",
+    borderRadius: 16, overflow: "visible", position: "relative",
   },
-  seatInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 2, padding: 6 },
+  seatInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 2, padding: 4 },
   seatNumberBadge: {
-    position: "absolute", top: 4, right: 4,
-    borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2,
+    position: "absolute", top: 3, right: 3,
+    borderRadius: 5, paddingHorizontal: 4, paddingVertical: 1,
   },
-  seatNumberText: { fontSize: 9, fontFamily: "Inter_700Bold" },
+  seatNumberText: { fontSize: 8, fontFamily: "Inter_700Bold" },
   avatarRingWrap: {
-    position: "relative", width: 48, height: 48,
+    position: "relative", width: 36, height: 36,
     alignItems: "center", justifyContent: "center",
   },
   speakRing: {
-    borderRadius: 30, borderWidth: 2.5, position: "absolute",
-    top: -4, left: -4, right: -4, bottom: -4,
+    borderRadius: 22, borderWidth: 2, position: "absolute",
+    top: -3, left: -3, right: -3, bottom: -3,
   },
   seatAvatarLg: {
-    width: 48, height: 48, borderRadius: 16,
+    width: 36, height: 36, borderRadius: 12,
     alignItems: "center", justifyContent: "center", overflow: "hidden",
   },
-  seatAvatarImg: { width: "100%", height: "100%", borderRadius: 16 },
-  seatAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  seatNameRow: { flexDirection: "row", alignItems: "center", gap: 3 },
-  seatName: { fontSize: 10, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  seatAvatarImg: { width: "100%", height: "100%", borderRadius: 12 },
+  seatAvatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  seatNameRow: { flexDirection: "row", alignItems: "center", gap: 2 },
+  seatName: { fontSize: 9, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   micIndicator: {
-    borderRadius: 8, paddingHorizontal: 5, paddingVertical: 2,
-    flexDirection: "row", alignItems: "center", gap: 2,
+    borderRadius: 6, paddingHorizontal: 4, paddingVertical: 1,
+    flexDirection: "row", alignItems: "center", gap: 1,
   },
   leaveSeatBtn: {
     flexDirection: "row", alignItems: "center", gap: 2,
-    borderRadius: 8, paddingHorizontal: 5, paddingVertical: 2, marginTop: 1,
+    borderRadius: 7, paddingHorizontal: 4, paddingVertical: 2, marginTop: 1,
   },
-  leaveSeatText: { fontSize: 9, fontFamily: "Inter_600SemiBold" },
+  leaveSeatText: { fontSize: 8, fontFamily: "Inter_600SemiBold" },
   lockBtn: {
-    borderRadius: 6, paddingHorizontal: 4, paddingVertical: 2, marginTop: 2,
+    borderRadius: 5, paddingHorizontal: 3, paddingVertical: 2, marginTop: 1,
     alignItems: "center", justifyContent: "center",
   },
-  tapHint: { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 },
+  tapHint: { borderRadius: 5, paddingHorizontal: 4, paddingVertical: 2 },
   emptyAvatarCircle: {
-    width: 46, height: 46, borderRadius: 16,
+    width: 34, height: 34, borderRadius: 12,
     alignItems: "center", justifyContent: "center",
     borderWidth: 1.5, borderStyle: "dashed",
   },
-  seatEmptyLabel: { fontSize: 10, fontFamily: "Inter_700Bold" },
-  chatArea: { flex: 1, borderTopWidth: 1 },
+  seatEmptyLabel: { fontSize: 9, fontFamily: "Inter_700Bold" },
+  chatArea: { flex: 1, borderTopWidth: 1, backgroundColor: "rgba(0,0,0,0.55)" },
   chatList: { padding: 12, gap: 8 },
   chatMsg: { maxWidth: "82%" },
   chatMsgLeft: { alignSelf: "flex-start" },
@@ -1459,4 +1530,18 @@ const styles = StyleSheet.create({
     padding: 14, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20,
   },
   charCount: { alignSelf: "flex-end", fontSize: 11, fontFamily: "Inter_400Regular" },
+  optionsSheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderTopWidth: 1, paddingTop: 12, paddingBottom: 32,
+  },
+  optionsItem: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1,
+  },
+  optionsIconWrap: {
+    width: 42, height: 42, borderRadius: 13,
+    alignItems: "center", justifyContent: "center",
+  },
+  optionsLabel: { flex: 1, fontSize: 16, fontFamily: "Inter_600SemiBold" },
 });

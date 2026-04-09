@@ -156,9 +156,10 @@ function CommentsSheet({
 }) {
   const {
     users, currentUser, getPostComments, addPostComment,
-    deletePostComment, likePostComment, isPostCommentLiked, pinPostComment, t,
+    deletePostComment, likePostComment, isPostCommentLiked, pinPostComment, banUser, getPostCommentLikers, t,
   } = useApp();
   const [commentText, setCommentText] = useState("");
+  const [likersCommentId, setLikersCommentId] = useState<string | null>(null);
   const comments = getPostComments(postId);
   const insets = useSafeAreaInsets();
   const botPad = Platform.OS === "web" ? 20 : insets.bottom;
@@ -189,6 +190,17 @@ function CommentsSheet({
           Alert.alert("حذف التعليق", "هل تريد حذف هذا التعليق؟", [
             { text: t("cancel"), style: "cancel" },
             { text: "حذف", style: "destructive", onPress: () => deletePostComment(comment.id) },
+          ]),
+      });
+    }
+    if (isPostOwner && currentUser?.id !== comment.userId) {
+      options.push({
+        text: t("banUser"),
+        style: "destructive",
+        onPress: () =>
+          Alert.alert("حظر المستخدم", "هل تريد حظر هذا المستخدم من المنشور؟", [
+            { text: t("cancel"), style: "cancel" },
+            { text: "حظر", style: "destructive", onPress: () => banUser(comment.userId) },
           ]),
       });
     }
@@ -290,6 +302,7 @@ function CommentsSheet({
                 <View style={styles.commentActions}>
                   <TouchableOpacity
                     onPress={() => likePostComment(item.id)}
+                    onLongPress={() => likesCount > 0 && setLikersCommentId(item.id)}
                     style={styles.commentLikeBtn}
                     activeOpacity={0.7}
                   >
@@ -327,7 +340,7 @@ function CommentsSheet({
               style={[styles.commentInput, { color: colors.text }]}
               value={commentText}
               onChangeText={setCommentText}
-              placeholder="أضف تعليقاً..."
+              placeholder="أضف تعليقاً... (@username للإشارة)"
               placeholderTextColor={colors.textSecondary}
               textAlign="right"
               multiline
@@ -343,6 +356,52 @@ function CommentsSheet({
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Likers Modal */}
+      <Modal
+        visible={!!likersCommentId}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLikersCommentId(null)}
+      >
+        <Pressable style={styles.sheetBackdrop} onPress={() => setLikersCommentId(null)} />
+        <View style={[styles.likersSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.sheetHandle, { backgroundColor: colors.border, alignSelf: "center", marginTop: 10 }]} />
+          <Text style={[styles.sheetTitle, { color: colors.text }]}>أعجب بالتعليق</Text>
+          <FlatList
+            data={likersCommentId ? getPostCommentLikers(likersCommentId) : []}
+            keyExtractor={(u) => u.id}
+            style={{ maxHeight: 300 }}
+            ListEmptyComponent={
+              <Text style={{ color: colors.textSecondary, textAlign: "center", padding: 24, fontFamily: "Inter_400Regular" }}>
+                لا يوجد إعجابات بعد
+              </Text>
+            }
+            renderItem={({ item }) => {
+              const color = ACCENT_COLORS[(item.name?.length ?? 0) % ACCENT_COLORS.length];
+              return (
+                <TouchableOpacity
+                  style={styles.likerRow}
+                  onPress={() => { setLikersCommentId(null); router.push(`/profile/${item.id}` as any); }}
+                >
+                  <View style={[styles.miniAvatar, { backgroundColor: `${color}33` }]}>
+                    {item.avatar ? (
+                      <Image source={{ uri: item.avatar }} style={StyleSheet.absoluteFill as any} />
+                    ) : (
+                      <Text style={[styles.miniAvatarText, { color }]}>{item.name[0]?.toUpperCase()}</Text>
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.commentUser, { color: colors.text }]}>{item.name}</Text>
+                    {item.username && <Text style={{ color: colors.textSecondary, fontSize: 12 }}>@{item.username}</Text>}
+                  </View>
+                  <Ionicons name="heart" size={14} color="#E1306C" />
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -887,4 +946,10 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: 14,
     alignItems: "center", justifyContent: "center",
   },
+  likersSheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    borderWidth: 0.5, padding: 16, paddingBottom: 32,
+  },
+  likerRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, paddingHorizontal: 8 },
 });

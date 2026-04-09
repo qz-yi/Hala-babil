@@ -192,16 +192,24 @@ function ReelPlayerItem({
 // ───── Comment Sheet ─────
 function CommentSheet({
   reelId,
+  reelOwnerId,
   visible,
   onClose,
 }: {
   reelId: string;
+  reelOwnerId: string;
   visible: boolean;
   onClose: () => void;
 }) {
-  const { getReelComments, addReelComment, users } = useApp();
+  const {
+    getReelComments, addReelComment, deleteReelComment, users, currentUser,
+    likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers,
+    banUser, t,
+  } = useApp();
   const [text, setText] = useState("");
+  const [likersCommentId, setLikersCommentId] = useState<string | null>(null);
   const comments = getReelComments(reelId);
+  const isReelOwner = currentUser?.id === reelOwnerId;
 
   const handleSend = () => {
     if (!text.trim()) return;
@@ -214,6 +222,51 @@ function CommentSheet({
     router.push(`/profile/${userId}` as any);
   };
 
+  const handleLongPressComment = (item: any) => {
+    const isOwner = currentUser?.id === item.userId;
+    if (!isOwner && !isReelOwner) return;
+
+    const options: { text: string; onPress: () => void; style?: "destructive" | "cancel" }[] = [];
+
+    if (isReelOwner) {
+      options.push({
+        text: item.isPinned ? t("unpinComment") : t("pinComment"),
+        onPress: () => pinReelComment(item.id),
+      });
+    }
+    if (isOwner || isReelOwner) {
+      options.push({
+        text: t("deleteComment"),
+        style: "destructive",
+        onPress: () => {
+          Alert.alert("حذف التعليق", "هل تريد حذف هذا التعليق؟", [
+            { text: t("cancel"), style: "cancel" },
+            { text: "حذف", style: "destructive", onPress: () => deleteReelComment(item.id) },
+          ]);
+        },
+      });
+    }
+    if (isReelOwner && currentUser?.id !== item.userId) {
+      options.push({
+        text: t("banUser"),
+        style: "destructive",
+        onPress: () => {
+          Alert.alert("حظر المستخدم", "هل تريد حظر هذا المستخدم؟", [
+            { text: t("cancel"), style: "cancel" },
+            { text: "حظر", style: "destructive", onPress: () => banUser(item.userId) },
+          ]);
+        },
+      });
+    }
+    if (options.length === 0) return;
+    Alert.alert("خيارات", "", [
+      ...options,
+      { text: t("cancel"), style: "cancel", onPress: () => {} },
+    ]);
+  };
+
+  const likers = likersCommentId ? getReelCommentLikers(likersCommentId) : [];
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
@@ -223,7 +276,7 @@ function CommentSheet({
         style={[styles.commentSheet, { backgroundColor: CARD, borderColor: BORDER }]}
       >
         <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
-        <Text style={[styles.sheetTitle, { color: TEXT }]}>التعليقات</Text>
+        <Text style={[styles.sheetTitle, { color: TEXT }]}>التعليقات ({comments.length})</Text>
         <FlatList
           data={comments}
           keyExtractor={(c) => c.id}
@@ -236,15 +289,28 @@ function CommentSheet({
           }
           renderItem={({ item }) => {
             const accentColor = ACCENT_COLORS[item.userId.length % ACCENT_COLORS.length];
+            const liked = isReelCommentLiked(item.id);
+            const likesCount = item.likedBy?.length ?? 0;
+
             return (
-              <View style={styles.commentItem}>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onLongPress={() => handleLongPressComment(item)}
+                style={[
+                  styles.commentItem,
+                  item.isPinned && { backgroundColor: "rgba(61,145,244,0.08)", borderRadius: 12, borderWidth: 0.5, borderColor: "#3D91F444" },
+                ]}
+              >
+                {item.isPinned && (
+                  <View style={styles.pinnedBadge}>
+                    <Feather name="bookmark" size={9} color="#3D91F4" strokeWidth={2} />
+                    <Text style={styles.pinnedText}>مثبّت</Text>
+                  </View>
+                )}
                 <TouchableOpacity
                   onPress={() => handleNavigateToProfile(item.userId)}
                   activeOpacity={0.8}
-                  style={[
-                    styles.commentAvatar,
-                    { backgroundColor: accentColor },
-                  ]}
+                  style={[styles.commentAvatar, { backgroundColor: accentColor }]}
                 >
                   {item.userAvatar ? (
                     <Image source={{ uri: item.userAvatar }} style={styles.commentAvatarImg} />
@@ -254,11 +320,33 @@ function CommentSheet({
                 </TouchableOpacity>
                 <View style={styles.commentBody}>
                   <TouchableOpacity onPress={() => handleNavigateToProfile(item.userId)} activeOpacity={0.8}>
-                    <Text style={[styles.commentUser, { color: "#3D91F4" }]}>{item.userName}</Text>
+                    <Text style={[styles.commentUser, { color: "#3D91F4" }]}>
+                      {item.userName}
+                      {item.userId && users.find(u => u.id === item.userId)?.username
+                        ? ` @${users.find(u => u.id === item.userId)?.username}`
+                        : ""}
+                    </Text>
                   </TouchableOpacity>
                   <Text style={[styles.commentText, { color: TEXT }]}>{item.content}</Text>
                 </View>
-              </View>
+                <TouchableOpacity
+                  onPress={() => likeReelComment(item.id)}
+                  onLongPress={() => likesCount > 0 && setLikersCommentId(item.id)}
+                  style={styles.commentLikeBtn}
+                >
+                  <Feather
+                    name="heart"
+                    size={15}
+                    color={liked ? "#FF3B5C" : TEXT2}
+                    strokeWidth={liked ? 0 : 1.5}
+                  />
+                  {likesCount > 0 && (
+                    <Text style={[styles.commentLikeCount, { color: liked ? "#FF3B5C" : TEXT2 }]}>
+                      {likesCount}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </TouchableOpacity>
             );
           }}
         />
@@ -275,7 +363,7 @@ function CommentSheet({
             ]}
             value={text}
             onChangeText={setText}
-            placeholder="أضف تعليقاً..."
+            placeholder="أضف تعليقاً... (@username للإشارة)"
             placeholderTextColor={TEXT2}
             textAlign="right"
             multiline
@@ -285,6 +373,51 @@ function CommentSheet({
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Likers Modal */}
+      <Modal
+        visible={!!likersCommentId}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLikersCommentId(null)}
+      >
+        <Pressable style={styles.sheetBackdrop} onPress={() => setLikersCommentId(null)} />
+        <View style={[styles.likersSheet, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
+          <Text style={[styles.sheetTitle, { color: TEXT }]}>أعجب بالتعليق</Text>
+          {likers.length === 0 ? (
+            <Text style={[styles.emptyComments, { color: TEXT2 }]}>لا يوجد إعجابات بعد</Text>
+          ) : (
+            <FlatList
+              data={likers}
+              keyExtractor={(u) => u.id}
+              style={{ maxHeight: 300 }}
+              renderItem={({ item }) => {
+                const color = ACCENT_COLORS[item.id.length % ACCENT_COLORS.length];
+                return (
+                  <TouchableOpacity
+                    style={styles.likerRow}
+                    onPress={() => { setLikersCommentId(null); onClose(); router.push(`/profile/${item.id}` as any); }}
+                  >
+                    <View style={[styles.commentAvatar, { backgroundColor: color }]}>
+                      {item.avatar ? (
+                        <Image source={{ uri: item.avatar }} style={styles.commentAvatarImg} />
+                      ) : (
+                        <Text style={styles.commentAvatarText}>{item.name[0]?.toUpperCase()}</Text>
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.commentUser, { color: TEXT }]}>{item.name}</Text>
+                      {item.username && <Text style={{ color: TEXT2, fontSize: 12 }}>@{item.username}</Text>}
+                    </View>
+                    <Feather name="heart" size={14} color="#FF3B5C" strokeWidth={0} />
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          )}
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -523,6 +656,7 @@ export default function ReelsScreen() {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [commentReel, setCommentReel] = useState<string | null>(null);
+  const [commentReelOwnerId, setCommentReelOwnerId] = useState<string>("");
   const [shareReel, setShareReel] = useState<string | null>(null);
   const [showPublish, setShowPublish] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -630,7 +764,7 @@ export default function ReelsScreen() {
               reel={item}
               isActive={index === activeIndex && screenFocused}
               onLike={() => likeReel(item.id)}
-              onComment={() => setCommentReel(item.id)}
+              onComment={() => { setCommentReel(item.id); setCommentReelOwnerId(item.creatorId); }}
               onShare={() => setShareReel(item.id)}
               onDelete={() => handleDelete(item.id)}
               isLiked={isReelLiked(item.id)}
@@ -658,6 +792,7 @@ export default function ReelsScreen() {
       {commentReel && (
         <CommentSheet
           reelId={commentReel}
+          reelOwnerId={commentReelOwnerId}
           visible={!!commentReel}
           onClose={() => setCommentReel(null)}
         />
@@ -747,7 +882,17 @@ const styles = StyleSheet.create({
   },
   sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
   emptyComments: { textAlign: "center", fontFamily: "Inter_400Regular", padding: 24 },
-  commentItem: { flexDirection: "row", gap: 10, paddingVertical: 8, alignItems: "flex-start" },
+  commentItem: { flexDirection: "row", gap: 10, paddingVertical: 8, paddingHorizontal: 8, alignItems: "flex-start" },
+  pinnedBadge: { flexDirection: "row", alignItems: "center", gap: 3, position: "absolute", top: 4, right: 4 },
+  pinnedText: { fontSize: 9, color: "#3D91F4", fontFamily: "Inter_600SemiBold" },
+  commentLikeBtn: { alignItems: "center", justifyContent: "center", gap: 2, minWidth: 28, paddingTop: 4 },
+  commentLikeCount: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  likersSheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    borderWidth: 0.5, padding: 16, paddingBottom: 32,
+  },
+  likerRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, paddingHorizontal: 8 },
   commentAvatar: {
     width: 36, height: 36, borderRadius: 12,
     alignItems: "center", justifyContent: "center", overflow: "hidden",

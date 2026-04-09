@@ -17,6 +17,7 @@ export type PostFilter = "none" | "grayscale" | "warm" | "cool" | "vintage";
 export interface User {
   id: string;
   name: string;
+  username?: string;
   phone: string;
   email: string;
   age: number;
@@ -128,6 +129,8 @@ export interface ReelComment {
   userName: string;
   userAvatar?: string;
   content: string;
+  likedBy: string[];
+  isPinned: boolean;
   createdAt: number;
 }
 
@@ -186,7 +189,7 @@ export interface AppNotification {
   senderId: string;
   senderName: string;
   senderAvatar?: string;
-  type: "follow_request" | "follow_accept" | "like" | "comment" | "post" | "story" | "message" | "story_like" | "story_reply";
+  type: "follow_request" | "follow_accept" | "like" | "comment" | "post" | "story" | "message" | "story_like" | "story_reply" | "mention";
   referenceId?: string;
   message: string;
   isRead: boolean;
@@ -224,8 +227,10 @@ interface AppContextValue {
     email: string,
     age: number,
     address: string,
-    password: string
-  ) => Promise<boolean>;
+    password: string,
+    username: string
+  ) => Promise<{ success: boolean; error?: "phone_exists" | "username_exists" }>;
+  checkUsername: (username: string) => boolean;
   logout: () => Promise<void>;
   updateProfile: (name: string, bio?: string, avatar?: string, accountType?: AccountType) => Promise<void>;
   createRoom: (name: string, image?: string) => Promise<Room | null>;
@@ -261,7 +266,13 @@ interface AppContextValue {
   isReelLiked: (reelId: string) => boolean;
   getReelLikesCount: (reelId: string) => number;
   addReelComment: (reelId: string, content: string) => void;
+  deleteReelComment: (commentId: string) => void;
   getReelComments: (reelId: string) => ReelComment[];
+  likeReelComment: (commentId: string) => void;
+  isReelCommentLiked: (commentId: string) => boolean;
+  pinReelComment: (commentId: string) => void;
+  getReelCommentLikers: (commentId: string) => User[];
+  getPostCommentLikers: (commentId: string) => User[];
   shareReelToConversation: (reelId: string, receiverId: string) => void;
   sharePostToDM: (postId: string, receiverId: string) => void;
   shareStoryToDM: (storyId: string, receiverId: string) => void;
@@ -500,6 +511,14 @@ const translations: Record<Language, Record<string, string>> = {
     unpinComment: "إلغاء التثبيت",
     deleteComment: "حذف التعليق",
     pinned: "مثبّت",
+    banUser: "حظر المستخدم",
+    mentionedYou: "ذكرك في تعليق",
+    usernameLabel: "اسم المستخدم",
+    usernamePlaceholder: "@اسم_المستخدم",
+    usernameExists: "اسم المستخدم مستخدم بالفعل",
+    usernameRequired: "اسم المستخدم مطلوب",
+    likedBy: "أعجب بالتعليق",
+    noLikesYet: "لا يوجد إعجابات بعد",
     sharedPost: "منشور مشارك",
     sharedReel: "مقطع مشارك",
     sharedStory: "قصة مشاركة",
@@ -701,6 +720,14 @@ const translations: Record<Language, Record<string, string>> = {
     unpinComment: "Unpin Comment",
     deleteComment: "Delete Comment",
     pinned: "Pinned",
+    banUser: "Ban User",
+    mentionedYou: "mentioned you in a comment",
+    usernameLabel: "Username",
+    usernamePlaceholder: "@username",
+    usernameExists: "Username already taken",
+    usernameRequired: "Username is required",
+    likedBy: "Liked by",
+    noLikesYet: "No likes yet",
     sharedPost: "Shared Post",
     sharedReel: "Shared Reel",
     sharedStory: "Shared Story",
@@ -737,6 +764,24 @@ function generateId(): string {
 
 function generateRoomCode(): string {
   return String(Math.floor(10000000 + Math.random() * 90000000));
+}
+
+function parseMentions(content: string, allUsers: User[]): User[] {
+  const regex = /@([\w\u0600-\u06FF]+)/g;
+  const mentioned: User[] = [];
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    const handle = match[1];
+    const user = allUsers.find(
+      (u) =>
+        (u.username && u.username.toLowerCase() === handle.toLowerCase()) ||
+        u.phone === handle
+    );
+    if (user && !mentioned.find((m) => m.id === user.id)) {
+      mentioned.push(user);
+    }
+  }
+  return mentioned;
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -786,7 +831,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.blockedUsers) setBlockedUsers(JSON.parse(data.blockedUsers));
       if (data.reels) setReels(JSON.parse(data.reels));
       if (data.reelLikes) setReelLikes(JSON.parse(data.reelLikes));
-      if (data.reelComments) setReelComments(JSON.parse(data.reelComments));
+      if (data.reelComments) {
+        const parsedRC: ReelComment[] = JSON.parse(data.reelComments);
+        const migratedRC = parsedRC.map((c) => ({
+          ...c,
+          likedBy: (c as any).likedBy ?? [],
+          isPinned: (c as any).isPinned ?? false,
+        }));
+        setReelComments(migratedRC);
+      }
       if (data.posts) {
         const parsed: Post[] = JSON.parse(data.posts);
         setPosts(parsed);
@@ -868,6 +921,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           adminUser = {
             id: generateId(),
             name: "المدير الأعلى",
+            username: "admin",
             phone: SUPER_ADMIN_PHONE,
             email: "admin@hillaconnect.com",
             age: 30,
@@ -896,13 +950,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [users, passwords]
   );
 
+  const checkUsername = useCallback(
+    (username: string): boolean => {
+      return !users.some((u) => u.username && u.username.toLowerCase() === username.toLowerCase());
+    },
+    [users]
+  );
+
   const register = useCallback(
-    async (name: string, phone: string, email: string, age: number, address: string, password: string): Promise<boolean> => {
-      const exists = users.find((u) => u.phone === phone);
-      if (exists) return false;
+    async (name: string, phone: string, email: string, age: number, address: string, password: string, username: string): Promise<{ success: boolean; error?: "phone_exists" | "username_exists" }> => {
+      const phoneExists = users.find((u) => u.phone === phone);
+      if (phoneExists) return { success: false, error: "phone_exists" };
+      const usernameExists = users.some((u) => u.username && u.username.toLowerCase() === username.toLowerCase());
+      if (usernameExists) return { success: false, error: "username_exists" };
       const newUser: User = {
         id: generateId(),
         name,
+        username,
         phone,
         email,
         age,
@@ -917,7 +981,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await AsyncStorage.setItem("passwords", JSON.stringify(newPasswords));
       setCurrentUser(newUser);
       await AsyncStorage.setItem("currentUser", JSON.stringify(newUser));
-      return true;
+      return { success: true };
     },
     [users, passwords]
   );
@@ -1422,16 +1486,105 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         userName: currentUser.name,
         userAvatar: currentUser.avatar,
         content: content.trim(),
+        likedBy: [],
+        isPinned: false,
         createdAt: Date.now(),
       };
       saveComments([...reelComments, comment]);
+      const reel = reels.find((r) => r.id === reelId);
+      const mentionedUsers = parseMentions(content.trim(), users);
+      const mentionNotifs: AppNotification[] = mentionedUsers
+        .filter((u) => u.id !== currentUser.id)
+        .map((u) => ({
+          id: generateId(),
+          recipientId: u.id,
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          senderAvatar: currentUser.avatar,
+          type: "mention" as const,
+          referenceId: reelId,
+          message: `${currentUser.name} ذكرك في تعليق على مقطع`,
+          isRead: false,
+          createdAt: Date.now(),
+        }));
+      if (mentionNotifs.length > 0) saveNotifications([...mentionNotifs, ...notifications]);
+    },
+    [currentUser, reelComments, reels, users, notifications]
+  );
+
+  const getReelComments = useCallback(
+    (reelId: string) => {
+      const all = reelComments.filter((c) => c.reelId === reelId);
+      return all.sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.likedBy.length - a.likedBy.length || a.createdAt - b.createdAt;
+      });
+    },
+    [reelComments]
+  );
+
+  const deleteReelComment = useCallback(
+    (commentId: string) => {
+      saveComments(reelComments.filter((c) => c.id !== commentId));
+    },
+    [reelComments]
+  );
+
+  const likeReelComment = useCallback(
+    (commentId: string) => {
+      if (!currentUser) return;
+      const updated = reelComments.map((c) => {
+        if (c.id !== commentId) return c;
+        const liked = c.likedBy.includes(currentUser.id);
+        return {
+          ...c,
+          likedBy: liked
+            ? c.likedBy.filter((id) => id !== currentUser.id)
+            : [...c.likedBy, currentUser.id],
+        };
+      });
+      saveComments(updated);
     },
     [currentUser, reelComments]
   );
 
-  const getReelComments = useCallback(
-    (reelId: string) => reelComments.filter((c) => c.reelId === reelId).sort((a, b) => a.createdAt - b.createdAt),
+  const isReelCommentLiked = useCallback(
+    (commentId: string) => {
+      if (!currentUser) return false;
+      const comment = reelComments.find((c) => c.id === commentId);
+      return comment ? comment.likedBy.includes(currentUser.id) : false;
+    },
+    [currentUser, reelComments]
+  );
+
+  const pinReelComment = useCallback(
+    (commentId: string) => {
+      const updated = reelComments.map((c) => {
+        if (c.id !== commentId) return { ...c, isPinned: false };
+        return { ...c, isPinned: !c.isPinned };
+      });
+      saveComments(updated);
+    },
     [reelComments]
+  );
+
+  const getReelCommentLikers = useCallback(
+    (commentId: string): User[] => {
+      const comment = reelComments.find((c) => c.id === commentId);
+      if (!comment) return [];
+      return users.filter((u) => comment.likedBy.includes(u.id));
+    },
+    [reelComments, users]
+  );
+
+  const getPostCommentLikers = useCallback(
+    (commentId: string): User[] => {
+      const comment = postComments.find((c) => c.id === commentId);
+      if (!comment) return [];
+      return users.filter((u) => comment.likedBy.includes(u.id));
+    },
+    [postComments, users]
   );
 
   // ─── Share reel as rich content ───
@@ -1716,8 +1869,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
       savePostComments([...postComments, comment]);
       const post = posts.find((p) => p.id === postId);
+      const newNotifs: AppNotification[] = [];
       if (post && post.creatorId !== currentUser.id) {
-        const notif: AppNotification = {
+        newNotifs.push({
           id: generateId(),
           recipientId: post.creatorId,
           senderId: currentUser.id,
@@ -1728,11 +1882,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           message: `${currentUser.name} علّق على منشورك`,
           isRead: false,
           createdAt: Date.now(),
-        };
-        saveNotifications([notif, ...notifications]);
+        });
       }
+      const mentionedUsers = parseMentions(content.trim(), users);
+      mentionedUsers
+        .filter((u) => u.id !== currentUser.id && u.id !== post?.creatorId)
+        .forEach((u) => {
+          newNotifs.push({
+            id: generateId(),
+            recipientId: u.id,
+            senderId: currentUser.id,
+            senderName: currentUser.name,
+            senderAvatar: currentUser.avatar,
+            type: "mention",
+            referenceId: postId,
+            message: `${currentUser.name} ذكرك في تعليق`,
+            isRead: false,
+            createdAt: Date.now(),
+          });
+        });
+      if (newNotifs.length > 0) saveNotifications([...newNotifs, ...notifications]);
     },
-    [currentUser, postComments, posts, notifications]
+    [currentUser, postComments, posts, notifications, users]
   );
 
   const deletePostComment = useCallback(
@@ -2217,13 +2388,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       language, setLanguage, theme, toggleTheme, currentUser, isAuthenticated: !!currentUser,
       isSuperAdmin, users, rooms, conversations, restaurants, reels, reelLikes, reelComments,
       posts, postLikes, postComments, stories, follows, notifications,
-      login, register, logout, updateProfile, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
+      login, register, logout, updateProfile, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
       sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom,
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, shareRoomToDM, searchRoomByCode,
       getConversation, sendPrivateMessage,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
-      addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, getReelComments,
+      addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, deleteReelComment, getReelComments,
+      likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers, getPostCommentLikers,
       shareReelToConversation, sharePostToDM, shareStoryToDM, searchUsers,
       addPost, deletePost, hidePost, likePost, isPostLiked, getPostLikesCount,
       addPostComment, deletePostComment, likePostComment, isPostCommentLiked, pinPostComment, getPostComments,
@@ -2239,13 +2411,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [
       language, theme, currentUser, isSuperAdmin, users, rooms, conversations, restaurants,
       reels, reelLikes, reelComments, posts, postLikes, postComments, stories, follows, notifications,
-      login, register, logout, updateProfile, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
+      login, register, logout, updateProfile, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
       sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom,
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, shareRoomToDM, searchRoomByCode,
       getConversation, sendPrivateMessage,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
-      addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, getReelComments,
+      addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, deleteReelComment, getReelComments,
+      likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers, getPostCommentLikers,
       shareReelToConversation, sharePostToDM, shareStoryToDM, searchUsers,
       addPost, deletePost, hidePost, likePost, isPostLiked, getPostLikesCount,
       addPostComment, deletePostComment, likePostComment, isPostCommentLiked, pinPostComment, getPostComments,

@@ -4,6 +4,7 @@ import { pgTable, text, serial, timestamp, integer, boolean, decimal } from "dri
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  username: text("username").unique(),
   email: text("email").notNull().unique(),
   phoneNumber: text("phone_number").notNull().unique(),
   age: integer("age"),

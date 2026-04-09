@@ -33,6 +33,7 @@ const NOTIF_ICONS: Record<string, { name: string; color: string }> = {
   story_like: { name: "heart", color: "#EC4899" },
   story_reply: { name: "message-square", color: "#EC4899" },
   message: { name: "message-circle", color: "#00BCD4" },
+  mention: { name: "at-sign", color: "#F59E0B" },
 };
 
 function NotifItem({
@@ -121,7 +122,7 @@ export default function NotificationsScreen() {
     markNotificationRead(notif.id);
     if (notif.type === "follow_request" || notif.type === "follow_accept") {
       router.push(`/profile/${notif.senderId}`);
-    } else if (notif.type === "like" || notif.type === "comment" || notif.type === "post") {
+    } else if (notif.type === "like" || notif.type === "comment" || notif.type === "post" || notif.type === "mention") {
       if (notif.referenceId) router.push(`/post/${notif.referenceId}`);
       else router.push(`/profile/${notif.senderId}`);
     } else if (notif.type === "story" || notif.type === "story_like") {

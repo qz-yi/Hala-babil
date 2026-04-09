@@ -419,6 +419,7 @@ function ReactionModal({
   onClose: () => void;
   onReact: (emoji: string) => void;
 }) {
+  const [showAll, setShowAll] = useState(false);
   const ALL_EMOJIS = [
     "❤️","😂","😮","😢","😡","👍","🔥","🎉","😍","🥺",
     "😭","🤣","😊","😎","🤔","😏","😤","🥳","😘","👏",
@@ -429,29 +430,29 @@ function ReactionModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={reactStyles.backdrop} onPress={onClose} />
       <View style={reactStyles.sheet}>
-        <View style={reactStyles.quickRow}>
-          {QUICK_EMOJIS.map((e) => (
-            <TouchableOpacity key={e} onPress={() => { onReact(e); onClose(); }} style={reactStyles.emojiBtn}>
-              <Text style={reactStyles.emoji}>{e}</Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            onPress={() => {}}
-            style={[reactStyles.emojiBtn, { backgroundColor: "#2C2C2E" }]}
-          >
-            <Feather name="plus" size={18} color={TEXT2} />
-          </TouchableOpacity>
-        </View>
-        <View style={reactStyles.divider} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 54 }}>
-          <View style={{ flexDirection: "row", paddingHorizontal: 8, gap: 4 }}>
+        {showAll ? (
+          <View style={reactStyles.allGrid}>
             {ALL_EMOJIS.map((e) => (
-              <TouchableOpacity key={e} onPress={() => { onReact(e); onClose(); }} style={reactStyles.emojiBtn}>
+              <TouchableOpacity key={e} onPress={() => { onReact(e); onClose(); setShowAll(false); }} style={reactStyles.emojiBtn}>
                 <Text style={reactStyles.emoji}>{e}</Text>
               </TouchableOpacity>
             ))}
           </View>
-        </ScrollView>
+        ) : (
+          <View style={reactStyles.quickRow}>
+            {QUICK_EMOJIS.map((e) => (
+              <TouchableOpacity key={e} onPress={() => { onReact(e); onClose(); }} style={reactStyles.emojiBtn}>
+                <Text style={reactStyles.emoji}>{e}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              onPress={() => setShowAll(true)}
+              style={[reactStyles.emojiBtn, { backgroundColor: "#2C2C2E" }]}
+            >
+              <Feather name="plus" size={18} color={TEXT2} />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -467,7 +468,6 @@ const reactStyles = StyleSheet.create({
     backgroundColor: "#1C1C1E",
     borderRadius: 20,
     padding: 12,
-    gap: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.5,
@@ -475,9 +475,9 @@ const reactStyles = StyleSheet.create({
     elevation: 10,
   },
   quickRow: { flexDirection: "row", justifyContent: "space-around", alignItems: "center" },
+  allGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 4 },
   emojiBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20 },
   emoji: { fontSize: 24 },
-  divider: { height: 1, backgroundColor: BORDER },
 });
 
 // ───── Long Press Context Menu ─────

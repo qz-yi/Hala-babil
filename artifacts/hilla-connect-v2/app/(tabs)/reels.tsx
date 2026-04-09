@@ -869,6 +869,7 @@ const styles = StyleSheet.create({
   },
   sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
   commentSheet: {
+    maxHeight: "75%",
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     borderWidth: 1, padding: 20, paddingBottom: 32, gap: 12,
   },

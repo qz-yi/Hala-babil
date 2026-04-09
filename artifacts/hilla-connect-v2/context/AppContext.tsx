@@ -66,18 +66,28 @@ export interface SharedContent {
   creatorName?: string;
 }
 
+export interface MessageLocation {
+  latitude: number;
+  longitude: number;
+}
+
 export interface PrivateMessage {
   id: string;
   senderId: string;
   receiverId: string;
   content: string;
   mediaUrl?: string;
-  type: "text" | "image" | "video" | "audio" | "shared";
+  type: "text" | "image" | "video" | "audio" | "shared" | "location";
   duration?: number;
   timestamp: number;
   read: boolean;
   sharedContent?: SharedContent;
   storyRef?: string;
+  reactions?: Record<string, string[]>;
+  isPinned?: boolean;
+  deletedFor?: string[];
+  replyToId?: string;
+  location?: MessageLocation;
 }
 
 export interface Conversation {
@@ -248,7 +258,10 @@ interface AppContextValue {
   shareRoomToDM: (roomId: string, receiverId: string) => void;
   searchRoomByCode: (code: string) => Room | null;
   getConversation: (otherUserId: string) => Conversation;
-  sendPrivateMessage: (conversationId: string, receiverId: string, content: string, type?: "text" | "image" | "video" | "audio" | "shared", mediaUrl?: string, duration?: number, sharedContent?: SharedContent, storyRef?: string) => void;
+  sendPrivateMessage: (conversationId: string, receiverId: string, content: string, type?: "text" | "image" | "video" | "audio" | "shared" | "location", mediaUrl?: string, duration?: number, sharedContent?: SharedContent, storyRef?: string, replyToId?: string, location?: MessageLocation) => void;
+  deleteMessage: (conversationId: string, messageId: string, forBoth: boolean) => void;
+  pinMessage: (conversationId: string, messageId: string) => void;
+  addReaction: (conversationId: string, messageId: string, emoji: string) => void;
   blockedUsers: string[];
   blockUser: (userId: string) => void;
   unblockUser: (userId: string) => void;
@@ -1303,11 +1316,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       conversationId: string,
       receiverId: string,
       content: string,
-      type: "text" | "image" | "video" | "audio" | "shared" = "text",
+      type: "text" | "image" | "video" | "audio" | "shared" | "location" = "text",
       mediaUrl?: string,
       duration?: number,
       sharedContent?: SharedContent,
-      storyRef?: string
+      storyRef?: string,
+      replyToId?: string,
+      location?: MessageLocation
     ) => {
       if (!currentUser) return;
       const msg: PrivateMessage = {
@@ -1322,6 +1337,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         read: false,
         sharedContent,
         storyRef,
+        replyToId,
+        location,
       };
 
       let updated = conversations.map((c) => {
@@ -1347,6 +1364,76 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       saveConversations(updated);
     },
     [currentUser, conversations, users]
+  );
+
+  const deleteMessage = useCallback(
+    (conversationId: string, messageId: string, forBoth: boolean) => {
+      if (!currentUser) return;
+      const updated = conversations.map((c) => {
+        if (c.id !== conversationId) return c;
+        const msgs = (c.messages || []).map((m) => {
+          if (m.id !== messageId) return m;
+          if (forBoth) {
+            return { ...m, deletedFor: [...(m.deletedFor || []), "ALL"] };
+          }
+          return { ...m, deletedFor: [...(m.deletedFor || []), currentUser.id] };
+        });
+        const lastMsg = [...msgs].reverse().find((m) => {
+          if (forBoth) return !(m.deletedFor?.includes("ALL"));
+          return !(m.deletedFor?.includes(currentUser.id));
+        });
+        return { ...c, messages: msgs, lastMessage: lastMsg, updatedAt: Date.now() };
+      });
+      saveConversations(updated);
+    },
+    [currentUser, conversations]
+  );
+
+  const pinMessage = useCallback(
+    (conversationId: string, messageId: string) => {
+      const updated = conversations.map((c) => {
+        if (c.id !== conversationId) return c;
+        const msgs = (c.messages || []).map((m) => {
+          if (m.id === messageId) return { ...m, isPinned: !m.isPinned };
+          return { ...m, isPinned: false };
+        });
+        return { ...c, messages: msgs };
+      });
+      saveConversations(updated);
+    },
+    [conversations]
+  );
+
+  const addReaction = useCallback(
+    (conversationId: string, messageId: string, emoji: string) => {
+      if (!currentUser) return;
+      const updated = conversations.map((c) => {
+        if (c.id !== conversationId) return c;
+        const msgs = (c.messages || []).map((m) => {
+          if (m.id !== messageId) return m;
+          const reactions = { ...(m.reactions || {}) };
+          const users = reactions[emoji] || [];
+          if (users.includes(currentUser.id)) {
+            const filtered = users.filter((id) => id !== currentUser.id);
+            if (filtered.length === 0) {
+              delete reactions[emoji];
+            } else {
+              reactions[emoji] = filtered;
+            }
+          } else {
+            Object.keys(reactions).forEach((e) => {
+              reactions[e] = reactions[e].filter((id) => id !== currentUser.id);
+              if (reactions[e].length === 0) delete reactions[e];
+            });
+            reactions[emoji] = [...(reactions[emoji] || []), currentUser.id];
+          }
+          return { ...m, reactions };
+        });
+        return { ...c, messages: msgs };
+      });
+      saveConversations(updated);
+    },
+    [currentUser, conversations]
   );
 
   const blockUser = useCallback(
@@ -2391,7 +2478,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       login, register, logout, updateProfile, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
       sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom,
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, shareRoomToDM, searchRoomByCode,
-      getConversation, sendPrivateMessage,
+      getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, deleteReelComment, getReelComments,
@@ -2414,7 +2501,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       login, register, logout, updateProfile, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
       sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom,
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, shareRoomToDM, searchRoomByCode,
-      getConversation, sendPrivateMessage,
+      getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, deleteReelComment, getReelComments,

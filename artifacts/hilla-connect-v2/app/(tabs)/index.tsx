@@ -1052,13 +1052,13 @@ const styles = StyleSheet.create({
   // Comment Sheet
   sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
   commentSheet: {
-    maxHeight: "78%",
+    height: "65%",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 0.5,
-    padding: 20,
+    padding: 16,
     paddingBottom: 20,
-    gap: 12,
+    gap: 10,
   },
   sheetHandle: { width: 36, height: 3, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
   sheetTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", textAlign: "center" },

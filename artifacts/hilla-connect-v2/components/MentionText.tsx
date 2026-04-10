@@ -1,13 +1,13 @@
 import { router } from "expo-router";
 import React from "react";
-import { Text, TextStyle } from "react-native";
+import { StyleProp, Text, TextStyle } from "react-native";
 import type { User } from "@/context/AppContext";
 
 interface MentionTextProps {
   text: string;
   users: User[];
-  style?: TextStyle;
-  mentionStyle?: TextStyle;
+  style?: StyleProp<TextStyle>;
+  mentionStyle?: StyleProp<TextStyle>;
   numberOfLines?: number;
 }
 

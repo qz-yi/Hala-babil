@@ -25,6 +25,7 @@ import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { Post, PostComment } from "@/context/AppContext";
 import MentionInput from "@/components/MentionInput";
+import MentionText from "@/components/MentionText";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -63,27 +64,115 @@ function VideoPlayer({ uri }: { uri: string }) {
   );
 }
 
+// ─── Themed Comment Options Modal ───
+function CommentOptionsModal({
+  visible,
+  options,
+  onClose,
+  colors,
+}: {
+  visible: boolean;
+  options: { text: string; style?: string; onPress: () => void }[];
+  onClose: () => void;
+  colors: any;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose} />
+      <View style={[styles.optionsSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+        {options.map((opt, idx) => (
+          <TouchableOpacity
+            key={idx}
+            onPress={() => { onClose(); opt.onPress(); }}
+            style={[
+              styles.optionItem,
+              { borderBottomColor: colors.border },
+              idx < options.length - 1 && { borderBottomWidth: 0.5 },
+            ]}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.optionText,
+                opt.style === "destructive" ? { color: "#FF3B5C" } : { color: colors.text },
+              ]}
+            >
+              {opt.text}
+            </Text>
+          </TouchableOpacity>
+        ))}
+        <TouchableOpacity
+          onPress={onClose}
+          style={[styles.optionCancelBtn, { backgroundColor: colors.backgroundSecondary }]}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.optionCancelText, { color: colors.textSecondary }]}>إلغاء</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Comment Sheet ───
 function CommentSheet({
   postId,
+  postOwnerId,
   visible,
   onClose,
   colors,
 }: {
   postId: string;
+  postOwnerId: string;
   visible: boolean;
   onClose: () => void;
   colors: any;
 }) {
-  const { getPostComments, addPostComment, users, currentUser } = useApp();
+  const {
+    getPostComments, addPostComment, deletePostComment, users, currentUser,
+    likePostComment, isPostCommentLiked, pinPostComment, banUser, t,
+  } = useApp();
   const [text, setText] = useState("");
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [menuOptions, setMenuOptions] = useState<{ text: string; style?: string; onPress: () => void }[]>([]);
   const comments = getPostComments(postId);
+  const isPostOwner = currentUser?.id === postOwnerId;
 
   const handleSend = () => {
     if (!text.trim()) return;
     addPostComment(postId, text.trim());
     setText("");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleLongPress = (item: PostComment) => {
+    const isOwner = currentUser?.id === item.userId;
+    if (!isOwner && !isPostOwner) return;
+    const options: { text: string; style?: string; onPress: () => void }[] = [];
+    if (isPostOwner) {
+      options.push({
+        text: item.isPinned ? t("unpinComment") : t("pinComment"),
+        onPress: () => pinPostComment(item.id),
+      });
+    }
+    if (isOwner || isPostOwner) {
+      options.push({
+        text: t("deleteComment"),
+        style: "destructive",
+        onPress: () => deletePostComment(item.id),
+      });
+    }
+    if (isPostOwner && currentUser?.id !== item.userId) {
+      options.push({
+        text: t("banUser"),
+        style: "destructive",
+        onPress: () => banUser(item.userId),
+      });
+    }
+    if (options.length === 0) return;
+    setMenuOptions(options);
+    setMenuVisible(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   return (
@@ -95,7 +184,7 @@ function CommentSheet({
         style={[styles.commentSheet, { backgroundColor: colors.card, borderColor: colors.border }]}
       >
         <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>التعليقات</Text>
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>التعليقات ({comments.length})</Text>
         <FlatList
           data={comments}
           keyExtractor={(c) => c.id}
@@ -108,9 +197,33 @@ function CommentSheet({
           renderItem={({ item }: { item: PostComment }) => {
             const commenter = users.find((u) => u.id === item.userId);
             const color = ACCENT_COLORS[item.userId.length % ACCENT_COLORS.length];
+            const liked = isPostCommentLiked(item.id);
+            const likesCount = item.likedBy?.length ?? 0;
             return (
-              <View style={styles.commentItem}>
-                <View style={[styles.commentAvatar, { backgroundColor: `${color}33` }]}>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onLongPress={() => handleLongPress(item)}
+                style={[
+                  styles.commentItem,
+                  item.isPinned && {
+                    backgroundColor: "rgba(61,145,244,0.07)",
+                    borderRadius: 12,
+                    borderWidth: 0.5,
+                    borderColor: "#3D91F444",
+                  },
+                ]}
+              >
+                {item.isPinned && (
+                  <View style={styles.pinnedBadge}>
+                    <Feather name="bookmark" size={9} color="#3D91F4" strokeWidth={2} />
+                    <Text style={styles.pinnedText}>مثبّت</Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  onPress={() => { onClose(); router.push(`/profile/${item.userId}` as any); }}
+                  activeOpacity={0.8}
+                  style={[styles.commentAvatar, { backgroundColor: `${color}33` }]}
+                >
                   {commenter?.avatar ? (
                     <Image source={{ uri: commenter.avatar }} style={styles.commentAvatarImg} />
                   ) : (
@@ -118,12 +231,37 @@ function CommentSheet({
                       {item.userName[0]?.toUpperCase()}
                     </Text>
                   )}
-                </View>
+                </TouchableOpacity>
                 <View style={styles.commentBody}>
-                  <Text style={[styles.commentUser, { color: "#3D91F4" }]}>{item.userName}</Text>
-                  <Text style={[styles.commentText, { color: colors.text }]}>{item.content}</Text>
+                  <TouchableOpacity onPress={() => { onClose(); router.push(`/profile/${item.userId}` as any); }} activeOpacity={0.8}>
+                    <Text style={[styles.commentUser, { color: "#3D91F4" }]}>
+                      {commenter?.username || item.userName}
+                    </Text>
+                  </TouchableOpacity>
+                  <MentionText
+                    text={item.content}
+                    users={users}
+                    style={[styles.commentText, { color: colors.text }]}
+                    mentionStyle={{ color: "#3D91F4", fontFamily: "Inter_600SemiBold" }}
+                  />
                 </View>
-              </View>
+                <TouchableOpacity
+                  onPress={() => likePostComment(item.id)}
+                  style={styles.commentLikeBtn}
+                >
+                  <Feather
+                    name="heart"
+                    size={15}
+                    color={liked ? "#FF3B5C" : colors.textSecondary}
+                    strokeWidth={liked ? 0 : 1.5}
+                  />
+                  {likesCount > 0 && (
+                    <Text style={[styles.commentLikeCount, { color: liked ? "#FF3B5C" : colors.textSecondary }]}>
+                      {likesCount}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </TouchableOpacity>
             );
           }}
         />
@@ -143,6 +281,13 @@ function CommentSheet({
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <CommentOptionsModal
+        visible={menuVisible}
+        options={menuOptions}
+        onClose={() => setMenuVisible(false)}
+        colors={colors}
+      />
     </Modal>
   );
 }
@@ -315,6 +460,7 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
 
       <CommentSheet
         postId={post.id}
+        postOwnerId={post.creatorId}
         visible={showComments}
         onClose={() => setShowComments(false)}
         colors={colors}
@@ -512,6 +658,10 @@ const styles = StyleSheet.create({
   commentBody: { flex: 1 },
   commentUser: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   commentText: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
+  pinnedBadge: { flexDirection: "row", alignItems: "center", gap: 3, position: "absolute", top: 4, right: 4 },
+  pinnedText: { fontSize: 9, color: "#3D91F4", fontFamily: "Inter_600SemiBold" },
+  commentLikeBtn: { alignItems: "center", justifyContent: "center", gap: 2, minWidth: 28, paddingTop: 4 },
+  commentLikeCount: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -524,6 +674,18 @@ const styles = StyleSheet.create({
   },
   inputField: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 14, maxHeight: 80 },
   sendBtn: { padding: 4 },
+
+  // Themed options modal
+  optionsSheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderTopWidth: 0.5,
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 34,
+  },
+  optionItem: { paddingVertical: 16, paddingHorizontal: 8 },
+  optionText: { fontSize: 16, fontFamily: "Inter_500Medium", textAlign: "center" },
+  optionCancelBtn: { borderRadius: 16, paddingVertical: 14, alignItems: "center", marginTop: 10 },
+  optionCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 
   // Empty state
   emptyState: { alignItems: "center", justifyContent: "center", paddingVertical: 80, gap: 16 },

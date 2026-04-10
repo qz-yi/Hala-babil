@@ -27,6 +27,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors, { ACCENT_COLORS, STORY_GRADIENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { Post, PostComment, Story, User } from "@/context/AppContext";
+import MentionInput from "@/components/MentionInput";
+import MentionText from "@/components/MentionText";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -180,6 +182,56 @@ function DeleteConfirmModal({
   );
 }
 
+// ───── Themed Comment Options Modal (replaces Alert.alert) ─────
+function CommentOptionsModal({
+  visible,
+  options,
+  onClose,
+  colors,
+}: {
+  visible: boolean;
+  options: { text: string; style?: string; onPress: () => void }[];
+  onClose: () => void;
+  colors: any;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose} />
+      <View style={[styles.optionsSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+        {options.map((opt, idx) => (
+          <TouchableOpacity
+            key={idx}
+            onPress={() => { onClose(); opt.onPress(); }}
+            style={[
+              styles.optionItem,
+              { borderBottomColor: colors.border },
+              idx < options.length - 1 && { borderBottomWidth: 0.5 },
+            ]}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.optionText,
+                opt.style === "destructive" ? { color: "#FF3B5C" } : { color: colors.text },
+              ]}
+            >
+              {opt.text}
+            </Text>
+          </TouchableOpacity>
+        ))}
+        <TouchableOpacity
+          onPress={onClose}
+          style={[styles.optionCancelBtn, { backgroundColor: colors.backgroundSecondary }]}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.optionCancelText, { color: colors.textSecondary }]}>إلغاء</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
+
 // ───── Comment Bottom Sheet ─────
 function CommentSheet({
   postId,
@@ -201,6 +253,8 @@ function CommentSheet({
   } = useApp();
   const [text, setText] = useState("");
   const [likersCommentId, setLikersCommentId] = useState<string | null>(null);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [menuOptions, setMenuOptions] = useState<{ text: string; style?: string; onPress: () => void }[]>([]);
   const comments = getPostComments(postId);
   const isPostOwner = currentUser?.id === postOwnerId;
 
@@ -220,7 +274,7 @@ function CommentSheet({
     const isOwner = currentUser?.id === item.userId;
     if (!isOwner && !isPostOwner) return;
 
-    const options: any[] = [];
+    const options: { text: string; style?: string; onPress: () => void }[] = [];
     if (isPostOwner) {
       options.push({
         text: item.isPinned ? t("unpinComment") : t("pinComment"),
@@ -231,31 +285,20 @@ function CommentSheet({
       options.push({
         text: t("deleteComment"),
         style: "destructive",
-        onPress: () => {
-          Alert.alert("حذف التعليق", "هل تريد حذف هذا التعليق؟", [
-            { text: t("cancel"), style: "cancel" },
-            { text: "حذف", style: "destructive", onPress: () => deletePostComment(item.id) },
-          ]);
-        },
+        onPress: () => deletePostComment(item.id),
       });
     }
     if (isPostOwner && currentUser?.id !== item.userId) {
       options.push({
         text: t("banUser"),
         style: "destructive",
-        onPress: () => {
-          Alert.alert("حظر المستخدم", "هل تريد حظر هذا المستخدم؟", [
-            { text: t("cancel"), style: "cancel" },
-            { text: "حظر", style: "destructive", onPress: () => banUser(item.userId) },
-          ]);
-        },
+        onPress: () => banUser(item.userId),
       });
     }
     if (options.length === 0) return;
-    Alert.alert("خيارات", "", [
-      ...options,
-      { text: t("cancel"), style: "cancel", onPress: () => {} },
-    ]);
+    setMenuOptions(options);
+    setMenuVisible(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   const likers = likersCommentId ? getPostCommentLikers(likersCommentId) : [];
@@ -321,11 +364,15 @@ function CommentSheet({
                 <View style={styles.commentBody}>
                   <TouchableOpacity onPress={() => handleNavigateToProfile(item.userId)} activeOpacity={0.8}>
                     <Text style={[styles.commentUser, { color: "#3D91F4" }]}>
-                      {item.userName}
-                      {commenter?.username ? ` @${commenter.username}` : ""}
+                      {commenter?.username || item.userName}
                     </Text>
                   </TouchableOpacity>
-                  <Text style={[styles.commentText, { color: colors.text }]}>{item.content}</Text>
+                  <MentionText
+                    text={item.content}
+                    users={users}
+                    style={[styles.commentText, { color: colors.text }]}
+                    mentionStyle={{ color: "#3D91F4", fontFamily: "Inter_600SemiBold" }}
+                  />
                 </View>
                 <TouchableOpacity
                   onPress={() => likePostComment(item.id)}
@@ -349,22 +396,28 @@ function CommentSheet({
           }}
         />
         <View style={[styles.commentInputRow, { backgroundColor: colors.inputBackground ?? colors.backgroundSecondary, borderColor: colors.border }]}>
-          <TextInput
-            style={[styles.commentInputField, { color: colors.text }]}
+          <MentionInput
             value={text}
             onChangeText={setText}
+            users={users}
             placeholder="أضف تعليقاً... (@username للإشارة)"
-            placeholderTextColor={colors.textSecondary}
-            textAlign="right"
-            multiline={false}
+            colors={colors}
             returnKeyType="send"
             onSubmitEditing={handleSend}
+            style={{ flex: 1, borderWidth: 0, backgroundColor: "transparent", paddingHorizontal: 0, paddingVertical: 0 }}
           />
           <TouchableOpacity onPress={handleSend} style={styles.sendBtn}>
             <Feather name="send" size={18} color="#3D91F4" strokeWidth={1.5} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <CommentOptionsModal
+        visible={menuVisible}
+        options={menuOptions}
+        onClose={() => setMenuVisible(false)}
+        colors={colors}
+      />
 
       {/* Likers Modal */}
       <Modal
@@ -1093,6 +1146,26 @@ const styles = StyleSheet.create({
   commentInputField: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 14, maxHeight: 80 },
   sendBtn: { padding: 4 },
   shareUser: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
+
+  // Comment Options Modal (themed, replaces Alert.alert)
+  optionsSheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderTopWidth: 0.5,
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 34,
+  },
+  optionItem: {
+    paddingVertical: 16, paddingHorizontal: 8,
+  },
+  optionText: {
+    fontSize: 16, fontFamily: "Inter_500Medium", textAlign: "center",
+  },
+  optionCancelBtn: {
+    borderRadius: 16, paddingVertical: 14, alignItems: "center", marginTop: 10,
+  },
+  optionCancelText: {
+    fontSize: 15, fontFamily: "Inter_600SemiBold",
+  },
 
   // Delete Confirm Modal
   deleteBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)" },

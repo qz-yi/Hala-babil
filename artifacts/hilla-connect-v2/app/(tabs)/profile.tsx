@@ -807,6 +807,17 @@ export default function ProfileScreen() {
                 multiline
               />
             </View>
+            <TouchableOpacity
+              onPress={() => {
+                setEditModal(false);
+                setTimeout(handlePickCover, 350);
+              }}
+              style={[styles.coverPhotoBtn, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+              activeOpacity={0.75}
+            >
+              <Feather name="camera" size={17} color={colors.tint} strokeWidth={1.5} />
+              <Text style={[styles.coverPhotoBtnText, { color: colors.tint }]}>تحديث صورة الغلاف</Text>
+            </TouchableOpacity>
             <View style={styles.modalBtns}>
               <TouchableOpacity onPress={() => setEditModal(false)} style={[styles.cancelBtn, { borderColor: colors.border }]}>
                 <Text style={{ color: colors.textSecondary, fontFamily: "Inter_500Medium" }}>{t("cancel")}</Text>
@@ -882,6 +893,7 @@ const styles = StyleSheet.create({
     width: "100%",
     overflow: "hidden",
     position: "relative",
+    zIndex: 1,
   },
   coverCamBtn: {
     position: "absolute",
@@ -903,6 +915,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     marginTop: -50,
+    zIndex: 2,
   },
 
   profileInfo: {
@@ -1023,6 +1036,12 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
   modalInput: { borderRadius: 16, borderWidth: 0.5, paddingHorizontal: 16, height: 52, justifyContent: "center" },
   modalInputField: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+  coverPhotoBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, borderRadius: 16, borderWidth: 0.5,
+    paddingVertical: 13,
+  },
+  coverPhotoBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   modalBtns: { flexDirection: "row", gap: 12, marginTop: 4 },
   cancelBtn: { flex: 1, borderRadius: 20, paddingVertical: 14, alignItems: "center", borderWidth: 0.5 },
   saveBtn: { flex: 1, borderRadius: 20, paddingVertical: 14, alignItems: "center" },

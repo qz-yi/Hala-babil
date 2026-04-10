@@ -1,11 +1,12 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
   FlatList,
   Image,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -14,7 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ACCENT_COLORS } from "@/constants/colors";
-import { useApp } from "@/context/AppContext";
+import { useApp, IRAQI_GOVERNORATES } from "@/context/AppContext";
 import type { Restaurant } from "@/context/AppContext";
 
 const BG = "#000000";
@@ -22,6 +23,73 @@ const CARD = "#121212";
 const BORDER = "#262626";
 const TEXT = "#FFFFFF";
 const TEXT2 = "#8E8E93";
+
+function GovernorateBar({
+  selected,
+  onSelect,
+  governorateImages,
+}: {
+  selected: string | null;
+  onSelect: (gov: string | null) => void;
+  governorateImages: { name: string; image?: string }[];
+}) {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.govBar}
+    >
+      {/* زر الكل */}
+      <TouchableOpacity
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onSelect(null); }}
+        activeOpacity={0.8}
+        style={[styles.govAllBtn, { borderColor: selected === null ? "#10B981" : BORDER, backgroundColor: selected === null ? "#10B98122" : CARD }]}
+      >
+        <Text style={[styles.govAllTxt, { color: selected === null ? "#10B981" : TEXT2 }]}>الكل</Text>
+      </TouchableOpacity>
+
+      {IRAQI_GOVERNORATES.map((gov) => {
+        const imgObj = governorateImages.find((g) => g.name === gov);
+        const isSelected = selected === gov;
+        return (
+          <TouchableOpacity
+            key={gov}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onSelect(isSelected ? null : gov);
+            }}
+            activeOpacity={0.8}
+            style={styles.govItem}
+          >
+            <View
+              style={[
+                styles.govOval,
+                {
+                  borderColor: isSelected ? "#10B981" : BORDER,
+                  backgroundColor: isSelected ? "#10B98118" : "#1a1a1a",
+                },
+              ]}
+            >
+              {imgObj?.image ? (
+                <Image source={{ uri: imgObj.image }} style={styles.govOvalImg} />
+              ) : (
+                <Text style={{ fontSize: 18 }}>🏛️</Text>
+              )}
+              {isSelected && (
+                <View style={styles.govOvalOverlay}>
+                  <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                </View>
+              )}
+            </View>
+            <Text style={[styles.govLabel, { color: isSelected ? "#10B981" : TEXT2 }]} numberOfLines={1}>
+              {gov}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+}
 
 function RestaurantCard({
   restaurant,
@@ -52,6 +120,11 @@ function RestaurantCard({
         <View style={[styles.categoryBadge, { backgroundColor: `${color}ee` }]}>
           <Text style={styles.categoryText}>{restaurant.category}</Text>
         </View>
+        {restaurant.governorate ? (
+          <View style={styles.govTagOnCard}>
+            <Text style={styles.govTagTxt}>📍 {restaurant.governorate}</Text>
+          </View>
+        ) : null}
       </View>
       <View style={styles.cardBody}>
         <Text style={styles.cardName} numberOfLines={1}>
@@ -79,9 +152,14 @@ function RestaurantCard({
 }
 
 export default function RestaurantsScreen() {
-  const { restaurants, isSuperAdmin, t } = useApp();
+  const { restaurants, isSuperAdmin, t, governorateImages } = useApp();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const [selectedGov, setSelectedGov] = useState<string | null>(null);
+
+  const filtered = selectedGov
+    ? restaurants.filter((r) => r.governorate === selectedGov)
+    : restaurants;
 
   return (
     <View style={styles.container}>
@@ -97,11 +175,25 @@ export default function RestaurantsScreen() {
         )}
       </View>
 
-      {restaurants.length === 0 ? (
+      {/* شريط المحافظات */}
+      <GovernorateBar
+        selected={selectedGov}
+        onSelect={setSelectedGov}
+        governorateImages={governorateImages}
+      />
+
+      {filtered.length === 0 ? (
         <View style={styles.emptyState}>
-          <Feather name="coffee" size={56} color={BORDER} strokeWidth={1} />
-          <Text style={styles.emptyTitle}>{t("noRestaurants")}</Text>
-          {isSuperAdmin && (
+          <Feather name="map-pin" size={56} color={BORDER} strokeWidth={1} />
+          <Text style={styles.emptyTitle}>
+            {selectedGov ? t("noRestaurantsInGovernorate") : t("noRestaurants")}
+          </Text>
+          {selectedGov && (
+            <TouchableOpacity onPress={() => setSelectedGov(null)} style={styles.emptyBtn}>
+              <Text style={styles.emptyBtnText}>عرض الكل</Text>
+            </TouchableOpacity>
+          )}
+          {!selectedGov && isSuperAdmin && (
             <TouchableOpacity onPress={() => router.push("/admin")} style={styles.emptyBtn}>
               <Text style={styles.emptyBtnText}>{t("addRestaurant")}</Text>
             </TouchableOpacity>
@@ -109,7 +201,7 @@ export default function RestaurantsScreen() {
         </View>
       ) : (
         <FlatList
-          data={restaurants}
+          data={filtered}
           keyExtractor={(r) => r.id}
           contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 90 }]}
           showsVerticalScrollIndicator={false}
@@ -134,43 +226,71 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingBottom: 14,
+    paddingBottom: 12,
     borderBottomWidth: 0.5,
     borderBottomColor: BORDER,
-    marginBottom: 8,
   },
   headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: TEXT },
   addBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: TEXT,
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: TEXT, alignItems: "center", justifyContent: "center",
+  },
+  govBar: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 10,
+    alignItems: "center",
+    flexDirection: "row",
+  },
+  govAllBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 50,
+  },
+  govAllTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  govItem: { alignItems: "center", gap: 5, width: 68 },
+  govOval: {
+    width: 56,
+    height: 68,
+    borderRadius: 28,
+    borderWidth: 2,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  govOvalImg: { width: "100%", height: "100%", resizeMode: "cover" },
+  govOvalOverlay: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(16,185,129,0.25)",
     alignItems: "center",
     justifyContent: "center",
   },
-  list: { padding: 12, paddingTop: 8 },
+  govLabel: { fontSize: 10, fontFamily: "Inter_500Medium", textAlign: "center" },
+  list: { padding: 12, paddingTop: 4 },
   row: { gap: 10, marginBottom: 10 },
   card: {
-    flex: 1,
-    borderRadius: 20,
-    borderWidth: 0.5,
-    borderColor: BORDER,
-    overflow: "hidden",
-    backgroundColor: CARD,
+    flex: 1, borderRadius: 20, borderWidth: 0.5,
+    borderColor: BORDER, overflow: "hidden", backgroundColor: CARD,
   },
   cardImageContainer: { height: 110, position: "relative", overflow: "hidden" },
   cardImage: { width: "100%", height: "100%" },
   cardImagePlaceholder: { width: "100%", height: "100%", alignItems: "center", justifyContent: "center" },
   cardEmoji: { fontSize: 40 },
-  categoryBadge: {
-    position: "absolute",
-    bottom: 8,
-    right: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  categoryBadge: { position: "absolute", bottom: 8, right: 8, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  categoryText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  govTagOnCard: {
+    position: "absolute", top: 6, left: 6,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 6, paddingVertical: 3,
     borderRadius: 8,
   },
-  categoryText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  govTagTxt: { fontSize: 9, fontFamily: "Inter_500Medium", color: "#fff" },
   cardBody: { padding: 12, gap: 4 },
   cardName: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT },
   cardMenuCount: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2 },
@@ -179,7 +299,7 @@ const styles = StyleSheet.create({
   viewBtn: { marginLeft: "auto" as any, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100 },
   viewBtnText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, padding: 32 },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_500Medium", color: TEXT2 },
+  emptyTitle: { fontSize: 18, fontFamily: "Inter_500Medium", color: TEXT2, textAlign: "center" },
   emptyBtn: { backgroundColor: TEXT, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 100, marginTop: 8 },
   emptyBtnText: { color: BG, fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });

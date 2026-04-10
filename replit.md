@@ -46,8 +46,41 @@ Arabic-first social communication platform built with Expo React Native.
 1. **الرئيسية (Home)** — Instagram-like feed with stories bar + post cards + header icons (messages + notifications)
 2. **الغرف (Rooms)** — Voice Rooms with room code search, 8 numbered seats, admin panel
 3. **الريلز (Reels)** — Short video reels feed
-4. **المطاعم (Restaurants)** — Restaurant directory with menu + call/WhatsApp
+4. **المطاعم (Restaurants)** — Restaurant directory with 18 Iraqi governorate geo-filtering, menu + call/WhatsApp/order system
 5. **الملف (Profile)** — Personal profile with grid (posts/reels), right-side drawer (settings/activity/follow-requests)
+
+### Geographic Services System (v3.0 — New)
+
+#### 18 Iraqi Governorates
+- `IRAQI_GOVERNORATES` constant exported from AppContext (18 governorates)
+- `GovernorateImage` interface: `{ name: string; image?: string }` stored in AsyncStorage
+- `Restaurant` now has `governorate: string` field (required when adding)
+
+#### Admin — Governorate Management
+- New "المحافظات" tab in admin panel with oval image grid for all 18 governorates
+- Tap any oval to pick/replace photo from gallery
+- Checkmark indicator on governorates that have uploaded images
+
+#### Admin — Adding Restaurant (Mandatory Step)
+- Step 1: **اختيار المحافظة** — oval grid showing all 18 governorates with uploaded images
+- Cannot proceed to step 2 without selecting a governorate
+- Step 2: Restaurant details (name, phone, WhatsApp, category, image, menu items)
+- Governorate badge shown in restaurant list in admin
+
+#### User — Restaurants Screen
+- Horizontal scrollable governorate picker bar at the top with oval images
+- "الكل" (All) button to show all restaurants
+- Selecting a governorate filters to show only restaurants from that governorate
+- Small `📍 governorate` tag shown on each restaurant card
+- Empty state message if no restaurants in selected governorate
+
+#### User — Restaurant Detail + Order System
+- Governorate badge shown in hero section
+- Hint banner: "اضغط على أي صنف لإرسال طلبك مباشرة للمطعم"
+- Each menu item is clickable → opens bottom-sheet order modal
+- Order modal shows: item image, name, description, price, restaurant info
+- **"إرسال طلب" button** opens WhatsApp with pre-filled order message in Arabic
+- Mini WhatsApp "طلب" badge on each menu item row
 
 ### New v2.0 Features
 

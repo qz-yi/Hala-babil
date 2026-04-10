@@ -99,6 +99,19 @@ export interface Conversation {
   updatedAt: number;
 }
 
+export const IRAQI_GOVERNORATES = [
+  "بغداد", "البصرة", "نينوى", "أربيل", "النجف", "كربلاء",
+  "بابل", "ديالى", "الأنبار", "واسط", "ذي قار", "المثنى",
+  "القادسية", "صلاح الدين", "كركوك", "السليمانية", "دهوك", "ميسان",
+] as const;
+
+export type IraqiGovernorate = typeof IRAQI_GOVERNORATES[number];
+
+export interface GovernorateImage {
+  name: string;
+  image?: string;
+}
+
 export interface Restaurant {
   id: string;
   name: string;
@@ -106,6 +119,7 @@ export interface Restaurant {
   phone: string;
   whatsapp?: string;
   category: string;
+  governorate: string;
   menuItems: MenuItem[];
   createdAt: number;
 }
@@ -267,6 +281,8 @@ interface AppContextValue {
   unblockUser: (userId: string) => void;
   isBlocked: (userId: string) => boolean;
   deleteConversation: (conversationId: string) => void;
+  governorateImages: GovernorateImage[];
+  setGovernorateImage: (name: string, image: string) => void;
   addRestaurant: (restaurant: Omit<Restaurant, "id" | "createdAt">) => void;
   updateRestaurant: (id: string, data: Partial<Restaurant>) => void;
   deleteRestaurant: (id: string) => void;
@@ -524,7 +540,6 @@ const translations: Record<Language, Record<string, string>> = {
     unpinComment: "إلغاء التثبيت",
     deleteComment: "حذف التعليق",
     pinned: "مثبّت",
-    banUser: "حظر المستخدم",
     mentionedYou: "ذكرك في تعليق",
     usernameLabel: "اسم المستخدم",
     usernamePlaceholder: "@اسم_المستخدم",
@@ -559,6 +574,16 @@ const translations: Record<Language, Record<string, string>> = {
     enteredRoom: "دخل الغرفة",
     leftRoom: "غادر الغرفة",
     seatNo: "مقعد رقم",
+    selectGovernorate: "اختر المحافظة",
+    governorate: "المحافظة",
+    allGovernorates: "الكل",
+    governorateImages: "صور المحافظات",
+    uploadGovernorateImage: "رفع صورة",
+    sendOrder: "إرسال طلب",
+    orderItem: "طلب",
+    selectItem: "اختر صنفاً للطلب",
+    orderSent: "تم إرسال الطلب",
+    noRestaurantsInGovernorate: "لا توجد مطاعم في هذه المحافظة",
   },
   en: {
     home: "Home",
@@ -733,7 +758,6 @@ const translations: Record<Language, Record<string, string>> = {
     unpinComment: "Unpin Comment",
     deleteComment: "Delete Comment",
     pinned: "Pinned",
-    banUser: "Ban User",
     mentionedYou: "mentioned you in a comment",
     usernameLabel: "Username",
     usernamePlaceholder: "@username",
@@ -768,6 +792,16 @@ const translations: Record<Language, Record<string, string>> = {
     enteredRoom: "entered the room",
     leftRoom: "left the room",
     seatNo: "Seat No.",
+    selectGovernorate: "Select Governorate",
+    governorate: "Governorate",
+    allGovernorates: "All",
+    governorateImages: "Governorate Images",
+    uploadGovernorateImage: "Upload Image",
+    sendOrder: "Send Order",
+    orderItem: "Order",
+    selectItem: "Select an item to order",
+    orderSent: "Order Sent",
+    noRestaurantsInGovernorate: "No restaurants in this governorate",
   },
 };
 
@@ -817,6 +851,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [follows, setFollows] = useState<Follow[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [savedPosts, setSavedPostsState] = useState<string[]>([]);
+  const [governorateImages, setGovernorateImagesState] = useState<GovernorateImage[]>([]);
 
   useEffect(() => {
     loadData();
@@ -828,7 +863,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         "language", "theme", "currentUser", "users", "rooms", "conversations",
         "restaurants", "passwords", "blockedUsers", "reels", "reelLikes",
         "reelComments", "posts", "postLikes", "postComments", "stories",
-        "follows", "notifications", "savedPosts",
+        "follows", "notifications", "savedPosts", "governorateImages",
       ];
       const values = await AsyncStorage.multiGet(keys);
       const data = Object.fromEntries(values.map(([k, v]) => [k, v]));
@@ -872,6 +907,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.follows) setFollows(JSON.parse(data.follows));
       if (data.notifications) setNotifications(JSON.parse(data.notifications));
       if (data.savedPosts) setSavedPostsState(JSON.parse(data.savedPosts));
+      if (data.governorateImages) setGovernorateImagesState(JSON.parse(data.governorateImages));
     } catch (e) {}
   };
 
@@ -889,6 +925,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const saveFollows = (f: Follow[]) => { setFollows(f); AsyncStorage.setItem("follows", JSON.stringify(f)); };
   const saveNotifications = (n: AppNotification[]) => { setNotifications(n); AsyncStorage.setItem("notifications", JSON.stringify(n)); };
   const saveSavedPostsData = (s: string[]) => { setSavedPostsState(s); AsyncStorage.setItem("savedPosts", JSON.stringify(s)); };
+  const saveGovernorateImagesData = (g: GovernorateImage[]) => { setGovernorateImagesState(g); AsyncStorage.setItem("governorateImages", JSON.stringify(g)); };
 
   const savePost = useCallback((postId: string) => {
     setSavedPostsState((prev) => {
@@ -1464,6 +1501,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       saveConversations(conversations.filter((c) => c.id !== conversationId));
     },
     [conversations]
+  );
+
+  const setGovernorateImage = useCallback(
+    (name: string, image: string) => {
+      const existing = governorateImages.find((g) => g.name === name);
+      let updated: GovernorateImage[];
+      if (existing) {
+        updated = governorateImages.map((g) => g.name === name ? { ...g, image } : g);
+      } else {
+        updated = [...governorateImages, { name, image }];
+      }
+      saveGovernorateImagesData(updated);
+    },
+    [governorateImages]
   );
 
   const addRestaurant = useCallback(
@@ -2480,6 +2531,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, shareRoomToDM, searchRoomByCode,
       getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
+      governorateImages, setGovernorateImage,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, deleteReelComment, getReelComments,
       likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers, getPostCommentLikers,
@@ -2503,6 +2555,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, shareRoomToDM, searchRoomByCode,
       getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
+      governorateImages, setGovernorateImage,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, deleteReelComment, getReelComments,
       likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers, getPostCommentLikers,

@@ -28,6 +28,7 @@ import { useToast } from "@/components/Toast";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_ITEM_SIZE = (SCREEN_WIDTH - 3) / 3;
+const COVER_HEIGHT = 170;
 
 type GridTab = "posts" | "reels";
 type DrawerPage = "settings" | "activity" | "requests" | "saved";
@@ -416,6 +417,7 @@ export default function ProfileScreen() {
     currentUser,
     isSuperAdmin,
     updateProfile,
+    updateCoverPhoto,
     logout,
     getFollowers,
     getFollowing,
@@ -443,6 +445,22 @@ export default function ProfileScreen() {
   const [logoutModal, setLogoutModal] = useState(false);
   const [followersModal, setFollowersModal] = useState(false);
   const [followingModal, setFollowingModal] = useState(false);
+
+  const handlePickCover = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { showToast("يجب السماح بالوصول للصور", "error"); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.85,
+      allowsEditing: true,
+      aspect: [16, 9],
+    });
+    if (!result.canceled && result.assets[0]) {
+      await updateCoverPhoto(result.assets[0].uri);
+      showToast("تم تحديث صورة الغلاف", "success");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) {
@@ -524,9 +542,29 @@ export default function ProfileScreen() {
         ItemSeparatorComponent={() => <View style={{ height: 1.5 }} />}
         ListHeaderComponent={
           <View>
-            {/* ── Header ── */}
-            <View style={[styles.profileHeader, { paddingTop: topPad + 8, borderBottomColor: colors.border }]}>
-              <View style={styles.topBar}>
+            {/* ── Cover Photo ── */}
+            <View style={[styles.coverContainer, { height: COVER_HEIGHT + topPad }]}>
+              {currentUser.coverUrl ? (
+                <Image
+                  source={{ uri: currentUser.coverUrl }}
+                  style={StyleSheet.absoluteFill as any}
+                  resizeMode="cover"
+                />
+              ) : (
+                <LinearGradient
+                  colors={isSuperAdmin ? ["#8B6914", "#FFD700", "#B8860B"] : ["#1a1a2e", "#16213e", "#0f3460"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill as any}
+                />
+              )}
+              <LinearGradient
+                colors={["transparent", "rgba(0,0,0,0.55)"]}
+                style={StyleSheet.absoluteFill as any}
+              />
+
+              {/* Top bar inside cover */}
+              <View style={[styles.topBar, { paddingTop: topPad + 8, paddingHorizontal: 16, position: "absolute", top: 0, left: 0, right: 0 }]}>
                 {isSuperAdmin && (
                   <View style={[styles.crownBadge]}>
                     <Text style={styles.crownText}>👑 ملك</Text>
@@ -543,13 +581,24 @@ export default function ProfileScreen() {
                 )}
                 <TouchableOpacity
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setDrawerVisible(true); }}
-                  style={[styles.menuBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  style={styles.menuBtnOnCover}
                 >
-                  <Feather name="menu" size={22} color={colors.text} strokeWidth={1.5} />
+                  <Feather name="menu" size={22} color="#fff" strokeWidth={1.5} />
                 </TouchableOpacity>
               </View>
 
-              {/* Avatar */}
+              {/* Change cover button */}
+              <TouchableOpacity
+                onPress={handlePickCover}
+                style={styles.coverCamBtn}
+                activeOpacity={0.8}
+              >
+                <Feather name="camera" size={15} color="#fff" strokeWidth={1.5} />
+              </TouchableOpacity>
+            </View>
+
+            {/* ── Avatar row overlapping cover ── */}
+            <View style={[styles.avatarRow, { backgroundColor: colors.background }]}>
               <TouchableOpacity onPress={handlePickImage} activeOpacity={0.85} style={styles.avatarWrap}>
                 {isSuperAdmin ? (
                   <LinearGradient colors={["#FFD700", "#FFA500", "#FF8C00"]} style={styles.avatar}>
@@ -578,24 +627,13 @@ export default function ProfileScreen() {
                   </LinearGradient>
                 )}
                 <View style={styles.editOverlay}>
-                  <Feather name="camera" size={14} color="#fff" strokeWidth={1.5} />
+                  <Feather name="camera" size={13} color="#fff" strokeWidth={1.5} />
                 </View>
               </TouchableOpacity>
 
-              {/* Name + Bio */}
-              <View style={styles.nameRow}>
-                <Text style={[styles.profileName, { color: colors.text }]}>{currentUser.name}</Text>
-                {currentUser.accountType === "private" && (
-                  <View style={[styles.privateBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <Feather name="lock" size={12} color={colors.textSecondary} strokeWidth={1.5} />
-                  </View>
-                )}
-              </View>
-              {currentUser.bio ? (
-                <Text style={[styles.bioText, { color: colors.textSecondary }]}>{currentUser.bio}</Text>
-              ) : null}
+              <View style={{ flex: 1 }} />
 
-              {/* Edit Button */}
+              {/* Edit Profile Button (right side of avatar row) */}
               <TouchableOpacity
                 onPress={() => {
                   setEditName(currentUser.name);
@@ -608,6 +646,25 @@ export default function ProfileScreen() {
                 <Feather name="edit-2" size={14} color={colors.text} strokeWidth={1.5} />
                 <Text style={[styles.editProfileBtnText, { color: colors.text }]}>{t("editProfile")}</Text>
               </TouchableOpacity>
+            </View>
+
+            {/* ── Profile Info ── */}
+            <View style={[styles.profileInfo, { borderBottomColor: colors.border }]}>
+              {/* Name + Bio */}
+              <View style={styles.nameRow}>
+                <Text style={[styles.profileName, { color: colors.text }]}>{currentUser.name}</Text>
+                {currentUser.accountType === "private" && (
+                  <View style={[styles.privateBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Feather name="lock" size={12} color={colors.textSecondary} strokeWidth={1.5} />
+                  </View>
+                )}
+              </View>
+              {currentUser.username ? (
+                <Text style={[styles.usernameText, { color: colors.tint }]}>@{currentUser.username}</Text>
+              ) : null}
+              {currentUser.bio ? (
+                <Text style={[styles.bioText, { color: colors.textSecondary }]}>{currentUser.bio}</Text>
+              ) : null}
 
               {/* Stats — followers/following clickable */}
               <View style={styles.statsRow}>
@@ -821,41 +878,82 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
 
-  profileHeader: { paddingHorizontal: 20, paddingBottom: 24, gap: 12, alignItems: "center", borderBottomWidth: 0.5 },
+  coverContainer: {
+    width: "100%",
+    overflow: "hidden",
+    position: "relative",
+  },
+  coverCamBtn: {
+    position: "absolute",
+    bottom: 12,
+    left: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+
+  avatarRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    marginTop: -50,
+  },
+
+  profileInfo: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    gap: 6,
+    borderBottomWidth: 0.5,
+  },
+
   topBar: { flexDirection: "row", alignItems: "center", width: "100%", gap: 10 },
   crownBadge: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16, backgroundColor: "#FFD70022", borderWidth: 0.5, borderColor: "#FFD70044" },
   crownText: { color: "#FFD700", fontFamily: "Inter_700Bold", fontSize: 13 },
   pendingBadge: { width: 26, height: 26, borderRadius: 8, backgroundColor: "#FF3B5C", alignItems: "center", justifyContent: "center" },
   pendingBadgeText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 12 },
-  menuBtn: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 0.5 },
+  menuBtnOnCover: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderWidth: 0.5, borderColor: "rgba(255,255,255,0.2)",
+  },
 
-  avatarWrap: { position: "relative" },
-  avatarRing: { width: 100, height: 100, borderRadius: 50, padding: 3, alignItems: "center", justifyContent: "center" },
+  avatarWrap: { position: "relative", marginTop: -16 },
+  avatarRing: { width: 96, height: 96, borderRadius: 48, padding: 3, alignItems: "center", justifyContent: "center" },
   avatarInner: { width: "100%", height: "100%", borderRadius: 44, overflow: "hidden", padding: 2 },
-  avatar: { width: 96, height: 96, borderRadius: 28, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  avatar: { width: 92, height: 92, borderRadius: 28, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   avatarImg: { width: "100%", height: "100%", resizeMode: "cover" },
-  avatarInitial: { fontSize: 36, fontFamily: "Inter_700Bold", color: "#fff" },
+  avatarInitial: { fontSize: 34, fontFamily: "Inter_700Bold", color: "#fff" },
   editOverlay: {
-    position: "absolute", bottom: 0, right: 0,
-    width: 28, height: 28, borderRadius: 14,
+    position: "absolute", bottom: 2, right: 2,
+    width: 26, height: 26, borderRadius: 13,
     backgroundColor: "#3D91F4",
     alignItems: "center", justifyContent: "center",
     borderWidth: 2, borderColor: "#fff",
   },
 
   nameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  profileName: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  profileName: { fontSize: 21, fontFamily: "Inter_700Bold" },
+  usernameText: { fontSize: 13, fontFamily: "Inter_400Regular" },
   privateBadge: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 0.5 },
-  bioText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
+  bioText: { fontSize: 14, fontFamily: "Inter_400Regular" },
 
   editProfileBtn: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    paddingHorizontal: 20, paddingVertical: 10,
-    borderRadius: 100, borderWidth: 0.5,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 20, borderWidth: 0.5,
+    alignSelf: "flex-end",
+    marginBottom: 4,
   },
-  editProfileBtnText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  editProfileBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
 
-  statsRow: { flexDirection: "row", gap: 32 },
+  statsRow: { flexDirection: "row", gap: 32, marginTop: 8 },
   statItem: { alignItems: "center", gap: 2 },
   statNum: { fontSize: 20, fontFamily: "Inter_700Bold" },
   statLabel: { fontSize: 13, fontFamily: "Inter_400Regular" },

@@ -23,6 +23,7 @@ export interface User {
   age: number;
   address: string;
   avatar?: string;
+  coverUrl?: string;
   bio?: string;
   accountType: AccountType;
   isBanned?: boolean;
@@ -257,6 +258,7 @@ interface AppContextValue {
   checkUsername: (username: string) => boolean;
   logout: () => Promise<void>;
   updateProfile: (name: string, bio?: string, avatar?: string, accountType?: AccountType) => Promise<void>;
+  updateCoverPhoto: (coverUrl: string) => Promise<void>;
   createRoom: (name: string, image?: string) => Promise<Room | null>;
   deleteRoom: (roomId: string) => Promise<void>;
   joinRoomSeat: (roomId: string, seatIndex: number) => void;
@@ -1072,6 +1074,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       saveComments(updatedComments);
     },
     [currentUser, users, rooms, conversations, reelComments]
+  );
+
+  const updateCoverPhoto = useCallback(
+    async (coverUrl: string) => {
+      if (!currentUser) return;
+      const updated: User = { ...currentUser, coverUrl };
+      setCurrentUser(updated);
+      await AsyncStorage.setItem("currentUser", JSON.stringify(updated));
+      const updatedUsers = users.map((u) => (u.id === updated.id ? updated : u));
+      saveUsers(updatedUsers);
+    },
+    [currentUser, users]
   );
 
   const createRoom = useCallback(
@@ -2526,7 +2540,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       language, setLanguage, theme, toggleTheme, currentUser, isAuthenticated: !!currentUser,
       isSuperAdmin, users, rooms, conversations, restaurants, reels, reelLikes, reelComments,
       posts, postLikes, postComments, stories, follows, notifications,
-      login, register, logout, updateProfile, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
+      login, register, logout, updateProfile, updateCoverPhoto, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
       sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom,
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, shareRoomToDM, searchRoomByCode,
       getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
@@ -2550,7 +2564,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [
       language, theme, currentUser, isSuperAdmin, users, rooms, conversations, restaurants,
       reels, reelLikes, reelComments, posts, postLikes, postComments, stories, follows, notifications,
-      login, register, logout, updateProfile, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
+      login, register, logout, updateProfile, updateCoverPhoto, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
       sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom,
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, shareRoomToDM, searchRoomByCode,
       getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,

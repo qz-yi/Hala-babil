@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { PostComment, PostFilter } from "@/context/AppContext";
+import MentionInput from "@/components/MentionInput";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -335,19 +336,17 @@ function CommentsSheet({
             { paddingBottom: botPad + 8, backgroundColor: colors.backgroundSecondary, borderTopColor: colors.border },
           ]}
         >
-          <View style={[styles.commentInputWrap, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
-            <TextInput
-              style={[styles.commentInput, { color: colors.text }]}
-              value={commentText}
-              onChangeText={setCommentText}
-              placeholder="أضف تعليقاً... (@username للإشارة)"
-              placeholderTextColor={colors.textSecondary}
-              textAlign="right"
-              multiline
-              returnKeyType="send"
-              onSubmitEditing={handleSend}
-            />
-          </View>
+          <MentionInput
+            value={commentText}
+            onChangeText={setCommentText}
+            users={users}
+            placeholder="أضف تعليقاً... (@username للإشارة)"
+            colors={colors}
+            multiline
+            returnKeyType="send"
+            onSubmitEditing={handleSend}
+            style={{ flex: 1 }}
+          />
           <TouchableOpacity
             onPress={handleSend}
             style={[styles.sendBtn, { backgroundColor: commentText.trim() ? colors.tint : colors.backgroundTertiary }]}

@@ -42,7 +42,7 @@ function GovernorateBar({
       {/* زر الكل */}
       <TouchableOpacity
         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onSelect(null); }}
-        activeOpacity={0.8}
+        activeOpacity={0.85}
         style={[styles.govAllBtn, { borderColor: selected === null ? "#10B981" : BORDER, backgroundColor: selected === null ? "#10B98122" : CARD }]}
       >
         <Text style={[styles.govAllTxt, { color: selected === null ? "#10B981" : TEXT2 }]}>الكل</Text>
@@ -55,35 +55,37 @@ function GovernorateBar({
           <TouchableOpacity
             key={gov}
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               onSelect(isSelected ? null : gov);
             }}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
             style={styles.govItem}
           >
+            {/* Wide Horizontal Oval */}
             <View
               style={[
                 styles.govOval,
-                {
-                  borderColor: isSelected ? "#10B981" : BORDER,
-                  backgroundColor: isSelected ? "#10B98118" : "#1a1a1a",
-                },
+                isSelected && styles.govOvalSelected,
               ]}
             >
               {imgObj?.image ? (
                 <Image source={{ uri: imgObj.image }} style={styles.govOvalImg} />
               ) : (
-                <Text style={{ fontSize: 18 }}>🏛️</Text>
+                <View style={styles.govOvalPlaceholder}>
+                  <Text style={styles.govOvalPlaceholderEmoji}>🏛️</Text>
+                </View>
               )}
+              {/* Dark gradient overlay */}
+              <View style={styles.govOvalGradient} />
+              {/* Name */}
+              <Text style={styles.govOvalName}>{gov}</Text>
+              {/* Selected checkmark */}
               {isSelected && (
-                <View style={styles.govOvalOverlay}>
-                  <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                <View style={styles.govOvalCheck}>
+                  <Ionicons name="checkmark-circle" size={18} color="#10B981" />
                 </View>
               )}
             </View>
-            <Text style={[styles.govLabel, { color: isSelected ? "#10B981" : TEXT2 }]} numberOfLines={1}>
-              {gov}
-            </Text>
           </TouchableOpacity>
         );
       })}
@@ -237,7 +239,7 @@ const styles = StyleSheet.create({
   },
   govBar: {
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
     gap: 10,
     alignItems: "center",
     flexDirection: "row",
@@ -245,33 +247,59 @@ const styles = StyleSheet.create({
   govAllBtn: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 40,
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 50,
+    minWidth: 52,
+    height: 80,
   },
   govAllTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  govItem: { alignItems: "center", gap: 5, width: 68 },
+  govItem: { alignItems: "center" },
   govOval: {
-    width: 56,
-    height: 68,
-    borderRadius: 28,
+    width: 130,
+    height: 80,
+    borderRadius: 40,
     borderWidth: 2,
+    borderColor: BORDER,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
+    backgroundColor: "#1a1a1a",
+  },
+  govOvalSelected: {
+    borderColor: "#10B981",
+    borderWidth: 2.5,
   },
   govOvalImg: { width: "100%", height: "100%", resizeMode: "cover" },
-  govOvalOverlay: {
+  govOvalPlaceholder: {
+    width: "100%", height: "100%",
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#1e1e2e",
+  },
+  govOvalPlaceholderEmoji: { fontSize: 28 },
+  govOvalGradient: {
     position: "absolute",
     top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: "rgba(16,185,129,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.38)",
   },
-  govLabel: { fontSize: 10, fontFamily: "Inter_500Medium", textAlign: "center" },
+  govOvalName: {
+    position: "absolute",
+    bottom: 0, left: 0, right: 0,
+    textAlign: "center",
+    color: "#fff",
+    fontFamily: "Inter_700Bold",
+    fontSize: 13,
+    paddingBottom: 8,
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  govOvalCheck: {
+    position: "absolute",
+    top: 6, right: 8,
+  },
   list: { padding: 12, paddingTop: 4 },
   row: { gap: 10, marginBottom: 10 },
   card: {

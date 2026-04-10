@@ -176,23 +176,32 @@ export default function UserProfileScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View>
-            <LinearGradient
-              colors={[`${accentColor}33`, "transparent"]}
-              style={[styles.header, { paddingTop: insets.top + 8 }]}
-            >
-              {/* Back */}
+            {/* Cover Photo */}
+            <View style={[styles.coverSection, { height: 160 + insets.top }]}>
+              {user.coverUrl ? (
+                <Image source={{ uri: user.coverUrl }} style={StyleSheet.absoluteFill as any} resizeMode="cover" />
+              ) : (
+                <LinearGradient
+                  colors={[`${accentColor}55`, `${accentColor}11`, colors.background]}
+                  style={StyleSheet.absoluteFill as any}
+                />
+              )}
+              <View style={[StyleSheet.absoluteFill as any, { backgroundColor: "rgba(0,0,0,0.25)" }]} />
+              {/* Back button */}
               <TouchableOpacity
                 onPress={() => router.back()}
-                style={[styles.backBtn, { backgroundColor: `${colors.card}cc` }]}
+                style={[styles.backBtn, { top: insets.top + 8, left: 16 }]}
               >
-                <Ionicons name="arrow-back" size={22} color={colors.text} />
+                <Ionicons name="arrow-back" size={22} color="#fff" />
               </TouchableOpacity>
+            </View>
 
-              {/* Avatar + Story ring */}
-              <View style={styles.avatarSection}>
+            <View style={[styles.header, { backgroundColor: colors.background }]}>
+              {/* Avatar row overlapping cover */}
+              <View style={[styles.avatarSectionRow, { marginTop: -48 }]}>
                 <TouchableOpacity
                   onPress={() => hasStory && router.push(`/story/${user.id}`)}
-                  style={[styles.avatarRing, { borderColor: hasStory ? "#E1306C" : `${accentColor}66` }]}
+                  style={[styles.avatarRing, { borderColor: hasStory ? "#E1306C" : `${accentColor}66`, borderWidth: hasStory ? 3 : 2 }]}
                 >
                   {user.avatar ? (
                     <Image source={{ uri: user.avatar }} style={styles.avatar} />
@@ -202,8 +211,16 @@ export default function UserProfileScreen() {
                     </View>
                   )}
                 </TouchableOpacity>
+              </View>
 
+              {/* Name / Bio */}
+              <View style={styles.avatarSection}>
                 <Text style={[styles.userName, { color: colors.text }]}>{user.name}</Text>
+                {user.username ? (
+                  <Text style={{ color: colors.tint, fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 }}>
+                    @{user.username}
+                  </Text>
+                ) : null}
                 {user.bio ? (
                   <Text style={[styles.userBio, { color: colors.textSecondary }]}>{user.bio}</Text>
                 ) : null}
@@ -288,7 +305,7 @@ export default function UserProfileScreen() {
                   )}
                 </View>
               )}
-            </LinearGradient>
+            </View>
 
             {/* Grid Tabs */}
             <View style={[styles.gridTabs, { borderBottomColor: colors.border }]}>
@@ -335,10 +352,12 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   notFound: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
   notFoundText: { fontFamily: "Inter_400Regular", fontSize: 16 },
+  coverSection: { position: "relative", overflow: "hidden" },
   header: { paddingBottom: 24, gap: 14 },
-  backBtn: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", marginHorizontal: 16, marginBottom: 4 },
+  backBtn: { position: "absolute", width: 40, height: 40, borderRadius: 13, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" },
+  avatarSectionRow: { paddingHorizontal: 20 },
   avatarSection: { alignItems: "center", gap: 8, paddingHorizontal: 20 },
-  avatarRing: { width: 100, height: 100, borderRadius: 32, borderWidth: 3, padding: 3, overflow: "hidden" },
+  avatarRing: { width: 100, height: 100, borderRadius: 32, borderWidth: 3, padding: 3, overflow: "hidden", backgroundColor: "transparent" },
   avatar: { width: "100%", height: "100%", borderRadius: 28, overflow: "hidden" },
   avatarFallback: { alignItems: "center", justifyContent: "center" },
   avatarInitial: { fontSize: 36, fontFamily: "Inter_700Bold" },

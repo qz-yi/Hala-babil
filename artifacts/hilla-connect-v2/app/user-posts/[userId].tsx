@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { Post, PostComment } from "@/context/AppContext";
+import MentionInput from "@/components/MentionInput";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -74,7 +75,7 @@ function CommentSheet({
   onClose: () => void;
   colors: any;
 }) {
-  const { getPostComments, addPostComment, users } = useApp();
+  const { getPostComments, addPostComment, users, currentUser } = useApp();
   const [text, setText] = useState("");
   const comments = getPostComments(postId);
 
@@ -127,15 +128,15 @@ function CommentSheet({
           }}
         />
         <View style={[styles.inputRow, { backgroundColor: colors.inputBackground ?? colors.backgroundSecondary, borderColor: colors.border }]}>
-          <TextInput
-            style={[styles.inputField, { color: colors.text }]}
+          <MentionInput
             value={text}
             onChangeText={setText}
-            placeholder="أضف تعليقاً..."
-            placeholderTextColor={colors.textSecondary}
-            textAlign="right"
+            users={users}
+            placeholder="أضف تعليقاً... (@username للإشارة)"
+            colors={colors}
             returnKeyType="send"
             onSubmitEditing={handleSend}
+            style={{ flex: 1, borderWidth: 0, backgroundColor: "transparent" }}
           />
           <TouchableOpacity onPress={handleSend} style={styles.sendBtn}>
             <Feather name="send" size={18} color="#3D91F4" strokeWidth={1.5} />

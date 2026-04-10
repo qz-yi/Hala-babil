@@ -38,6 +38,11 @@ export interface Message {
   type: "text" | "image" | "video" | "gif" | "system";
   mediaUrl?: string;
   timestamp: number;
+  reactions?: Record<string, string[]>;
+  isPinned?: boolean;
+  replyToId?: string;
+  replyToContent?: string;
+  replyToSender?: string;
 }
 
 export interface Room {
@@ -263,7 +268,11 @@ interface AppContextValue {
   deleteRoom: (roomId: string) => Promise<void>;
   joinRoomSeat: (roomId: string, seatIndex: number) => void;
   leaveRoomSeat: (roomId: string) => void;
-  sendRoomMessage: (roomId: string, content: string, type?: "text" | "image" | "video" | "gif" | "system", mediaUrl?: string) => void;
+  sendRoomMessage: (roomId: string, content: string, type?: "text" | "image" | "video" | "gif" | "system", mediaUrl?: string, replyToId?: string, replyToContent?: string, replyToSender?: string) => void;
+  deleteRoomMessage: (roomId: string, msgId: string) => void;
+  pinRoomMessage: (roomId: string, msgId: string) => void;
+  editRoomMessage: (roomId: string, msgId: string, newContent: string) => void;
+  addRoomReaction: (roomId: string, msgId: string, emoji: string) => void;
   kickFromRoom: (roomId: string, userId: string) => void;
   banFromRoom: (roomId: string, userId: string) => void;
   muteUserInRoom: (roomId: string, userId: string) => void;
@@ -1178,7 +1187,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const sendRoomMessage = useCallback(
-    (roomId: string, content: string, type: "text" | "image" | "video" | "gif" = "text", mediaUrl?: string) => {
+    (roomId: string, content: string, type: "text" | "image" | "video" | "gif" = "text", mediaUrl?: string, replyToId?: string, replyToContent?: string, replyToSender?: string) => {
       if (!currentUser) return;
       const msg: Message = {
         id: generateId(),
@@ -1188,10 +1197,77 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         type,
         mediaUrl,
         timestamp: Date.now(),
+        replyToId,
+        replyToContent,
+        replyToSender,
       };
       const updated = rooms.map((r) => {
         if (r.id !== roomId) return r;
         return { ...r, chat: [...r.chat.slice(-100), msg] };
+      });
+      saveRooms(updated);
+    },
+    [currentUser, rooms]
+  );
+
+  const deleteRoomMessage = useCallback(
+    (roomId: string, msgId: string) => {
+      const updated = rooms.map((r) => {
+        if (r.id !== roomId) return r;
+        return { ...r, chat: r.chat.filter((m) => m.id !== msgId) };
+      });
+      saveRooms(updated);
+    },
+    [rooms]
+  );
+
+  const pinRoomMessage = useCallback(
+    (roomId: string, msgId: string) => {
+      const updated = rooms.map((r) => {
+        if (r.id !== roomId) return r;
+        const chat = r.chat.map((m) => ({
+          ...m,
+          isPinned: m.id === msgId ? !m.isPinned : false,
+        }));
+        return { ...r, chat };
+      });
+      saveRooms(updated);
+    },
+    [rooms]
+  );
+
+  const editRoomMessage = useCallback(
+    (roomId: string, msgId: string, newContent: string) => {
+      const updated = rooms.map((r) => {
+        if (r.id !== roomId) return r;
+        const chat = r.chat.map((m) =>
+          m.id === msgId ? { ...m, content: newContent } : m
+        );
+        return { ...r, chat };
+      });
+      saveRooms(updated);
+    },
+    [rooms]
+  );
+
+  const addRoomReaction = useCallback(
+    (roomId: string, msgId: string, emoji: string) => {
+      if (!currentUser) return;
+      const updated = rooms.map((r) => {
+        if (r.id !== roomId) return r;
+        const chat = r.chat.map((m) => {
+          if (m.id !== msgId) return m;
+          const reactions = { ...(m.reactions ?? {}) };
+          const users = reactions[emoji] ?? [];
+          if (users.includes(currentUser.id)) {
+            reactions[emoji] = users.filter((uid) => uid !== currentUser.id);
+            if (reactions[emoji].length === 0) delete reactions[emoji];
+          } else {
+            reactions[emoji] = [...users, currentUser.id];
+          }
+          return { ...m, reactions };
+        });
+        return { ...r, chat };
       });
       saveRooms(updated);
     },
@@ -2541,7 +2617,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isSuperAdmin, users, rooms, conversations, restaurants, reels, reelLikes, reelComments,
       posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, updateCoverPhoto, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
-      sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom,
+      sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
+      kickFromRoom, banFromRoom, muteUserInRoom,
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, shareRoomToDM, searchRoomByCode,
       getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
@@ -2565,7 +2642,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       language, theme, currentUser, isSuperAdmin, users, rooms, conversations, restaurants,
       reels, reelLikes, reelComments, posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, updateCoverPhoto, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
-      sendRoomMessage, kickFromRoom, banFromRoom, muteUserInRoom,
+      sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
+      kickFromRoom, banFromRoom, muteUserInRoom,
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, shareRoomToDM, searchRoomByCode,
       getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,

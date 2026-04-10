@@ -12,9 +12,9 @@ import {
   Image,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -25,12 +25,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
-import type { User } from "@/context/AppContext";
+import type { Message, User } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 import UserActionsModal from "@/components/UserActionsModal";
 import GameEngine from "@/components/games/GameEngine";
 
 const SUPER_ADMIN_PHONE = "07719820537";
+const EMOJI_REACTIONS = ["❤️", "😂", "😮", "😢", "😡", "👍", "🔥", "⭐"];
 
 // ─── مكوّن حلقة التحدث ───
 function SpeakingRing({ color, speaking }: { color: string; speaking: boolean }) {
@@ -60,7 +61,7 @@ function SpeakingRing({ color, speaking }: { color: string; speaking: boolean })
   );
 }
 
-// ─── مكوّن المقعد ───
+// ─── مكوّن المقعد (دائري أكبر) ───
 function SeatCard({
   index, user, isOwner, isSuperAdmin, currentUser, accentColor,
   onPress, onUserPress, onLeaveSeat, onLockSeat, onUnlockSeat,
@@ -107,7 +108,7 @@ function SeatCard({
               ? isSuperAdminUser ? "#FFD700"
                 : speaking ? userColor : `${userColor}55`
               : colors.border,
-          borderWidth: isSuperAdminUser ? 2 : isLocked ? 1.5 : 1.5,
+          borderWidth: isSuperAdminUser ? 2 : 1.5,
           borderStyle: isLocked && !user ? "dashed" : "solid",
         },
       ]}
@@ -121,7 +122,13 @@ function SeatCard({
         </View>
 
         {user && (
-          <View style={styles.avatarRingWrap}>
+          <TouchableOpacity
+            onPress={() => {
+              if (!isMe) router.push(`/profile/${user.id}` as any);
+            }}
+            activeOpacity={isMe ? 1 : 0.75}
+            style={styles.avatarRingWrap}
+          >
             {!effectiveMuted && (
               <SpeakingRing color={isSuperAdminUser ? "#FFD700" : userColor} speaking={speaking} />
             )}
@@ -134,13 +141,13 @@ function SeatCard({
                 </Text>
               )}
             </View>
-          </View>
+          </TouchableOpacity>
         )}
 
         {user ? (
           <>
             <View style={styles.seatNameRow}>
-              {isSuperAdminUser && <Text style={{ fontSize: 10 }}>👑</Text>}
+              {isSuperAdminUser && <Text style={{ fontSize: 9 }}>👑</Text>}
               <Text style={[styles.seatName, { color: colors.text }]} numberOfLines={1}>
                 {isMe ? "أنا" : user.name.split(" ")[0]}
               </Text>
@@ -148,7 +155,7 @@ function SeatCard({
             <View style={[styles.micIndicator, { backgroundColor: speaking && !effectiveMuted ? `${userColor}33` : "transparent" }]}>
               <Ionicons
                 name={effectiveMuted ? "mic-off-outline" : speaking ? "mic" : "mic-outline"}
-                size={12}
+                size={11}
                 color={effectiveMuted ? colors.danger : speaking && !effectiveMuted ? userColor : colors.textSecondary}
               />
             </View>
@@ -160,7 +167,7 @@ function SeatCard({
                 }}
                 style={[styles.leaveSeatBtn, { backgroundColor: `${colors.danger}22` }]}
               >
-                <Ionicons name="arrow-down-circle-outline" size={14} color={colors.danger} />
+                <Ionicons name="arrow-down-circle-outline" size={12} color={colors.danger} />
                 <Text style={[styles.leaveSeatText, { color: colors.danger }]}>نزول</Text>
               </TouchableOpacity>
             )}
@@ -169,18 +176,18 @@ function SeatCard({
                 onPress={() => onLockSeat(index)}
                 style={[styles.lockBtn, { backgroundColor: "#FF3B5C22" }]}
               >
-                <Ionicons name="lock-closed-outline" size={10} color="#FF3B5C" />
+                <Ionicons name="lock-closed-outline" size={9} color="#FF3B5C" />
               </TouchableOpacity>
             )}
             {!isMe && !canAdmin && (
               <View style={[styles.tapHint, { backgroundColor: `${userColor}22` }]}>
-                <Ionicons name="ellipsis-horizontal" size={10} color={userColor} />
+                <Ionicons name="ellipsis-horizontal" size={9} color={userColor} />
               </View>
             )}
           </>
         ) : isLocked ? (
           <>
-            <Text style={[styles.seatEmptyLabel, { color: "#FF3B5C", fontSize: 9 }]}>
+            <Text style={[styles.seatEmptyLabel, { color: "#FF3B5C", fontSize: 8 }]}>
               {t("seatLocked")}
             </Text>
             {canAdmin && (
@@ -188,25 +195,25 @@ function SeatCard({
                 onPress={() => onUnlockSeat(index)}
                 style={[styles.leaveSeatBtn, { backgroundColor: "#34D39922" }]}
               >
-                <Ionicons name="lock-open-outline" size={12} color="#34D399" />
-                <Text style={[styles.leaveSeatText, { color: "#34D399", fontSize: 9 }]}>فتح</Text>
+                <Ionicons name="lock-open-outline" size={11} color="#34D399" />
+                <Text style={[styles.leaveSeatText, { color: "#34D399", fontSize: 8 }]}>فتح</Text>
               </TouchableOpacity>
             )}
           </>
         ) : (
           <>
             <View style={[styles.emptyAvatarCircle, { borderColor: colors.border }]}>
-              <Ionicons name="add" size={20} color={colors.textSecondary} />
+              <Ionicons name="add" size={22} color={colors.textSecondary} />
             </View>
             <Text style={[styles.seatEmptyLabel, { color: colors.textSecondary }]}>
-              NO.{index + 1}
+              {index + 1}
             </Text>
             {canAdmin && (
               <TouchableOpacity
                 onPress={() => onLockSeat(index)}
                 style={[styles.lockBtn, { backgroundColor: "#FF3B5C11" }]}
               >
-                <Ionicons name="lock-closed-outline" size={10} color="#FF3B5C66" />
+                <Ionicons name="lock-closed-outline" size={9} color="#FF3B5C66" />
               </TouchableOpacity>
             )}
           </>
@@ -216,9 +223,74 @@ function SeatCard({
   );
 }
 
-// ─── فقاعة الدردشة ───
-function ChatBubble({ msg, isMe, colors, onMediaPress }: any) {
+// ─── فقاعة الدردشة مع التفاعل والرد والتمرير ───
+function ChatBubble({
+  msg, isMe, colors, onMediaPress,
+  onReply, onReaction, onDelete, onPin, onEdit,
+  isRoomOwner, currentUserId,
+}: {
+  msg: Message; isMe: boolean; colors: any; onMediaPress: any;
+  onReply: (m: Message) => void;
+  onReaction: (m: Message) => void;
+  onDelete: (m: Message) => void;
+  onPin: (m: Message) => void;
+  onEdit: (m: Message) => void;
+  isRoomOwner: boolean;
+  currentUserId: string;
+}) {
   const color = ACCENT_COLORS[msg.senderName.length % ACCENT_COLORS.length];
+  const translateX = useRef(new Animated.Value(0)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) =>
+        gs.dx > 8 && Math.abs(gs.dy) < 20,
+      onPanResponderMove: (_, gs) => {
+        if (gs.dx > 0) translateX.setValue(Math.min(gs.dx, 70));
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dx > 48) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          onReply(msg);
+        }
+        Animated.spring(translateX, { toValue: 0, useNativeDriver: true, friction: 6 }).start();
+      },
+    })
+  ).current;
+
+  const handleLongPress = () => {
+    if (msg.type === "system") return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    const options: string[] = [];
+    const actions: (() => void)[] = [];
+
+    options.push("رد");
+    actions.push(() => onReply(msg));
+
+    if (isMe) {
+      options.push("تعديل");
+      actions.push(() => onEdit(msg));
+    }
+
+    if (isMe || isRoomOwner) {
+      options.push("حذف");
+      actions.push(() => onDelete(msg));
+    }
+
+    if (isRoomOwner) {
+      options.push(msg.isPinned ? "إلغاء التثبيت" : "تثبيت");
+      actions.push(() => onPin(msg));
+    }
+
+    options.push("إلغاء");
+    actions.push(() => {});
+
+    Alert.alert("", "اختر إجراء", options.map((o, i) => ({
+      text: o,
+      style: o === "حذف" ? "destructive" : o === "إلغاء" ? "cancel" : "default",
+      onPress: actions[i],
+    })));
+  };
 
   if (msg.type === "system") {
     return (
@@ -230,8 +302,33 @@ function ChatBubble({ msg, isMe, colors, onMediaPress }: any) {
     );
   }
 
+  const hasReactions = msg.reactions && Object.keys(msg.reactions).length > 0;
+
   return (
-    <View style={[styles.chatMsg, isMe ? styles.chatMsgRight : styles.chatMsgLeft]}>
+    <Animated.View
+      style={[
+        styles.chatMsg,
+        isMe ? styles.chatMsgRight : styles.chatMsgLeft,
+        { transform: [{ translateX }] },
+      ]}
+      {...panResponder.panHandlers}
+    >
+      {/* بطاقة الرد */}
+      {msg.replyToContent && (
+        <View style={[styles.replyQuote, isMe ? { alignSelf: "flex-end" } : {}]}>
+          <View style={[styles.replyQuoteBar, { backgroundColor: isMe ? "#fff" : "#4F46E5" }]} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.replyQuoteSender, { color: isMe ? "#fff" : "#4F46E5" }]}>
+              {msg.replyToSender}
+            </Text>
+            <Text style={[styles.replyQuoteText, { color: isMe ? "rgba(255,255,255,0.8)" : colors.textSecondary }]} numberOfLines={1}>
+              {msg.replyToContent}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* صف الاسم */}
       {!isMe && (
         <TouchableOpacity
           onPress={() => msg.senderId && router.push(`/profile/${msg.senderId}` as any)}
@@ -240,42 +337,104 @@ function ChatBubble({ msg, isMe, colors, onMediaPress }: any) {
           <Text style={[styles.chatSender, { color }]}>{msg.senderName}</Text>
         </TouchableOpacity>
       )}
-      <View
+
+      <TouchableOpacity
+        onPress={() => onReaction(msg)}
+        onLongPress={handleLongPress}
+        activeOpacity={0.85}
+        delayLongPress={400}
+      >
+        <View
+          style={[
+            styles.chatBubble,
+            { backgroundColor: isMe ? "#4F46E5" : colors.card, borderColor: isMe ? "transparent" : colors.border },
+            msg.isPinned && styles.pinnedBubble,
+          ]}
+        >
+          {msg.isPinned && (
+            <View style={styles.pinnedBadge}>
+              <Ionicons name="pin" size={10} color="#F59E0B" />
+              <Text style={styles.pinnedBadgeText}>مثبّت</Text>
+            </View>
+          )}
+          {msg.type === "image" && msg.mediaUrl ? (
+            <TouchableOpacity
+              onPress={() => onMediaPress(msg.mediaUrl, "image")}
+              activeOpacity={0.9}
+              style={styles.chatMediaWrap}
+            >
+              <Image source={{ uri: msg.mediaUrl }} style={styles.chatMediaImg} resizeMode="cover" />
+              <View style={styles.chatMediaExpand}>
+                <Ionicons name="expand-outline" size={14} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          ) : msg.type === "video" && msg.mediaUrl ? (
+            <TouchableOpacity
+              onPress={() => onMediaPress(msg.mediaUrl, "video")}
+              activeOpacity={0.9}
+              style={[styles.chatMediaWrap, { backgroundColor: "#000" }]}
+            >
+              <View style={styles.chatVideoPlay}>
+                <Ionicons name="play-circle" size={40} color="rgba(255,255,255,0.9)" />
+              </View>
+              <View style={styles.chatMediaExpand}>
+                <Ionicons name="expand-outline" size={14} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          ) : null}
+          {msg.content ? (
+            <Text style={[styles.chatText, { color: isMe ? "#fff" : colors.text }]}>{msg.content}</Text>
+          ) : null}
+        </View>
+      </TouchableOpacity>
+
+      {/* مؤشر التمرير */}
+      <Animated.View
         style={[
-          styles.chatBubble,
-          { backgroundColor: isMe ? "#4F46E5" : colors.card, borderColor: isMe ? "transparent" : colors.border },
+          styles.swipeHint,
+          isMe ? { right: -22 } : { left: -22 },
+          { opacity: translateX.interpolate({ inputRange: [0, 48], outputRange: [0, 1] }) },
         ]}
       >
-        {msg.type === "image" && msg.mediaUrl ? (
+        <Ionicons name="arrow-undo" size={16} color={colors.textSecondary} />
+      </Animated.View>
+
+      {/* تفاعلات */}
+      {hasReactions && (
+        <View style={[styles.reactionsRow, isMe ? { alignSelf: "flex-end" } : { alignSelf: "flex-start" }]}>
+          {Object.entries(msg.reactions!).map(([emoji, userIds]) => (
+            <View key={emoji} style={styles.reactionChip}>
+              <Text style={styles.reactionChipEmoji}>{emoji}</Text>
+              {userIds.length > 1 && (
+                <Text style={styles.reactionChipCount}>{userIds.length}</Text>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
+    </Animated.View>
+  );
+}
+
+// ─── شريط إيموجي عائم ───
+function EmojiBar({
+  visible, onSelect, onClose, colors,
+}: { visible: boolean; onSelect: (e: string) => void; onClose: () => void; colors: any }) {
+  if (!visible) return null;
+  return (
+    <Pressable style={styles.emojiBarOverlay} onPress={onClose}>
+      <View style={[styles.emojiBarContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {EMOJI_REACTIONS.map((e) => (
           <TouchableOpacity
-            onPress={() => onMediaPress(msg.mediaUrl, "image")}
-            activeOpacity={0.9}
-            style={styles.chatMediaWrap}
+            key={e}
+            style={styles.emojiBarBtn}
+            onPress={() => { onSelect(e); onClose(); }}
           >
-            <Image source={{ uri: msg.mediaUrl }} style={styles.chatMediaImg} resizeMode="cover" />
-            <View style={styles.chatMediaExpand}>
-              <Ionicons name="expand-outline" size={14} color="#fff" />
-            </View>
+            <Text style={styles.emojiBarText}>{e}</Text>
           </TouchableOpacity>
-        ) : msg.type === "video" && msg.mediaUrl ? (
-          <TouchableOpacity
-            onPress={() => onMediaPress(msg.mediaUrl, "video")}
-            activeOpacity={0.9}
-            style={[styles.chatMediaWrap, { backgroundColor: "#000" }]}
-          >
-            <View style={styles.chatVideoPlay}>
-              <Ionicons name="play-circle" size={40} color="rgba(255,255,255,0.9)" />
-            </View>
-            <View style={styles.chatMediaExpand}>
-              <Ionicons name="expand-outline" size={14} color="#fff" />
-            </View>
-          </TouchableOpacity>
-        ) : null}
-        {msg.content ? (
-          <Text style={[styles.chatText, { color: isMe ? "#fff" : colors.text }]}>{msg.content}</Text>
-        ) : null}
+        ))}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -346,12 +505,14 @@ export default function RoomScreen() {
   const {
     rooms, currentUser, isSuperAdmin, users,
     joinRoomSeat, leaveRoomSeat, kickFromRoom, banFromRoom, deleteRoom,
-    sendRoomMessage, muteUserInRoom, updateRoomBackground, setRoomAnnouncement,
+    sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
+    muteUserInRoom, updateRoomBackground, setRoomAnnouncement,
     lockSeat, unlockSeat, shareRoomToDM, t, theme,
   } = useApp();
   const { showToast } = useToast();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
+
   const [message, setMessage] = useState("");
   const [muted, setMuted] = useState(false);
   const [joinModal, setJoinModal] = useState<{ visible: boolean; seatIndex: number }>({ visible: false, seatIndex: -1 });
@@ -367,8 +528,13 @@ export default function RoomScreen() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showGameEngine, setShowGameEngine] = useState(false);
-  const flatRef = useRef<FlatList>(null);
 
+  // حالات جديدة
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editingMsg, setEditingMsg] = useState<Message | null>(null);
+  const [emojiBarTarget, setEmojiBarTarget] = useState<Message | null>(null);
+
+  const flatRef = useRef<FlatList>(null);
   const topPad = Platform.OS === "web" ? 30 : insets.top;
   const botPad = Platform.OS === "web" ? 20 : insets.bottom;
 
@@ -400,8 +566,9 @@ export default function RoomScreen() {
   const presentMembers = (room.seatUsers ?? []).filter(Boolean) as User[];
   const presenceCount = presentMembers.length;
   const lockedSeats = room.lockedSeats ?? Array(8).fill(false);
-
   const myFollowing = users.filter((u) => u.id !== currentUser?.id);
+
+  const pinnedMsg = room.chat.find((m) => m.isPinned) ?? null;
 
   const handleLeaveRoom = () => {
     setMuted(true);
@@ -435,9 +602,22 @@ export default function RoomScreen() {
   };
 
   const handleSend = () => {
-    if (!message.trim()) return;
-    sendRoomMessage(room.id, message.trim());
-    setMessage("");
+    const text = editingMsg ? message.trim() : message.trim();
+    if (!text) return;
+
+    if (editingMsg) {
+      editRoomMessage(room.id, editingMsg.id, text);
+      setEditingMsg(null);
+      setMessage("");
+      showToast("تم تعديل الرسالة", "success");
+    } else {
+      sendRoomMessage(
+        room.id, text, "text", undefined,
+        replyTo?.id, replyTo?.content, replyTo?.senderName
+      );
+      setReplyTo(null);
+      setMessage("");
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
@@ -479,6 +659,7 @@ export default function RoomScreen() {
 
   const handleChangeBackground = async () => {
     setShowAdminPanel(false);
+    setShowOptionsMenu(false);
     if (Platform.OS === "web") {
       Alert.alert("", "رفع الخلفية غير مدعوم على الويب");
       return;
@@ -510,21 +691,15 @@ export default function RoomScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const triggerReaction = (emoji: string) => {
+  const triggerFloatingReaction = (emoji: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const id = `${Date.now()}-${Math.random()}`;
+    const rId = `${Date.now()}-${Math.random()}`;
     const xPos = Math.random() * 200 + 60;
     const yAnim = new Animated.Value(0);
     const opAnim = new Animated.Value(1);
     const scaleAnim = new Animated.Value(0.5);
-
-    const newReaction: FloatingItem = {
-      id, emoji, x: xPos,
-      y: yAnim, opacity: opAnim, scale: scaleAnim,
-    };
-
-    setFloatingReactions((prev) => [...prev, newReaction]);
-
+    const newR: FloatingItem = { id: rId, emoji, x: xPos, y: yAnim, opacity: opAnim, scale: scaleAnim };
+    setFloatingReactions((prev) => [...prev, newR]);
     Animated.parallel([
       Animated.timing(yAnim, { toValue: 300, duration: 2000, useNativeDriver: false }),
       Animated.sequence([
@@ -536,8 +711,38 @@ export default function RoomScreen() {
         Animated.timing(opAnim, { toValue: 0, duration: 1000, useNativeDriver: false }),
       ]),
     ]).start(() => {
-      setFloatingReactions((prev) => prev.filter((r) => r.id !== id));
+      setFloatingReactions((prev) => prev.filter((r) => r.id !== rId));
     });
+  };
+
+  const handleEmojiReaction = (emoji: string) => {
+    if (!emojiBarTarget) return;
+    addRoomReaction(room.id, emojiBarTarget.id, emoji);
+    triggerFloatingReaction(emoji);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleReply = (msg: Message) => {
+    setReplyTo(msg);
+    setEditingMsg(null);
+  };
+
+  const handleEdit = (msg: Message) => {
+    setEditingMsg(msg);
+    setReplyTo(null);
+    setMessage(msg.content);
+  };
+
+  const handleDelete = (msg: Message) => {
+    deleteRoomMessage(room.id, msg.id);
+    showToast("تم حذف الرسالة", "info");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
+  const handlePin = (msg: Message) => {
+    pinRoomMessage(room.id, msg.id);
+    showToast(msg.isPinned ? "تم إلغاء التثبيت" : "تم تثبيت الرسالة 📌", "success");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   return (
@@ -559,6 +764,14 @@ export default function RoomScreen() {
       <View style={styles.reactionsLayer} pointerEvents="none">
         <FloatingReactions reactions={floatingReactions} />
       </View>
+
+      {/* Emoji Reaction Bar */}
+      <EmojiBar
+        visible={!!emojiBarTarget}
+        onSelect={handleEmojiReaction}
+        onClose={() => setEmojiBarTarget(null)}
+        colors={colors}
+      />
 
       {/* Header */}
       <LinearGradient
@@ -596,7 +809,7 @@ export default function RoomScreen() {
                     onPress={copyRoomCode}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Ionicons name="copy-outline" size={11} color={colors.textSecondary} />
+                    <Ionicons name="copy-outline" size={12} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </>
               ) : null}
@@ -624,17 +837,6 @@ export default function RoomScreen() {
             ]}
           >
             <Ionicons name={effectiveMuted ? "mic-off" : "mic"} size={20} color={effectiveMuted ? colors.danger : accentColor} />
-          </TouchableOpacity>
-
-          {/* زر الألعاب */}
-          <TouchableOpacity
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setShowGameEngine(true);
-            }}
-            style={[styles.headerBtn, { backgroundColor: "#6A1B9A22", borderColor: "#6A1B9A55" }]}
-          >
-            <Text style={{ fontSize: 18 }}>🎮</Text>
           </TouchableOpacity>
 
           {/* زر القائمة — ثلاث نقاط */}
@@ -680,7 +882,7 @@ export default function RoomScreen() {
         </View>
       )}
 
-      {/* Seats — 2×4 grid of 8 */}
+      {/* Seats — 2 rows × 4 cols */}
       <View style={styles.seatsSection}>
         <View style={styles.seatsGrid}>
           {Array(8).fill(null).map((_, i) => (
@@ -721,6 +923,33 @@ export default function RoomScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
+        {/* Pinned Message Banner */}
+        {pinnedMsg && (
+          <TouchableOpacity
+            style={[styles.pinnedBanner, { backgroundColor: "#F59E0B18", borderColor: "#F59E0B44" }]}
+            onPress={() => {
+              const idx = [...room.chat].reverse().findIndex((m) => m.id === pinnedMsg.id);
+              flatRef.current?.scrollToIndex({ index: idx, animated: true });
+            }}
+          >
+            <Ionicons name="pin" size={14} color="#F59E0B" />
+            <View style={{ flex: 1, marginLeft: 6 }}>
+              <Text style={[styles.pinnedBannerSender, { color: "#F59E0B" }]}>{pinnedMsg.senderName}</Text>
+              <Text style={[styles.pinnedBannerText, { color: colors.text }]} numberOfLines={1}>
+                {pinnedMsg.content || "📎 مرفق"}
+              </Text>
+            </View>
+            {canAdmin && (
+              <TouchableOpacity
+                onPress={() => pinRoomMessage(room.id, pinnedMsg.id)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </TouchableOpacity>
+        )}
+
         <FlatList
           ref={flatRef}
           data={[...room.chat].reverse()}
@@ -734,6 +963,13 @@ export default function RoomScreen() {
               isMe={item.senderId === currentUser?.id}
               colors={colors}
               onMediaPress={(uri: string, type: "image" | "video") => setMediaModal({ uri, type })}
+              onReply={handleReply}
+              onReaction={(m: Message) => setEmojiBarTarget(m)}
+              onDelete={handleDelete}
+              onPin={handlePin}
+              onEdit={handleEdit}
+              isRoomOwner={canAdmin}
+              currentUserId={currentUser?.id ?? ""}
             />
           )}
           ListEmptyComponent={
@@ -766,6 +1002,27 @@ export default function RoomScreen() {
           </View>
         )}
 
+        {/* Reply / Edit Preview */}
+        {(replyTo || editingMsg) && (
+          <View style={[styles.replyPreviewBar, { backgroundColor: colors.backgroundTertiary, borderTopColor: `${accentColor}55` }]}>
+            <View style={[styles.replyPreviewAccent, { backgroundColor: accentColor }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.replyPreviewLabel, { color: accentColor }]}>
+                {editingMsg ? "✏️ تعديل" : `↩️ رد على ${replyTo?.senderName}`}
+              </Text>
+              <Text style={[styles.replyPreviewContent, { color: colors.textSecondary }]} numberOfLines={1}>
+                {editingMsg ? editingMsg.content : replyTo?.content || "📎 مرفق"}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => { setReplyTo(null); setEditingMsg(null); setMessage(""); }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View
           style={[
             styles.inputRow,
@@ -785,10 +1042,10 @@ export default function RoomScreen() {
             <Ionicons name={showAttach ? "close" : "attach"} size={20} color={showAttach ? accentColor : colors.textSecondary} />
           </TouchableOpacity>
 
-          <View style={[styles.inputWrap, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+          <View style={[styles.inputWrap, { backgroundColor: colors.inputBackground, borderColor: editingMsg ? accentColor : colors.border }]}>
             <TextInput
               style={[styles.input, { color: colors.text, fontFamily: "Inter_400Regular" }]}
-              placeholder={t("typeMessage")}
+              placeholder={editingMsg ? "تعديل الرسالة..." : t("typeMessage")}
               placeholderTextColor={colors.textSecondary}
               value={message}
               onChangeText={setMessage}
@@ -800,7 +1057,7 @@ export default function RoomScreen() {
 
           {/* نجوم */}
           <TouchableOpacity
-            onPress={() => triggerReaction("⭐")}
+            onPress={() => triggerFloatingReaction("⭐")}
             style={[styles.roundBtn, { backgroundColor: "rgba(255,215,0,0.12)" }]}
           >
             <Text style={{ fontSize: 18 }}>⭐</Text>
@@ -808,18 +1065,10 @@ export default function RoomScreen() {
 
           {/* قلوب */}
           <TouchableOpacity
-            onPress={() => triggerReaction("❤️")}
+            onPress={() => triggerFloatingReaction("❤️")}
             style={[styles.roundBtn, { backgroundColor: "rgba(225,48,108,0.12)" }]}
           >
             <Text style={{ fontSize: 18 }}>❤️</Text>
-          </TouchableOpacity>
-
-          {/* ضحك */}
-          <TouchableOpacity
-            onPress={() => triggerReaction("😂")}
-            style={[styles.roundBtn, { backgroundColor: "rgba(245,200,0,0.12)" }]}
-          >
-            <Text style={{ fontSize: 18 }}>😂</Text>
           </TouchableOpacity>
 
           {/* إرسال */}
@@ -828,7 +1077,7 @@ export default function RoomScreen() {
             disabled={!message.trim()}
             style={[styles.roundBtn, { backgroundColor: message.trim() ? accentColor : colors.backgroundTertiary }]}
           >
-            <Ionicons name="send" size={18} color={message.trim() ? "#fff" : colors.textSecondary} />
+            <Ionicons name={editingMsg ? "checkmark" : "send"} size={18} color={message.trim() ? "#fff" : colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -879,7 +1128,12 @@ export default function RoomScreen() {
                 const isMutedMember = mutedUsers.includes(item.id);
                 return (
                   <TouchableOpacity
-                    onPress={() => { if (!isMe) handleUserPress(item); }}
+                    onPress={() => {
+                      if (!isMe) {
+                        setPresenceModal(false);
+                        router.push(`/profile/${item.id}` as any);
+                      }
+                    }}
                     activeOpacity={isMe ? 1 : 0.8}
                     style={[styles.memberItem, { borderColor: colors.border }]}
                   >
@@ -933,7 +1187,6 @@ export default function RoomScreen() {
           </View>
 
           <View style={{ paddingHorizontal: 16, gap: 12, paddingBottom: 32 }}>
-            {/* تغيير الخلفية */}
             <TouchableOpacity
               style={[styles.adminPanelBtn, { backgroundColor: `${accentColor}18`, borderColor: `${accentColor}44` }]}
               onPress={handleChangeBackground}
@@ -948,7 +1201,6 @@ export default function RoomScreen() {
               <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
             </TouchableOpacity>
 
-            {/* إزالة الخلفية */}
             {room.background && (
               <TouchableOpacity
                 style={[styles.adminPanelBtn, { backgroundColor: "#FF3B5C12", borderColor: "#FF3B5C33" }]}
@@ -965,7 +1217,6 @@ export default function RoomScreen() {
               </TouchableOpacity>
             )}
 
-            {/* تعديل الإعلان */}
             <TouchableOpacity
               style={[styles.adminPanelBtn, { backgroundColor: "#F59E0B14", borderColor: "#F59E0B44" }]}
               onPress={() => {
@@ -1055,7 +1306,6 @@ export default function RoomScreen() {
             <Text style={[styles.presenceTitle, { color: colors.text }]}>{t("shareRoom")}</Text>
           </View>
 
-          {/* بوستر الغرفة */}
           <View style={[styles.roomPoster, { backgroundColor: `${accentColor}14`, borderColor: `${accentColor}44` }]}>
             <View style={[styles.roomPosterAvatar, { backgroundColor: `${accentColor}33` }]}>
               <Text style={{ fontSize: 28 }}>🎙️</Text>
@@ -1126,7 +1376,7 @@ export default function RoomScreen() {
         </View>
       </Modal>
 
-      {/* Options Menu Modal — ثلاث نقاط */}
+      {/* Options Menu Modal */}
       <Modal
         visible={showOptionsMenu}
         transparent
@@ -1136,6 +1386,22 @@ export default function RoomScreen() {
         <Pressable style={styles.presenceOverlay} onPress={() => setShowOptionsMenu(false)} />
         <View style={[styles.optionsSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.sheetHandle} />
+
+          {/* الألعاب */}
+          <TouchableOpacity
+            style={[styles.optionsItem, { borderBottomColor: colors.border }]}
+            onPress={() => {
+              setShowOptionsMenu(false);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setShowGameEngine(true);
+            }}
+          >
+            <View style={[styles.optionsIconWrap, { backgroundColor: "#6A1B9A18" }]}>
+              <Text style={{ fontSize: 20 }}>🎮</Text>
+            </View>
+            <Text style={[styles.optionsLabel, { color: colors.text }]}>الألعاب</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
 
           {/* مشاركة الغرفة */}
           <TouchableOpacity
@@ -1149,7 +1415,7 @@ export default function RoomScreen() {
             <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
 
-          {/* تغيير الخلفية — أدمن فقط */}
+          {/* تغيير الخلفية */}
           {canAdmin && (
             <TouchableOpacity
               style={[styles.optionsItem, { borderBottomColor: colors.border }]}
@@ -1163,7 +1429,7 @@ export default function RoomScreen() {
             </TouchableOpacity>
           )}
 
-          {/* تعديل الإعلان — أدمن فقط */}
+          {/* تعديل الإعلان */}
           {canAdmin && (
             <TouchableOpacity
               style={[styles.optionsItem, { borderBottomColor: colors.border }]}
@@ -1181,7 +1447,7 @@ export default function RoomScreen() {
             </TouchableOpacity>
           )}
 
-          {/* حذف الغرفة — أدمن/مالك فقط */}
+          {/* حذف الغرفة */}
           {(isOwner || isSuperAdmin) && (
             <TouchableOpacity
               style={[styles.optionsItem, { borderBottomColor: "transparent" }]}
@@ -1304,16 +1570,14 @@ export default function RoomScreen() {
         currentUserId={currentUser?.id ?? ""}
         isOwner={isOwner || isSuperAdmin}
         seatedUsers={(room.seatUsers ?? []).filter(Boolean).map((u: any) => ({
-          id: u.id,
-          name: u.name,
-          avatar: u.avatar,
+          id: u.id, name: u.name, avatar: u.avatar,
         }))}
       />
     </View>
   );
 }
 
-const SEAT_SIZE = 66;
+const SEAT_SIZE = 78;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -1345,53 +1609,49 @@ const styles = StyleSheet.create({
   royalBanner: { borderRadius: 14, paddingVertical: 8, paddingHorizontal: 16, alignItems: "center" },
   royalText: { color: "#000", fontFamily: "Inter_700Bold", fontSize: 14, letterSpacing: 1 },
   announcementCard: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    marginHorizontal: 16, marginBottom: 8, borderRadius: 14, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 10,
   },
   announcementText: {
-    flex: 1,
-    fontFamily: "Inter_500Medium",
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: "right",
+    flex: 1, fontFamily: "Inter_500Medium", fontSize: 13, lineHeight: 18, textAlign: "right",
   },
-  seatsSection: { paddingHorizontal: 10, paddingBottom: 4 },
-  seatsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center" },
+
+  // Seats — circular, larger, strict 2×4 grid
+  seatsSection: { paddingHorizontal: 8, paddingBottom: 4 },
+  seatsGrid: {
+    flexDirection: "row", flexWrap: "wrap",
+    justifyContent: "space-evenly", gap: 6,
+  },
   seat: {
-    width: SEAT_SIZE, height: SEAT_SIZE + 24,
-    borderRadius: 16, overflow: "visible", position: "relative",
+    width: SEAT_SIZE, height: SEAT_SIZE,
+    borderRadius: SEAT_SIZE / 2,
+    overflow: "visible", position: "relative",
+    alignItems: "center", justifyContent: "center",
   },
   seatInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 2, padding: 4 },
   seatNumberBadge: {
-    position: "absolute", top: 3, right: 3,
-    borderRadius: 5, paddingHorizontal: 4, paddingVertical: 1,
+    position: "absolute", top: 2, right: 2,
+    borderRadius: 5, paddingHorizontal: 3, paddingVertical: 1,
   },
-  seatNumberText: { fontSize: 8, fontFamily: "Inter_700Bold" },
+  seatNumberText: { fontSize: 7, fontFamily: "Inter_700Bold" },
   avatarRingWrap: {
-    position: "relative", width: 36, height: 36,
+    position: "relative", width: 44, height: 44,
     alignItems: "center", justifyContent: "center",
   },
   speakRing: {
-    borderRadius: 22, borderWidth: 2, position: "absolute",
-    top: -3, left: -3, right: -3, bottom: -3,
+    borderRadius: 26, borderWidth: 2.5, position: "absolute",
+    top: -4, left: -4, right: -4, bottom: -4,
   },
   seatAvatarLg: {
-    width: 36, height: 36, borderRadius: 12,
+    width: 44, height: 44, borderRadius: 22,
     alignItems: "center", justifyContent: "center", overflow: "hidden",
   },
-  seatAvatarImg: { width: "100%", height: "100%", borderRadius: 12 },
-  seatAvatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  seatAvatarImg: { width: "100%", height: "100%", borderRadius: 22 },
+  seatAvatarText: { fontSize: 16, fontFamily: "Inter_700Bold" },
   seatNameRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   seatName: { fontSize: 9, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   micIndicator: {
-    borderRadius: 6, paddingHorizontal: 4, paddingVertical: 1,
+    borderRadius: 6, paddingHorizontal: 3, paddingVertical: 1,
     flexDirection: "row", alignItems: "center", gap: 1,
   },
   leaveSeatBtn: {
@@ -1405,11 +1665,13 @@ const styles = StyleSheet.create({
   },
   tapHint: { borderRadius: 5, paddingHorizontal: 4, paddingVertical: 2 },
   emptyAvatarCircle: {
-    width: 34, height: 34, borderRadius: 12,
+    width: 40, height: 40, borderRadius: 20,
     alignItems: "center", justifyContent: "center",
     borderWidth: 1.5, borderStyle: "dashed",
   },
   seatEmptyLabel: { fontSize: 9, fontFamily: "Inter_700Bold" },
+
+  // Chat
   chatArea: { flex: 1, borderTopWidth: 1, backgroundColor: "rgba(0,0,0,0.55)" },
   chatList: { padding: 12, gap: 8 },
   chatMsg: { maxWidth: "82%" },
@@ -1432,21 +1694,79 @@ const styles = StyleSheet.create({
   },
   systemMsgWrap: { alignItems: "center", paddingVertical: 2 },
   systemMsgBubble: {
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 5,
   },
-  systemMsgText: {
-    color: "#aaa",
-    fontFamily: "Inter_400Regular",
-    fontSize: 12,
-    textAlign: "center",
-  },
+  systemMsgText: { color: "#aaa", fontFamily: "Inter_400Regular", fontSize: 12, textAlign: "center" },
   emptyChat: { alignItems: "center", paddingVertical: 24, gap: 8 },
-  attachMenu: {
-    flexDirection: "row", gap: 12, padding: 12, borderTopWidth: 1,
+
+  // Pinned banner in chat
+  pinnedBanner: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderBottomWidth: 1,
   },
+  pinnedBannerSender: { fontSize: 10, fontFamily: "Inter_700Bold" },
+  pinnedBannerText: { fontSize: 12, fontFamily: "Inter_400Regular" },
+
+  // Pinned bubble styling
+  pinnedBubble: { borderLeftWidth: 3, borderLeftColor: "#F59E0B" },
+  pinnedBadge: { flexDirection: "row", alignItems: "center", gap: 3, marginBottom: 4 },
+  pinnedBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#F59E0B" },
+
+  // Swipe hint
+  swipeHint: { position: "absolute", top: "50%", marginTop: -8, zIndex: 1 },
+
+  // Reactions row
+  reactionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 3, paddingHorizontal: 4 },
+  reactionChip: {
+    flexDirection: "row", alignItems: "center", gap: 2,
+    backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 10,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  reactionChipEmoji: { fontSize: 13 },
+  reactionChipCount: { fontSize: 11, color: "#fff", fontFamily: "Inter_600SemiBold" },
+
+  // Reply quote (inside bubble)
+  replyQuote: {
+    flexDirection: "row", alignItems: "stretch",
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderRadius: 8, overflow: "hidden",
+    marginBottom: 4, maxWidth: "100%",
+  },
+  replyQuoteBar: { width: 3, borderRadius: 3 },
+  replyQuoteSender: { fontSize: 10, fontFamily: "Inter_700Bold", paddingHorizontal: 6, paddingTop: 4 },
+  replyQuoteText: { fontSize: 11, fontFamily: "Inter_400Regular", paddingHorizontal: 6, paddingBottom: 4 },
+
+  // Emoji bar overlay
+  emojiBarOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emojiBarContainer: {
+    flexDirection: "row", borderRadius: 24, borderWidth: 1,
+    paddingVertical: 10, paddingHorizontal: 8, gap: 4,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8,
+    elevation: 10,
+  },
+  emojiBarBtn: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
+  emojiBarText: { fontSize: 24 },
+
+  // Reply preview bar above input
+  replyPreviewBar: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderTopWidth: 1, gap: 8,
+  },
+  replyPreviewAccent: { width: 3, height: 32, borderRadius: 2 },
+  replyPreviewLabel: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  replyPreviewContent: { fontSize: 12, fontFamily: "Inter_400Regular" },
+
+  // Input row
+  attachMenu: { flexDirection: "row", gap: 12, padding: 12, borderTopWidth: 1 },
   attachItem: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 6, height: 44, borderRadius: 12,
@@ -1465,6 +1785,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 8,
   },
   input: { fontSize: 14, fontFamily: "Inter_400Regular" },
+
+  // Presence / Sheet / Modal
   presenceOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
   presenceSheet: {
     position: "absolute", bottom: 0, left: 0, right: 0,
@@ -1526,6 +1848,17 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 5,
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7,
   },
+  optionsSheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderTopWidth: 1, paddingTop: 12, paddingBottom: 32,
+  },
+  optionsItem: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1,
+  },
+  optionsIconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  optionsLabel: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
   modalOverlay: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "center", alignItems: "center", padding: 24,
@@ -1535,40 +1868,23 @@ const styles = StyleSheet.create({
     borderRadius: 24, borderWidth: 1,
     padding: 24, alignItems: "center", gap: 12,
   },
-  modalIconWrap: {
-    width: 64, height: 64, borderRadius: 20,
-    alignItems: "center", justifyContent: "center",
-  },
+  modalIconWrap: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   modalTitle: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
   modalDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
   modalBtns: { flexDirection: "row", gap: 12, width: "100%", marginTop: 4 },
   modalCancelBtn: {
-    flex: 1, borderRadius: 16, borderWidth: 1,
-    paddingVertical: 14, alignItems: "center",
+    flex: 1, height: 50, borderRadius: 14, borderWidth: 1,
+    alignItems: "center", justifyContent: "center",
   },
   modalConfirmBtn: {
-    borderRadius: 16, paddingVertical: 14,
-    alignItems: "center", justifyContent: "center",
-    flexDirection: "row", gap: 8,
+    height: 50, borderRadius: 14,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
   },
-  modalConfirmText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 },
+  modalConfirmText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 },
   announcementInput: {
-    width: "100%", minHeight: 100, borderRadius: 14, borderWidth: 1,
-    padding: 14, fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20,
+    width: "100%", borderRadius: 14, borderWidth: 1,
+    padding: 12, fontSize: 14, fontFamily: "Inter_400Regular",
+    minHeight: 80, textAlignVertical: "top",
   },
-  charCount: { alignSelf: "flex-end", fontSize: 11, fontFamily: "Inter_400Regular" },
-  optionsSheet: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    borderTopWidth: 1, paddingTop: 12, paddingBottom: 32,
-  },
-  optionsItem: {
-    flexDirection: "row", alignItems: "center", gap: 14,
-    paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1,
-  },
-  optionsIconWrap: {
-    width: 42, height: 42, borderRadius: 13,
-    alignItems: "center", justifyContent: "center",
-  },
-  optionsLabel: { flex: 1, fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  charCount: { fontSize: 12, fontFamily: "Inter_400Regular", alignSelf: "flex-end" },
 });

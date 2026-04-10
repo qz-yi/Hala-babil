@@ -893,7 +893,6 @@ const styles = StyleSheet.create({
     width: "100%",
     overflow: "hidden",
     position: "relative",
-    zIndex: 1,
   },
   coverCamBtn: {
     position: "absolute",
@@ -915,7 +914,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     marginTop: -50,
-    zIndex: 2,
   },
 
   profileInfo: {

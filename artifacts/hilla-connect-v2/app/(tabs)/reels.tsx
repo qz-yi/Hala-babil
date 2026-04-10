@@ -28,6 +28,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ACCENT_COLORS } from "@/constants/colors";
 import { useApp, type Reel, type ReelFilter } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
+import MentionInput from "@/components/MentionInput";
+import MentionText from "@/components/MentionText";
 
 const BG = "#000000";
 const CARD = "#121212";
@@ -190,6 +192,53 @@ function ReelPlayerItem({
 }
 
 // ───── Comment Sheet ─────
+function ReelCommentOptionsModal({
+  visible,
+  options,
+  onClose,
+}: {
+  visible: boolean;
+  options: { text: string; style?: string; onPress: () => void }[];
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose} />
+      <View style={[styles.optionsSheet, { backgroundColor: CARD, borderColor: BORDER }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
+        {options.map((opt, idx) => (
+          <TouchableOpacity
+            key={idx}
+            onPress={() => { onClose(); opt.onPress(); }}
+            style={[
+              styles.optionItem,
+              { borderBottomColor: BORDER },
+              idx < options.length - 1 && { borderBottomWidth: 0.5 },
+            ]}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.optionText,
+                opt.style === "destructive" ? { color: "#FF3B5C" } : { color: TEXT },
+              ]}
+            >
+              {opt.text}
+            </Text>
+          </TouchableOpacity>
+        ))}
+        <TouchableOpacity
+          onPress={onClose}
+          style={[styles.optionCancelBtn, { backgroundColor: "#1C1C1C" }]}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.optionCancelText, { color: TEXT2 }]}>إلغاء</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
+
 function CommentSheet({
   reelId,
   reelOwnerId,
@@ -208,6 +257,8 @@ function CommentSheet({
   } = useApp();
   const [text, setText] = useState("");
   const [likersCommentId, setLikersCommentId] = useState<string | null>(null);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [menuOptions, setMenuOptions] = useState<{ text: string; style?: string; onPress: () => void }[]>([]);
   const comments = getReelComments(reelId);
   const isReelOwner = currentUser?.id === reelOwnerId;
 
@@ -215,6 +266,7 @@ function CommentSheet({
     if (!text.trim()) return;
     addReelComment(reelId, text.trim());
     setText("");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const handleNavigateToProfile = (userId: string) => {
@@ -226,7 +278,7 @@ function CommentSheet({
     const isOwner = currentUser?.id === item.userId;
     if (!isOwner && !isReelOwner) return;
 
-    const options: { text: string; onPress: () => void; style?: "destructive" | "cancel" }[] = [];
+    const options: { text: string; style?: string; onPress: () => void }[] = [];
 
     if (isReelOwner) {
       options.push({
@@ -238,31 +290,20 @@ function CommentSheet({
       options.push({
         text: t("deleteComment"),
         style: "destructive",
-        onPress: () => {
-          Alert.alert("حذف التعليق", "هل تريد حذف هذا التعليق؟", [
-            { text: t("cancel"), style: "cancel" },
-            { text: "حذف", style: "destructive", onPress: () => deleteReelComment(item.id) },
-          ]);
-        },
+        onPress: () => deleteReelComment(item.id),
       });
     }
     if (isReelOwner && currentUser?.id !== item.userId) {
       options.push({
         text: t("banUser"),
         style: "destructive",
-        onPress: () => {
-          Alert.alert("حظر المستخدم", "هل تريد حظر هذا المستخدم؟", [
-            { text: t("cancel"), style: "cancel" },
-            { text: "حظر", style: "destructive", onPress: () => banUser(item.userId) },
-          ]);
-        },
+        onPress: () => banUser(item.userId),
       });
     }
     if (options.length === 0) return;
-    Alert.alert("خيارات", "", [
-      ...options,
-      { text: t("cancel"), style: "cancel", onPress: () => {} },
-    ]);
+    setMenuOptions(options);
+    setMenuVisible(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   const likers = likersCommentId ? getReelCommentLikers(likersCommentId) : [];
@@ -288,6 +329,7 @@ function CommentSheet({
             </Text>
           }
           renderItem={({ item }) => {
+            const commenter = users.find((u) => u.id === item.userId);
             const accentColor = ACCENT_COLORS[item.userId.length % ACCENT_COLORS.length];
             const liked = isReelCommentLiked(item.id);
             const likesCount = item.likedBy?.length ?? 0;
@@ -321,13 +363,15 @@ function CommentSheet({
                 <View style={styles.commentBody}>
                   <TouchableOpacity onPress={() => handleNavigateToProfile(item.userId)} activeOpacity={0.8}>
                     <Text style={[styles.commentUser, { color: "#3D91F4" }]}>
-                      {item.userName}
-                      {item.userId && users.find(u => u.id === item.userId)?.username
-                        ? ` @${users.find(u => u.id === item.userId)?.username}`
-                        : ""}
+                      {commenter?.username || item.userName}
                     </Text>
                   </TouchableOpacity>
-                  <Text style={[styles.commentText, { color: TEXT }]}>{item.content}</Text>
+                  <MentionText
+                    text={item.content}
+                    users={users}
+                    style={[styles.commentText, { color: TEXT }]}
+                    mentionStyle={{ color: "#3D91F4", fontFamily: "Inter_600SemiBold" }}
+                  />
                 </View>
                 <TouchableOpacity
                   onPress={() => likeReelComment(item.id)}
@@ -350,29 +394,29 @@ function CommentSheet({
             );
           }}
         />
-        <View
-          style={[
-            styles.commentInput,
-            { backgroundColor: "#1C1C1C", borderColor: BORDER },
-          ]}
-        >
-          <TextInput
-            style={[
-              styles.commentInputField,
-              { color: TEXT, fontFamily: "Inter_400Regular" },
-            ]}
+        <View style={[styles.commentInput, { backgroundColor: "#1C1C1C", borderColor: BORDER }]}>
+          <MentionInput
             value={text}
             onChangeText={setText}
+            users={users}
             placeholder="أضف تعليقاً... (@username للإشارة)"
-            placeholderTextColor={TEXT2}
-            textAlign="right"
-            multiline
+            colors={{ text: TEXT, textSecondary: TEXT2, card: CARD, border: BORDER, backgroundSecondary: "#1C1C1C", tint: "#3D91F4", inputBackground: "#1C1C1C" }}
+            returnKeyType="send"
+            onSubmitEditing={handleSend}
+            containerStyle={{ flex: 1 }}
+            style={{ borderWidth: 0, backgroundColor: "transparent", paddingHorizontal: 0, paddingVertical: 0 }}
           />
           <TouchableOpacity onPress={handleSend} style={styles.sendCommentBtn}>
             <Feather name="send" size={18} color="#3D91F4" strokeWidth={1.5} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <ReelCommentOptionsModal
+        visible={menuVisible}
+        options={menuOptions}
+        onClose={() => setMenuVisible(false)}
+      />
 
       {/* Likers Modal */}
       <Modal
@@ -911,6 +955,16 @@ const styles = StyleSheet.create({
   commentInputField: { flex: 1, fontSize: 15, maxHeight: 80 },
   sendCommentBtn: { padding: 4 },
   shareUser: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
+  optionsSheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderTopWidth: 0.5,
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 34,
+  },
+  optionItem: { paddingVertical: 16, paddingHorizontal: 8 },
+  optionText: { fontSize: 16, fontFamily: "Inter_500Medium", textAlign: "center" },
+  optionCancelBtn: { borderRadius: 16, paddingVertical: 14, alignItems: "center", marginTop: 10 },
+  optionCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   videoPickBtn: {
     borderRadius: 16, borderWidth: 1.5, borderStyle: "dashed",
     padding: 20, alignItems: "center", gap: 10,

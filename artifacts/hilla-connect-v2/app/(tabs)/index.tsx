@@ -404,7 +404,8 @@ function CommentSheet({
             colors={colors}
             returnKeyType="send"
             onSubmitEditing={handleSend}
-            style={{ flex: 1, borderWidth: 0, backgroundColor: "transparent", paddingHorizontal: 0, paddingVertical: 0 }}
+            containerStyle={{ flex: 1 }}
+            style={{ borderWidth: 0, backgroundColor: "transparent", paddingHorizontal: 0, paddingVertical: 0 }}
           />
           <TouchableOpacity onPress={handleSend} style={styles.sendBtn}>
             <Feather name="send" size={18} color="#3D91F4" strokeWidth={1.5} />

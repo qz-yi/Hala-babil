@@ -274,7 +274,8 @@ function CommentSheet({
             colors={colors}
             returnKeyType="send"
             onSubmitEditing={handleSend}
-            style={{ flex: 1, borderWidth: 0, backgroundColor: "transparent" }}
+            containerStyle={{ flex: 1 }}
+            style={{ borderWidth: 0, backgroundColor: "transparent" }}
           />
           <TouchableOpacity onPress={handleSend} style={styles.sendBtn}>
             <Feather name="send" size={18} color="#3D91F4" strokeWidth={1.5} />
@@ -640,7 +641,7 @@ const styles = StyleSheet.create({
   // Comment Sheet
   sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
   commentSheet: {
-    maxHeight: "78%",
+    height: "65%",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 0.5,

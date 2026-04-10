@@ -278,12 +278,17 @@ function ReplyBubbleRef({
       style={[
         replyRefStyles.wrap,
         {
-          backgroundColor: isMe ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)",
-          borderLeftColor: isMe ? "rgba(255,255,255,0.6)" : "#3D91F4",
+          backgroundColor: isMe ? "rgba(255,255,255,0.08)" : "rgba(61,145,244,0.08)",
+          borderLeftColor: isMe ? "rgba(255,255,255,0.5)" : "#3D91F4",
         },
       ]}
     >
-      <Text style={[replyRefStyles.text, { color: isMe ? "rgba(255,255,255,0.8)" : TEXT2 }]} numberOfLines={1}>
+      <View style={replyRefStyles.accentBar} />
+      <Text
+        style={[replyRefStyles.text, { color: isMe ? "rgba(255,255,255,0.75)" : TEXT2 }]}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+      >
         {preview}
       </Text>
     </TouchableOpacity>
@@ -292,11 +297,13 @@ function ReplyBubbleRef({
 
 const replyRefStyles = StyleSheet.create({
   wrap: {
-    borderLeftWidth: 3, borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 5,
-    marginBottom: 4,
+    borderLeftWidth: 2.5, borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 4,
+    marginBottom: 4, maxHeight: 36, overflow: "hidden",
+    flexDirection: "row", alignItems: "center", gap: 6,
   },
-  text: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  accentBar: { width: 2, height: 14, borderRadius: 1, backgroundColor: "transparent" },
+  text: { fontSize: 11, fontFamily: "Inter_400Regular", flex: 1 },
 });
 
 // ───── Location Bubble ─────
@@ -732,6 +739,7 @@ function MessageBubble({
   onLongPress,
   onTap,
   onReplyScrollTo,
+  senderUser,
 }: {
   msg: PrivateMessage;
   isMe: boolean;
@@ -741,6 +749,7 @@ function MessageBubble({
   onLongPress: (msg: PrivateMessage) => void;
   onTap: (msg: PrivateMessage) => void;
   onReplyScrollTo: (msgId: string) => void;
+  senderUser?: User;
 }) {
   const formatTime = (ts: number) => {
     const d = new Date(ts);
@@ -751,84 +760,100 @@ function MessageBubble({
 
   return (
     <View style={[styles.msgRow, isMe ? styles.msgRowRight : styles.msgRowLeft]}>
-      <TouchableOpacity
-        activeOpacity={0.85}
-        onPress={() => onTap(msg)}
-        onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onLongPress(msg); }}
-        delayLongPress={350}
-      >
-        <View
-          style={[
-            styles.bubble,
-            {
-              backgroundColor: isMe ? accentColor : CARD,
-              borderColor: isMe ? "transparent" : BORDER,
-            },
-          ]}
-        >
-          {msg.storyRef && <StoryReplyRef storyId={msg.storyRef} isMe={isMe} />}
-          {msg.replyToId && (
-            <ReplyBubbleRef
-              replyToId={msg.replyToId}
-              messages={allMessages}
-              isMe={isMe}
-              onPress={() => onReplyScrollTo(msg.replyToId!)}
-            />
+      {!isMe && (
+        <View style={[styles.msgAvatar, { backgroundColor: `${accentColor}25` }]}>
+          {senderUser?.avatar ? (
+            <Image source={{ uri: senderUser.avatar }} style={styles.msgAvatarImg} />
+          ) : (
+            <Text style={[styles.msgAvatarText, { color: accentColor }]}>
+              {(senderUser?.name?.[0] ?? "?").toUpperCase()}
+            </Text>
           )}
-
-          {msg.type === "shared" && msg.sharedContent ? (
-            <SharedContentPreview sharedContent={msg.sharedContent} isMe={isMe} />
-          ) : msg.type === "location" && msg.location ? (
-            <LocationBubble location={msg.location} isMe={isMe} />
-          ) : msg.type === "image" && msg.mediaUrl ? (
-            <TouchableOpacity
-              style={styles.msgImageWrap}
-              onPress={() => onMediaPress(msg.mediaUrl!, "image")}
-              activeOpacity={0.9}
-            >
-              <Image source={{ uri: msg.mediaUrl }} style={styles.msgImage} resizeMode="cover" />
-              <View style={styles.mediaExpandIcon}>
-                <Feather name="maximize" size={12} color="#fff" strokeWidth={1.5} />
-              </View>
-            </TouchableOpacity>
-          ) : msg.type === "video" && msg.mediaUrl ? (
-            <TouchableOpacity
-              style={styles.msgVideoWrap}
-              onPress={() => onMediaPress(msg.mediaUrl!, "video")}
-              activeOpacity={0.9}
-            >
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: "#000", alignItems: "center", justifyContent: "center" }]}>
-                <Feather name="play" size={40} color="rgba(255,255,255,0.9)" strokeWidth={1.5} />
-              </View>
-              <View style={styles.mediaExpandIcon}>
-                <Feather name="maximize" size={12} color="#fff" strokeWidth={1.5} />
-              </View>
-            </TouchableOpacity>
-          ) : msg.type === "audio" ? (
-            <AudioBubble msg={msg} isMe={isMe} />
-          ) : null}
-
-          {msg.content ? (
-            <Text style={[styles.bubbleText, { color: isMe ? "#fff" : TEXT }]}>{msg.content}</Text>
-          ) : null}
-
-          <Text style={[styles.bubbleTime, { color: isMe ? "rgba(255,255,255,0.6)" : TEXT2 }]}>
-            {formatTime(msg.timestamp)}
-            {isMe && <Text> {msg.read ? "✓✓" : "✓"}</Text>}
-          </Text>
         </View>
-
-        {hasReactions && (
-          <View style={[styles.reactionsRow, isMe ? { justifyContent: "flex-end" } : {}]}>
-            {Object.entries(msg.reactions!).map(([emoji, users]) => (
-              <View key={emoji} style={styles.reactionChip}>
-                <Text style={styles.reactionEmoji}>{emoji}</Text>
-                {users.length > 1 && <Text style={styles.reactionCount}>{users.length}</Text>}
-              </View>
-            ))}
-          </View>
+      )}
+      <View style={styles.msgBubbleCol}>
+        {!isMe && senderUser && (
+          <Text style={[styles.msgSenderName, { color: accentColor }]}>{senderUser.name}</Text>
         )}
-      </TouchableOpacity>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => onTap(msg)}
+          onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onLongPress(msg); }}
+          delayLongPress={350}
+        >
+          <View
+            style={[
+              styles.bubble,
+              {
+                backgroundColor: isMe ? accentColor : CARD,
+                borderColor: isMe ? "transparent" : BORDER,
+              },
+            ]}
+          >
+            {msg.storyRef && <StoryReplyRef storyId={msg.storyRef} isMe={isMe} />}
+            {msg.replyToId && (
+              <ReplyBubbleRef
+                replyToId={msg.replyToId}
+                messages={allMessages}
+                isMe={isMe}
+                onPress={() => onReplyScrollTo(msg.replyToId!)}
+              />
+            )}
+
+            {msg.type === "shared" && msg.sharedContent ? (
+              <SharedContentPreview sharedContent={msg.sharedContent} isMe={isMe} />
+            ) : msg.type === "location" && msg.location ? (
+              <LocationBubble location={msg.location} isMe={isMe} />
+            ) : msg.type === "image" && msg.mediaUrl ? (
+              <TouchableOpacity
+                style={styles.msgImageWrap}
+                onPress={() => onMediaPress(msg.mediaUrl!, "image")}
+                activeOpacity={0.9}
+              >
+                <Image source={{ uri: msg.mediaUrl }} style={styles.msgImage} resizeMode="cover" />
+                <View style={styles.mediaExpandIcon}>
+                  <Feather name="maximize" size={12} color="#fff" strokeWidth={1.5} />
+                </View>
+              </TouchableOpacity>
+            ) : msg.type === "video" && msg.mediaUrl ? (
+              <TouchableOpacity
+                style={styles.msgVideoWrap}
+                onPress={() => onMediaPress(msg.mediaUrl!, "video")}
+                activeOpacity={0.9}
+              >
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: "#000", alignItems: "center", justifyContent: "center" }]}>
+                  <Feather name="play" size={40} color="rgba(255,255,255,0.9)" strokeWidth={1.5} />
+                </View>
+                <View style={styles.mediaExpandIcon}>
+                  <Feather name="maximize" size={12} color="#fff" strokeWidth={1.5} />
+                </View>
+              </TouchableOpacity>
+            ) : msg.type === "audio" ? (
+              <AudioBubble msg={msg} isMe={isMe} />
+            ) : null}
+
+            {msg.content ? (
+              <Text style={[styles.bubbleText, { color: isMe ? "#fff" : TEXT }]}>{msg.content}</Text>
+            ) : null}
+
+            <Text style={[styles.bubbleTime, { color: isMe ? "rgba(255,255,255,0.6)" : TEXT2 }]}>
+              {formatTime(msg.timestamp)}
+              {isMe && <Text> {msg.read ? "✓✓" : "✓"}</Text>}
+            </Text>
+          </View>
+
+          {hasReactions && (
+            <View style={[styles.reactionsRow, isMe ? { justifyContent: "flex-end" } : {}]}>
+              {Object.entries(msg.reactions!).map(([emoji, users]) => (
+                <View key={emoji} style={styles.reactionChip}>
+                  <Text style={styles.reactionEmoji}>{emoji}</Text>
+                  {users.length > 1 && <Text style={styles.reactionCount}>{users.length}</Text>}
+                </View>
+              ))}
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -1207,6 +1232,7 @@ export default function ChatScreen() {
                 onLongPress={handleLongPress}
                 onTap={handleTap}
                 onReplyScrollTo={scrollToMessage}
+                senderUser={item.senderId === currentUser?.id ? undefined : otherUser}
               />
             </SwipeableMessage>
           )}
@@ -1472,9 +1498,18 @@ const styles = StyleSheet.create({
   callBtns: { flexDirection: "row", gap: 6 },
   callBtn: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   msgList: { padding: 16, gap: 8 },
-  msgRow: { marginBottom: 4 },
-  msgRowLeft: { alignSelf: "flex-start", maxWidth: "78%" },
-  msgRowRight: { alignSelf: "flex-end", maxWidth: "78%" },
+  msgRow: { marginBottom: 4, flexDirection: "row", alignItems: "flex-end", gap: 6 },
+  msgRowLeft: { alignSelf: "flex-start", maxWidth: "85%" },
+  msgRowRight: { alignSelf: "flex-end", maxWidth: "80%", justifyContent: "flex-end" },
+  msgAvatar: {
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: "center", justifyContent: "center",
+    overflow: "hidden", flexShrink: 0, alignSelf: "flex-end",
+  },
+  msgAvatarImg: { width: "100%", height: "100%", borderRadius: 15 },
+  msgAvatarText: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  msgBubbleCol: { flex: 1 },
+  msgSenderName: { fontSize: 11, fontFamily: "Inter_600SemiBold", marginBottom: 3, paddingLeft: 2 },
   bubble: { borderRadius: 18, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 12, gap: 4 },
   bubbleText: { fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
   bubbleTime: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "left" },

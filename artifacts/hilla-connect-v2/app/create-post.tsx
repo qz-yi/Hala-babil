@@ -303,9 +303,8 @@ export default function CreatePostScreen() {
             </TouchableOpacity>
             {/* Re-pick + add more */}
             <TouchableOpacity onPress={handlePickImage} style={styles.cropBtn}>
-              <View style={styles.cropBtnInner}>
-                <Ionicons name="images-outline" size={16} color="#fff" />
-                <Text style={styles.cropBtnText}>إضافة / تغيير</Text>
+              <View style={styles.cropBtnCircle}>
+                <Ionicons name="checkmark" size={28} color="#fff" />
               </View>
             </TouchableOpacity>
             {selectedFilter !== "none" && (
@@ -328,9 +327,8 @@ export default function CreatePostScreen() {
             </TouchableOpacity>
             {/* Re-pick button */}
             <TouchableOpacity onPress={handlePickVideo} style={styles.cropBtn}>
-              <View style={styles.cropBtnInner}>
-                <Ionicons name="videocam-outline" size={16} color="#fff" />
-                <Text style={styles.cropBtnText}>تغيير</Text>
+              <View style={styles.cropBtnCircle}>
+                <Ionicons name="checkmark" size={28} color="#fff" />
               </View>
             </TouchableOpacity>
           </View>
@@ -420,20 +418,16 @@ const styles = StyleSheet.create({
   mediaPreviewInner: { width: "100%", height: "100%" },
   removeMedia: { position: "absolute", top: 10, right: 10 },
   cropBtn: {
-    position: "absolute", bottom: 12, left: "50%", transform: [{ translateX: -40 }],
+    position: "absolute", bottom: 12, right: 12,
   },
-  cropBtnInner: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "rgba(124,58,237,0.88)",
-    paddingHorizontal: 16, paddingVertical: 9,
-    borderRadius: 20, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.4)",
-    shadowColor: "#7C3AED",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 6,
+  cropBtnCircle: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: "#FF8C00",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 2.5, borderColor: "rgba(255,255,255,0.55)",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.5, shadowRadius: 8, elevation: 8,
   },
-  cropBtnText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 14 },
   videoLabel: {
     color: "rgba(255,255,255,0.7)", fontFamily: "Inter_400Regular",
     fontSize: 13, marginTop: 10,

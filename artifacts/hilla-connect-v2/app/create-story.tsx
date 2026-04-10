@@ -179,7 +179,7 @@ export default function CreateStoryScreen() {
             </View>
             {/* Change media button */}
             <TouchableOpacity onPress={handlePickMedia} style={styles.changeMedia}>
-              <Ionicons name="images-outline" size={20} color="#fff" />
+              <Ionicons name="checkmark" size={26} color="#fff" />
             </TouchableOpacity>
             {/* Active filter badge */}
             {selectedFilter !== "none" && (
@@ -273,9 +273,12 @@ const styles = StyleSheet.create({
   },
   captionInput: { color: "#fff", fontFamily: "Inter_500Medium", fontSize: 16, textShadowColor: "rgba(0,0,0,0.5)", textShadowRadius: 4 },
   changeMedia: {
-    position: "absolute", top: 12, right: 12,
-    width: 36, height: 36, borderRadius: 12,
-    backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center",
+    position: "absolute", bottom: 12, right: 12,
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: "#FF8C00", alignItems: "center", justifyContent: "center",
+    borderWidth: 2.5, borderColor: "rgba(255,255,255,0.55)",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.5, shadowRadius: 8, elevation: 8,
   },
   filterBadge: {
     position: "absolute", top: 12, left: 12,

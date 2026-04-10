@@ -81,147 +81,161 @@ function SeatCard({
   }, [user?.id]);
 
   return (
-    <TouchableOpacity
-      onPress={() => {
-        if (isLocked && !canAdmin) {
-          Alert.alert("", t("seatLocked"));
-          return;
-        }
-        if (!user) { onPress(index); }
-        else if (!isMe) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          onUserPress(user);
-        }
-      }}
-      activeOpacity={user && !isMe ? 0.8 : user ? 1 : 0.8}
-      style={[
-        styles.seat,
-        {
-          backgroundColor: isLocked
-            ? "#1A0A0A"
-            : user
-              ? isSuperAdminUser ? "#FFD70014" : `${userColor}18`
-              : colors.backgroundTertiary,
-          borderColor: isLocked
-            ? "#FF3B5C44"
-            : user
-              ? isSuperAdminUser ? "#FFD700"
-                : speaking ? userColor : `${userColor}55`
-              : colors.border,
-          borderWidth: isSuperAdminUser ? 2 : 1.5,
-          borderStyle: isLocked && !user ? "dashed" : "solid",
-        },
-      ]}
-    >
-      <View style={styles.seatInner}>
-        {/* رقم المقعد */}
-        <View style={[styles.seatNumberBadge, { backgroundColor: isLocked ? "#FF3B5C22" : `${colors.border}99` }]}>
-          <Text style={[styles.seatNumberText, { color: isLocked ? "#FF3B5C" : colors.textSecondary }]}>
-            {isLocked ? "🔒" : `${index + 1}`}
-          </Text>
-        </View>
-
-        {user && (
-          <TouchableOpacity
-            onPress={() => {
-              if (!isMe) router.push(`/profile/${user.id}` as any);
-            }}
-            activeOpacity={isMe ? 1 : 0.75}
-            style={styles.avatarRingWrap}
-          >
+    <View style={styles.seatWrapper}>
+      <TouchableOpacity
+        onPress={() => {
+          if (isLocked && !canAdmin) { Alert.alert("", t("seatLocked")); return; }
+          if (!user) { onPress(index); }
+          else if (!isMe) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onUserPress(user); }
+        }}
+        activeOpacity={user && !isMe ? 0.8 : 0.85}
+        style={[
+          styles.seatCircle,
+          {
+            backgroundColor: user
+              ? isSuperAdminUser ? "#FFD70020" : `${userColor}20`
+              : isLocked ? "#1A0A0A" : colors.backgroundTertiary,
+            borderColor: user
+              ? speaking && !effectiveMuted ? (isSuperAdminUser ? "#FFD700" : userColor) : "transparent"
+              : isLocked ? "#FF3B5C44" : colors.border,
+            borderWidth: user && speaking && !effectiveMuted ? 2.5 : 1,
+          },
+        ]}
+      >
+        {user ? (
+          <>
             {!effectiveMuted && (
               <SpeakingRing color={isSuperAdminUser ? "#FFD700" : userColor} speaking={speaking} />
             )}
-            <View style={[styles.seatAvatarLg, { backgroundColor: isSuperAdminUser ? "#FFD700" : `${userColor}40` }]}>
+            {/* Avatar fills the full circle */}
+            <View style={styles.seatAvatarFill}>
               {user.avatar ? (
-                <Image source={{ uri: user.avatar }} style={styles.seatAvatarImg} />
+                <Image source={{ uri: user.avatar }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
               ) : (
-                <Text style={[styles.seatAvatarText, { color: isSuperAdminUser ? "#000" : userColor }]}>
-                  {user.name[0]?.toUpperCase()}
-                </Text>
+                <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center", backgroundColor: isSuperAdminUser ? "#FFD700" : `${userColor}55` }]}>
+                  <Text style={[styles.seatAvatarText, { color: isSuperAdminUser ? "#000" : userColor, fontSize: 24 }]}>
+                    {user.name[0]?.toUpperCase()}
+                  </Text>
+                </View>
               )}
             </View>
+            {/* Mic badge overlay */}
+            <View style={[styles.seatMicBadge, { backgroundColor: effectiveMuted ? "#FF3B5C" : speaking ? (isSuperAdminUser ? "#FFD700" : userColor) : "#1C1C1E" }]}>
+              <Ionicons name={effectiveMuted ? "mic-off" : "mic"} size={9} color={effectiveMuted ? "#fff" : isSuperAdminUser && !effectiveMuted ? "#000" : "#fff"} />
+            </View>
+          </>
+        ) : isLocked ? (
+          <Ionicons name="lock-closed" size={24} color="#FF3B5C66" />
+        ) : (
+          <Ionicons name="add" size={26} color={colors.textSecondary} />
+        )}
+      </TouchableOpacity>
+
+      {/* Label below seat */}
+      <Text style={[styles.seatLabelName, { color: user ? colors.text : colors.textSecondary }]} numberOfLines={1}>
+        {user
+          ? (isSuperAdminUser ? "👑 " : "") + (isMe ? "أنا" : user.name.split(" ")[0])
+          : isLocked ? "🔒" : `${index + 1}`}
+      </Text>
+
+      {/* Leave seat button for current user */}
+      {user && isMe && (
+        <TouchableOpacity
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onLeaveSeat(); }}
+          style={[styles.seatActionBtn, { backgroundColor: `${colors.danger}22` }]}
+        >
+          <Ionicons name="arrow-down-circle-outline" size={11} color={colors.danger} />
+          <Text style={[styles.seatActionText, { color: colors.danger }]}>نزول</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Unlock button for admins on locked empty seats */}
+      {isLocked && canAdmin && !user && (
+        <TouchableOpacity
+          onPress={() => onUnlockSeat(index)}
+          style={[styles.seatActionBtn, { backgroundColor: "#34D39922" }]}
+        >
+          <Ionicons name="lock-open-outline" size={11} color="#34D399" />
+          <Text style={[styles.seatActionText, { color: "#34D399" }]}>فتح</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+// ─── قائمة سياق مخصصة مع النمط الداكن ───
+function RoomMsgContextSheet({
+  visible, isMe, isPinned, isRoomOwner, onClose, onReply, onEdit, onDelete, onPin,
+}: {
+  visible: boolean; isMe: boolean; isPinned: boolean; isRoomOwner: boolean;
+  onClose: () => void; onReply: () => void; onEdit: () => void;
+  onDelete: () => void; onPin: () => void;
+}) {
+  if (!visible) return null;
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={roomCtxStyles.backdrop} onPress={onClose} />
+      <View style={roomCtxStyles.sheet}>
+        <View style={roomCtxStyles.handle} />
+
+        <TouchableOpacity style={roomCtxStyles.item} onPress={() => { onReply(); onClose(); }}>
+          <View style={[roomCtxStyles.icon, { backgroundColor: "#3D91F422" }]}>
+            <Ionicons name="arrow-undo-outline" size={17} color="#3D91F4" />
+          </View>
+          <Text style={roomCtxStyles.label}>رد</Text>
+        </TouchableOpacity>
+
+        {isMe && (
+          <TouchableOpacity style={roomCtxStyles.item} onPress={() => { onEdit(); onClose(); }}>
+            <View style={[roomCtxStyles.icon, { backgroundColor: "#10B98122" }]}>
+              <Ionicons name="pencil-outline" size={17} color="#10B981" />
+            </View>
+            <Text style={roomCtxStyles.label}>تعديل</Text>
           </TouchableOpacity>
         )}
 
-        {user ? (
+        {isRoomOwner && (
+          <TouchableOpacity style={roomCtxStyles.item} onPress={() => { onPin(); onClose(); }}>
+            <View style={[roomCtxStyles.icon, { backgroundColor: "#F59E0B22" }]}>
+              <Ionicons name="pin-outline" size={17} color="#F59E0B" />
+            </View>
+            <Text style={roomCtxStyles.label}>{isPinned ? "إلغاء التثبيت" : "تثبيت"}</Text>
+          </TouchableOpacity>
+        )}
+
+        {(isMe || isRoomOwner) && (
           <>
-            <View style={styles.seatNameRow}>
-              {isSuperAdminUser && <Text style={{ fontSize: 9 }}>👑</Text>}
-              <Text style={[styles.seatName, { color: colors.text }]} numberOfLines={1}>
-                {isMe ? "أنا" : user.name.split(" ")[0]}
-              </Text>
-            </View>
-            <View style={[styles.micIndicator, { backgroundColor: speaking && !effectiveMuted ? `${userColor}33` : "transparent" }]}>
-              <Ionicons
-                name={effectiveMuted ? "mic-off-outline" : speaking ? "mic" : "mic-outline"}
-                size={11}
-                color={effectiveMuted ? colors.danger : speaking && !effectiveMuted ? userColor : colors.textSecondary}
-              />
-            </View>
-            {isMe && (
-              <TouchableOpacity
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  onLeaveSeat();
-                }}
-                style={[styles.leaveSeatBtn, { backgroundColor: `${colors.danger}22` }]}
-              >
-                <Ionicons name="arrow-down-circle-outline" size={12} color={colors.danger} />
-                <Text style={[styles.leaveSeatText, { color: colors.danger }]}>نزول</Text>
-              </TouchableOpacity>
-            )}
-            {!isMe && canAdmin && !isLocked && (
-              <TouchableOpacity
-                onPress={() => onLockSeat(index)}
-                style={[styles.lockBtn, { backgroundColor: "#FF3B5C22" }]}
-              >
-                <Ionicons name="lock-closed-outline" size={9} color="#FF3B5C" />
-              </TouchableOpacity>
-            )}
-            {!isMe && !canAdmin && (
-              <View style={[styles.tapHint, { backgroundColor: `${userColor}22` }]}>
-                <Ionicons name="ellipsis-horizontal" size={9} color={userColor} />
+            <View style={roomCtxStyles.sep} />
+            <TouchableOpacity style={roomCtxStyles.item} onPress={() => { onDelete(); onClose(); }}>
+              <View style={[roomCtxStyles.icon, { backgroundColor: "#EF444422" }]}>
+                <Ionicons name="trash-outline" size={17} color="#EF4444" />
               </View>
-            )}
-          </>
-        ) : isLocked ? (
-          <>
-            <Text style={[styles.seatEmptyLabel, { color: "#FF3B5C", fontSize: 8 }]}>
-              {t("seatLocked")}
-            </Text>
-            {canAdmin && (
-              <TouchableOpacity
-                onPress={() => onUnlockSeat(index)}
-                style={[styles.leaveSeatBtn, { backgroundColor: "#34D39922" }]}
-              >
-                <Ionicons name="lock-open-outline" size={11} color="#34D399" />
-                <Text style={[styles.leaveSeatText, { color: "#34D399", fontSize: 8 }]}>فتح</Text>
-              </TouchableOpacity>
-            )}
-          </>
-        ) : (
-          <>
-            <View style={[styles.emptyAvatarCircle, { borderColor: colors.border }]}>
-              <Ionicons name="add" size={22} color={colors.textSecondary} />
-            </View>
-            <Text style={[styles.seatEmptyLabel, { color: colors.textSecondary }]}>
-              {index + 1}
-            </Text>
-            {canAdmin && (
-              <TouchableOpacity
-                onPress={() => onLockSeat(index)}
-                style={[styles.lockBtn, { backgroundColor: "#FF3B5C11" }]}
-              >
-                <Ionicons name="lock-closed-outline" size={9} color="#FF3B5C66" />
-              </TouchableOpacity>
-            )}
+              <Text style={[roomCtxStyles.label, { color: "#EF4444" }]}>حذف</Text>
+            </TouchableOpacity>
           </>
         )}
       </View>
-    </TouchableOpacity>
+    </Modal>
   );
 }
+
+const roomCtxStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.72)" },
+  sheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: "#121212",
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 20, paddingBottom: 38, gap: 2,
+    borderWidth: 1, borderColor: "#262626",
+    shadowColor: "#000", shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.6, shadowRadius: 14, elevation: 14,
+  },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#2C2C2E", alignSelf: "center", marginBottom: 14 },
+  item: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 12, paddingHorizontal: 4 },
+  icon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  label: { fontSize: 15, fontFamily: "Inter_500Medium", color: "#FFFFFF" },
+  sep: { height: 1, backgroundColor: "#262626", marginVertical: 4 },
+});
 
 // ─── فقاعة الدردشة مع التفاعل والرد والتمرير ───
 function ChatBubble({
@@ -258,38 +272,12 @@ function ChatBubble({
     })
   ).current;
 
+  const [showCtxSheet, setShowCtxSheet] = useState(false);
+
   const handleLongPress = () => {
     if (msg.type === "system") return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    const options: string[] = [];
-    const actions: (() => void)[] = [];
-
-    options.push("رد");
-    actions.push(() => onReply(msg));
-
-    if (isMe) {
-      options.push("تعديل");
-      actions.push(() => onEdit(msg));
-    }
-
-    if (isMe || isRoomOwner) {
-      options.push("حذف");
-      actions.push(() => onDelete(msg));
-    }
-
-    if (isRoomOwner) {
-      options.push(msg.isPinned ? "إلغاء التثبيت" : "تثبيت");
-      actions.push(() => onPin(msg));
-    }
-
-    options.push("إلغاء");
-    actions.push(() => {});
-
-    Alert.alert("", "اختر إجراء", options.map((o, i) => ({
-      text: o,
-      style: o === "حذف" ? "destructive" : o === "إلغاء" ? "cancel" : "default",
-      onPress: actions[i],
-    })));
+    setShowCtxSheet(true);
   };
 
   if (msg.type === "system") {
@@ -412,6 +400,19 @@ function ChatBubble({
           ))}
         </View>
       )}
+
+      {/* قائمة السياق الداكنة */}
+      <RoomMsgContextSheet
+        visible={showCtxSheet}
+        isMe={isMe}
+        isPinned={msg.isPinned ?? false}
+        isRoomOwner={isRoomOwner}
+        onClose={() => setShowCtxSheet(false)}
+        onReply={() => onReply(msg)}
+        onEdit={() => onEdit(msg)}
+        onDelete={() => onDelete(msg)}
+        onPin={() => onPin(msg)}
+      />
     </Animated.View>
   );
 }
@@ -798,22 +799,17 @@ export default function RoomScreen() {
 
           <View style={styles.headerInfo}>
             <Text style={[styles.roomTitle, { color: colors.text }]} numberOfLines={1}>{room.name}</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <Text style={[styles.roomOwner, { color: colors.textSecondary }]}>
-                👤 {room.ownerName}
-              </Text>
-              {room.roomCode ? (
-                <>
-                  <Text style={[styles.roomCodeText, { color: accentColor }]}>#{room.roomCode}</Text>
-                  <TouchableOpacity
-                    onPress={copyRoomCode}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="copy-outline" size={12} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </>
-              ) : null}
-            </View>
+            <Text style={[styles.roomOwner, { color: colors.textSecondary }]}>👤 {room.ownerName}</Text>
+            {room.roomCode ? (
+              <TouchableOpacity
+                onPress={copyRoomCode}
+                style={{ flexDirection: "row", alignItems: "center", gap: 3 }}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Text style={styles.roomCodeSubtext}>#{room.roomCode}</Text>
+                <Ionicons name="copy-outline" size={9} color={colors.textSecondary} style={{ opacity: 0.45 }} />
+              </TouchableOpacity>
+            ) : null}
           </View>
 
           <TouchableOpacity
@@ -1600,7 +1596,7 @@ const styles = StyleSheet.create({
   headerInfo: { flex: 1 },
   roomTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
   roomOwner: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
-  roomCodeText: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  roomCodeSubtext: { fontSize: 9, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.3)", letterSpacing: 0.5 },
   presenceBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1,
@@ -1616,60 +1612,44 @@ const styles = StyleSheet.create({
     flex: 1, fontFamily: "Inter_500Medium", fontSize: 13, lineHeight: 18, textAlign: "right",
   },
 
-  // Seats — circular, larger, strict 2×4 grid
+  // Seats — simplified: circular avatar only + mic badge
   seatsSection: { paddingHorizontal: 8, paddingBottom: 4 },
   seatsGrid: {
     flexDirection: "row", flexWrap: "wrap",
-    justifyContent: "space-evenly", gap: 6,
+    justifyContent: "space-evenly", gap: 10,
   },
-  seat: {
-    width: SEAT_SIZE, height: SEAT_SIZE,
-    borderRadius: SEAT_SIZE / 2,
+  seatWrapper: {
+    width: SEAT_SIZE, alignItems: "center", gap: 4,
+  },
+  seatCircle: {
+    width: SEAT_SIZE, height: SEAT_SIZE, borderRadius: SEAT_SIZE / 2,
     overflow: "visible", position: "relative",
     alignItems: "center", justifyContent: "center",
   },
-  seatInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 2, padding: 4 },
-  seatNumberBadge: {
-    position: "absolute", top: 2, right: 2,
-    borderRadius: 5, paddingHorizontal: 3, paddingVertical: 1,
-  },
-  seatNumberText: { fontSize: 7, fontFamily: "Inter_700Bold" },
-  avatarRingWrap: {
-    position: "relative", width: 44, height: 44,
-    alignItems: "center", justifyContent: "center",
-  },
   speakRing: {
-    borderRadius: 26, borderWidth: 2.5, position: "absolute",
+    borderRadius: SEAT_SIZE / 2 + 4, borderWidth: 2.5, position: "absolute",
     top: -4, left: -4, right: -4, bottom: -4,
   },
-  seatAvatarLg: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: "center", justifyContent: "center", overflow: "hidden",
+  seatAvatarFill: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    borderRadius: SEAT_SIZE / 2, overflow: "hidden", backgroundColor: "#2C2C2E",
   },
-  seatAvatarImg: { width: "100%", height: "100%", borderRadius: 22 },
-  seatAvatarText: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  seatNameRow: { flexDirection: "row", alignItems: "center", gap: 2 },
-  seatName: { fontSize: 9, fontFamily: "Inter_600SemiBold", textAlign: "center" },
-  micIndicator: {
-    borderRadius: 6, paddingHorizontal: 3, paddingVertical: 1,
-    flexDirection: "row", alignItems: "center", gap: 1,
+  seatAvatarText: { fontFamily: "Inter_700Bold" },
+  seatMicBadge: {
+    position: "absolute", bottom: 2, right: 2,
+    width: 18, height: 18, borderRadius: 9,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderColor: "#000",
   },
-  leaveSeatBtn: {
+  seatLabelName: {
+    fontSize: 9, fontFamily: "Inter_600SemiBold",
+    textAlign: "center", maxWidth: SEAT_SIZE,
+  },
+  seatActionBtn: {
     flexDirection: "row", alignItems: "center", gap: 2,
-    borderRadius: 7, paddingHorizontal: 4, paddingVertical: 2, marginTop: 1,
+    borderRadius: 7, paddingHorizontal: 5, paddingVertical: 3,
   },
-  leaveSeatText: { fontSize: 8, fontFamily: "Inter_600SemiBold" },
-  lockBtn: {
-    borderRadius: 5, paddingHorizontal: 3, paddingVertical: 2, marginTop: 1,
-    alignItems: "center", justifyContent: "center",
-  },
-  tapHint: { borderRadius: 5, paddingHorizontal: 4, paddingVertical: 2 },
-  emptyAvatarCircle: {
-    width: 40, height: 40, borderRadius: 20,
-    alignItems: "center", justifyContent: "center",
-    borderWidth: 1.5, borderStyle: "dashed",
-  },
-  seatEmptyLabel: { fontSize: 9, fontFamily: "Inter_700Bold" },
+  seatActionText: { fontSize: 8, fontFamily: "Inter_600SemiBold" },
 
   // Chat
   chatArea: { flex: 1, borderTopWidth: 1, backgroundColor: "rgba(0,0,0,0.55)" },

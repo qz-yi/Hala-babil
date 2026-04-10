@@ -1,0 +1,21 @@
+Task: Execute the following critical UI/UX upgrades and bug fixes for the "Hilla Connect" app. Ensure all changes follow the established Dark Theme and consistent branding.
+​1️⃣ Global Image Cropper Upgrade
+​Requirement: In the Image Cropping module, replace the text-based "CROP" button with a stylized "Checkmark" (✓) icon.
+​Specifications: The icon should be professionally designed (SVG preferred), circular, and matching the app's primary color palette (Orange/White/Dark).
+​Scope: Apply this change globally across all image upload flows: (Profile Picture, Cover Photo, Post Creation, Reels Upload, and Restaurant Management).
+​2️⃣ Chat Feed: User Identity & Message Bubbles
+​User Display: Modify the Chat Message component to display both the User's Avatar (Circular) and Username next to every message bubble. Refactor the layout to include the profile image for better identity recognition.
+​Reply UI Fix: The current "Reply to message" UI is excessively long. Refactor the Reply Bubble to be condensed, with a fixed maximum height and a subtle background tint that distinguishes it from the main message.
+​3️⃣ Audio Room Seat & Layout Optimization
+​Seat Component Redesign (New): - Visuals: Simplify the user seat UI. Display ONLY the circular Profile Image of the user on the seat. Remove all unnecessary borders, frames, or background texts.
+​Microphone Icon: Place a small, clean Microphone Icon directly next to or as an overlay on the profile image.
+​Logic: This icon must dynamically update its state (Open/Muted) in real-time based on the user's microphone status controlled from the bottom bar.
+​Room Header Cleanup:
+​Room ID Placement: Move the Room ID to a sub-position directly underneath the Room Name.
+​Styling: Use a smaller font size and lower opacity for the ID to create a clear visual hierarchy.
+​4️⃣ Message Context Menu (Theming)
+​Problem: The long-press options menu (Delete, Edit, Reply) currently uses default system styles.
+​Fix: Apply the Hilla Connect Dark Theme to this context menu. Use rounded corners, the app's specific background hex code, and themed typography for the action labels. Add a semi-transparent overlay to the background.
+​5️⃣ Logic & Broadcast Consistency
+​Ensure that the condensed Reply UI, Chat Avatars, and Seat Microphone States are correctly mapped to the existing data structure in PostgreSQL.
+​All UI state changes (Mic status, Seat updates, Room ID) must remain perfectly synced via Socket.io for all participants in the room.

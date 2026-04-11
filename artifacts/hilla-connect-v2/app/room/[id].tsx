@@ -581,7 +581,8 @@ export default function RoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
     rooms, currentUser, isSuperAdmin, users,
-    joinRoomSeat, leaveRoomSeat, kickFromRoom, banFromRoom, deleteRoom,
+    joinRoomSeat, leaveRoomSeat, joinRoomPresence, leaveRoomPresence,
+    kickFromRoom, banFromRoom, deleteRoom,
     sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
     muteUserInRoom, updateRoomBackground, setRoomAnnouncement,
     lockSeat, unlockSeat, lockSeatsInRoom, shareRoomToDM, t, theme,
@@ -611,17 +612,30 @@ export default function RoomScreen() {
   // Draggable seat divider
   const [seatsVisible, setSeatsVisible] = useState(true);
   const seatsDragY = useRef(new Animated.Value(0)).current;
+  const seatsHeightAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.timing(seatsHeightAnim, {
+      toValue: seatsVisible ? 1 : 0,
+      duration: 220,
+      useNativeDriver: false,
+    }).start();
+  }, [seatsVisible]);
+
   const seatsDividerPan = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 5,
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 8,
       onPanResponderMove: (_, gs) => {
         if (gs.dy < 0) seatsDragY.setValue(Math.max(gs.dy, -200));
         else if (gs.dy > 0) seatsDragY.setValue(Math.min(gs.dy, 200));
       },
       onPanResponderRelease: (_, gs) => {
         seatsDragY.setValue(0);
-        if (gs.dy < -50) {
+        if (Math.abs(gs.dy) < 8 && Math.abs(gs.dx) < 8) {
+          setSeatsVisible((prev) => !prev);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        } else if (gs.dy < -50) {
           setSeatsVisible(false);
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         } else if (gs.dy > 50) {
@@ -683,7 +697,23 @@ export default function RoomScreen() {
     return () => { sound?.unloadAsync(); };
   }, []);
 
-  const presentMembers = (room.seatUsers ?? []).filter(Boolean) as User[];
+  useEffect(() => {
+    if (!id) return;
+    joinRoomPresence(id);
+    return () => {
+      leaveRoomPresence(id);
+    };
+  }, [id]);
+
+  const presentUserIds = room.presentUserIds ?? [];
+  const seatedUserIds = (room.seats ?? []).filter(Boolean) as string[];
+  const audienceMembers = users.filter(
+    (u) => presentUserIds.includes(u.id) && !seatedUserIds.includes(u.id)
+  );
+  const presentMembers = [
+    ...((room.seatUsers ?? []).filter(Boolean) as User[]),
+    ...audienceMembers,
+  ];
   const presenceCount = presentMembers.length;
   const lockedSeats = room.lockedSeats ?? Array(8).fill(false);
   const myFollowing = users.filter((u) => u.id !== currentUser?.id);
@@ -692,7 +722,7 @@ export default function RoomScreen() {
 
   const handleLeaveRoom = () => {
     setMuted(true);
-    leaveRoomSeat(room.id);
+    leaveRoomPresence(room.id);
     showToast("غادرت الغرفة", "info");
     router.back();
   };
@@ -986,9 +1016,18 @@ export default function RoomScreen() {
         </View>
       )}
 
-      {/* Seats — 2 rows × 4 cols */}
-      {seatsVisible && (
-      <View style={styles.seatsSection}>
+      {/* Seats — 2 rows × 4 cols, animated height */}
+      <Animated.View style={[
+        styles.seatsSection,
+        {
+          overflow: "hidden",
+          maxHeight: seatsHeightAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 400],
+          }),
+          opacity: seatsHeightAnim,
+        },
+      ]}>
         <View style={styles.seatsGrid}>
           {Array(8).fill(null).map((_, i) => (
             <SeatCard
@@ -1020,8 +1059,7 @@ export default function RoomScreen() {
             />
           ))}
         </View>
-      </View>
-      )}
+      </Animated.View>
 
       {/* Draggable Seat/Chat Divider */}
       <View
@@ -1089,6 +1127,7 @@ export default function RoomScreen() {
           inverted
           contentContainerStyle={styles.chatList}
           showsVerticalScrollIndicator={false}
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
           renderItem={({ item }) => {
             const senderUser =
               (room.seatUsers ?? []).find((u: any) => u?.id === item.senderId) ??

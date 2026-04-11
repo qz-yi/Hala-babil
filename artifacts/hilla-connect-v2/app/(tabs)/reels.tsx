@@ -166,23 +166,39 @@ function ReelPlayerItem({
 
       {/* Action buttons - must be on top, so use onPress to stop propagation */}
       <View style={[styles.reelActions, { paddingBottom: insets.bottom + 90 }]}>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onLike(); }}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onLike(); }}
+        >
           <Feather name="heart" size={28} color={isLiked ? "#FF3B5C" : "#fff"} strokeWidth={isLiked ? 0 : 1.5} />
           <Text style={styles.actionCount}>{likesCount}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onComment(); }}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onComment(); }}
+        >
           <Feather name="message-circle" size={26} color="#fff" strokeWidth={1.5} />
           <Text style={styles.actionCount}>{commentsCount}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onShare(); }}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onShare(); }}
+        >
           <Feather name="send" size={26} color="#fff" strokeWidth={1.5} />
           <Text style={styles.actionCount}>مشاركة</Text>
         </TouchableOpacity>
 
         {isOwner && (
-          <TouchableOpacity style={styles.actionBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onDelete(); }}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onDelete(); }}
+          >
             <Feather name="trash-2" size={22} color="#FF3B5C" strokeWidth={1.5} />
           </TouchableOpacity>
         )}
@@ -937,7 +953,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 4,
   },
   reelActions: { position: "absolute", right: 12, bottom: 0, alignItems: "center", gap: 20 },
-  actionBtn: { alignItems: "center", gap: 4 },
+  actionBtn: { alignItems: "center", gap: 4, minWidth: 44, minHeight: 44, justifyContent: "center" },
   actionCount: {
     color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12,
     textShadowColor: "rgba(0,0,0,0.6)",

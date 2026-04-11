@@ -731,7 +731,11 @@ export default function PostDetailScreen() {
         {/* Actions */}
         <View style={[styles.actions, { justifyContent: "space-between" }]}>
           <View style={{ flexDirection: "row", gap: 4 }}>
-            <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
+            <TouchableOpacity
+              style={styles.actionBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              onPress={handleLike}
+            >
               <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
                 <Ionicons
                   name={liked ? "heart" : "heart-outline"}
@@ -742,20 +746,29 @@ export default function PostDetailScreen() {
               <Text style={[styles.actionCount, { color: colors.textSecondary }]}>{likesCount}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionBtn} onPress={() => setShowComments(true)}>
+            <TouchableOpacity
+              style={styles.actionBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              onPress={() => setShowComments(true)}
+            >
               <Ionicons name="chatbubble-outline" size={24} color={colors.textSecondary} />
               <Text style={[styles.actionCount, { color: colors.textSecondary }]}>
                 {comments.length}
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionBtn} onPress={() => setShowShare(true)}>
+            <TouchableOpacity
+              style={styles.actionBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              onPress={() => setShowShare(true)}
+            >
               <Ionicons name="paper-plane-outline" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity
             style={styles.actionBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             onPress={() => {
               if (isPostSaved(post.id)) unsavePost(post.id);
               else savePost(post.id);
@@ -874,7 +887,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center",
     paddingHorizontal: 12, paddingBottom: 12, gap: 22,
   },
-  actionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, minWidth: 44, paddingHorizontal: 4 },
   actionCount: { fontSize: 14, fontFamily: "Inter_500Medium" },
   openCommentsBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",

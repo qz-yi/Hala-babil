@@ -1,0 +1,28 @@
+Task: Execute the following critical technical fixes and UI optimizations for the "Hilla Connect" app. Focus on touch responsiveness, layout stability, and room logic.
+
+​1️⃣ UI Responsiveness: Touch Targets (High Priority)
+
+​Problem: Action icons (Like, Comment, Share, Delete) in Reels and Posts are difficult to tap.
+
+​Fix: Increase the Hit Slop or Touch Target Area for all interactive icons to at least 44x44dp. Ensure the TouchableOpacity or Pressable components have sufficient padding or use the hitSlop prop (e.g., hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}) to make them responsive to nearby touches.
+
+​2️⃣ Audio Room: Chat Stability & Handle Logic
+
+​Jittering Fix: In the Audio Room, when the seat divider handle is dragged to hide the seats while the keyboard is open or messages are being sent, the chat feed "jitters/vibrates". 
+
+​Action: Refactor the Chat Container height logic. Use a fixed-height transition or Animated.View with an explicit height value to prevent layout recalculation loops. Ensure FlatList properties like maintainVisibleContentPosition are optimized to handle container resizing without jumping.
+
+​Handle Interaction: Modify the divider handle to support a Toggle on Tap. Clicking the handle once should instantly expand or collapse the seats (Slide animation), in addition to the existing drag functionality.
+
+​3️⃣ Audio Room: Member Logic & System Logs
+
+​Viewer List (Eye Icon): Currently, the viewer list only reflects users on seats. Fix: Update the logic to fetch and display ALL users currently present in the Socket.io room (Audience + Speakers).
+
+​Entry/Exit Logs: System messages (e.g., "User entered the room") are incorrectly tied to seat actions. 
+
+​Logic Change: Trigger the "Entered/Joined" and "Left" logs based on the Room Connection events (Socket joinRoom / leaveRoom). Standing up or sitting down on a seat should NOT trigger a "Left the room" message; only actual disconnection or exiting the room should.
+
+​4️⃣ Logic Verification
+
+​Verify that all state changes for room members and system logs are persisted in the Backend and broadcast correctly via Socket.io to prevent desync between the "Eye" count and actual users.
+

@@ -731,7 +731,11 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
       {/* ── Actions ── */}
       <View style={[styles.postActions, { borderTopColor: colors.border }]}>
         <View style={styles.postActionsLeft}>
-          <TouchableOpacity style={styles.postActionBtn} onPress={handleLike}>
+          <TouchableOpacity
+            style={styles.postActionBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={handleLike}
+          >
             <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
               <Feather
                 name="heart"
@@ -747,6 +751,7 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
 
           <TouchableOpacity
             style={styles.postActionBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setShowComments(true);
@@ -760,6 +765,7 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
 
           <TouchableOpacity
             style={styles.postActionBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setShowShare(true);
@@ -770,6 +776,7 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
         </View>
 
         <TouchableOpacity
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           onPress={() => {
             if (bookmarked) unsavePost(post.id);
             else savePost(post.id);
@@ -1100,7 +1107,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   postActionsLeft: { flexDirection: "row", alignItems: "center", gap: 16 },
-  postActionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+  postActionBtn: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, minWidth: 44, paddingHorizontal: 4 },
   postActionCount: { fontSize: 14, fontFamily: "Inter_500Medium" },
 
   // Comment Sheet

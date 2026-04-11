@@ -415,7 +415,11 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
       {/* Actions */}
       <View style={[styles.actions, { borderTopColor: colors.border }]}>
         <View style={styles.actionsLeft}>
-          <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={handleLike}
+          >
             <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
               <Feather
                 name="heart"
@@ -431,6 +435,7 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
 
           <TouchableOpacity
             style={styles.actionBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setShowComments(true);
@@ -444,6 +449,7 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
         </View>
 
         <TouchableOpacity
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           onPress={() => {
             if (bookmarked) unsavePost(post.id);
             else savePost(post.id);
@@ -598,7 +604,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 0.5,
   },
   actionsLeft: { flexDirection: "row", alignItems: "center", gap: 16 },
-  actionBtn: { flexDirection: "row", alignItems: "center", gap: 6 },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 44, minWidth: 44, paddingHorizontal: 4 },
   actionCount: { fontSize: 14, fontFamily: "Inter_500Medium" },
 
   // Carousel

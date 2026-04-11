@@ -62,6 +62,7 @@ export interface Room {
   announcement?: string;
   isHidden: boolean;
   createdAt: number;
+  presentUserIds?: string[];
 }
 
 export interface SharedContent {
@@ -268,6 +269,8 @@ interface AppContextValue {
   deleteRoom: (roomId: string) => Promise<void>;
   joinRoomSeat: (roomId: string, seatIndex: number) => void;
   leaveRoomSeat: (roomId: string) => void;
+  joinRoomPresence: (roomId: string) => void;
+  leaveRoomPresence: (roomId: string) => void;
   sendRoomMessage: (roomId: string, content: string, type?: "text" | "image" | "video" | "gif" | "system", mediaUrl?: string, replyToId?: string, replyToContent?: string, replyToSender?: string) => void;
   deleteRoomMessage: (roomId: string, msgId: string) => void;
   pinRoomMessage: (roomId: string, msgId: string) => void;
@@ -1148,15 +1151,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const existingSeat = seats.indexOf(currentUser.id);
         if (existingSeat !== -1) { seats[existingSeat] = null; seatUsers[existingSeat] = null; }
         if (seats[seatIndex] === null) { seats[seatIndex] = currentUser.id; seatUsers[seatIndex] = currentUser; }
-        const systemMsg: Message = {
-          id: generateId(),
-          senderId: "system",
-          senderName: "system",
-          content: `${currentUser.name} دخل الغرفة 🎤`,
-          type: "system",
-          timestamp: Date.now(),
-        };
-        return { ...r, seats, seatUsers, chat: [...r.chat.slice(-100), systemMsg] };
+        return { ...r, seats, seatUsers };
       });
       saveRooms(updated);
     },
@@ -1172,6 +1167,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const seatUsers = [...r.seatUsers];
         const idx = seats.indexOf(currentUser.id);
         if (idx !== -1) { seats[idx] = null; seatUsers[idx] = null; }
+        return { ...r, seats, seatUsers, isHidden: false };
+      });
+      saveRooms(updated);
+    },
+    [currentUser, rooms]
+  );
+
+  const joinRoomPresence = useCallback(
+    (roomId: string) => {
+      if (!currentUser) return;
+      const updated = rooms.map((r) => {
+        if (r.id !== roomId) return r;
+        if (r.bannedUsers.includes(currentUser.id)) return r;
+        const presentUserIds = [...(r.presentUserIds ?? [])];
+        if (!presentUserIds.includes(currentUser.id)) presentUserIds.push(currentUser.id);
+        const systemMsg: Message = {
+          id: generateId(),
+          senderId: "system",
+          senderName: "system",
+          content: `${currentUser.name} دخل الغرفة 🎤`,
+          type: "system",
+          timestamp: Date.now(),
+        };
+        return { ...r, presentUserIds, chat: [...r.chat.slice(-100), systemMsg] };
+      });
+      saveRooms(updated);
+    },
+    [currentUser, rooms]
+  );
+
+  const leaveRoomPresence = useCallback(
+    (roomId: string) => {
+      if (!currentUser) return;
+      const updated = rooms.map((r) => {
+        if (r.id !== roomId) return r;
+        const presentUserIds = (r.presentUserIds ?? []).filter((id) => id !== currentUser.id);
+        const seats = [...r.seats];
+        const seatUsers = [...r.seatUsers];
+        const idx = seats.indexOf(currentUser.id);
+        if (idx !== -1) { seats[idx] = null; seatUsers[idx] = null; }
         const systemMsg: Message = {
           id: generateId(),
           senderId: "system",
@@ -1180,7 +1215,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           type: "system",
           timestamp: Date.now(),
         };
-        return { ...r, seats, seatUsers, isHidden: false, chat: [...r.chat.slice(-100), systemMsg] };
+        return { ...r, seats, seatUsers, presentUserIds, isHidden: false, chat: [...r.chat.slice(-100), systemMsg] };
       });
       saveRooms(updated);
     },
@@ -2638,6 +2673,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isSuperAdmin, users, rooms, conversations, restaurants, reels, reelLikes, reelComments,
       posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, updateCoverPhoto, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
+      joinRoomPresence, leaveRoomPresence,
       sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
       kickFromRoom, banFromRoom, muteUserInRoom,
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, lockSeatsInRoom, shareRoomToDM, searchRoomByCode,
@@ -2663,6 +2699,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       language, theme, currentUser, isSuperAdmin, users, rooms, conversations, restaurants,
       reels, reelLikes, reelComments, posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, updateCoverPhoto, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
+      joinRoomPresence, leaveRoomPresence,
       sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
       kickFromRoom, banFromRoom, muteUserInRoom,
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, lockSeatsInRoom, shareRoomToDM, searchRoomByCode,

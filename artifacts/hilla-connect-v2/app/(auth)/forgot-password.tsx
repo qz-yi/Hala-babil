@@ -38,7 +38,6 @@ export default function ForgotPasswordScreen() {
   const [stage, setStage] = useState<Stage>("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [sentOtp, setSentOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNew, setShowNew] = useState(false);
@@ -59,24 +58,23 @@ export default function ForgotPasswordScreen() {
     const result = await sendEmailOTP(email.trim());
     setLoading(false);
     if (!result.success) {
-      showToast(t("emailNotFound"), "error");
+      const msg = result.error === "network_error"
+        ? "تعذّر الاتصال بالخادم. تحقق من اتصالك."
+        : t("emailNotFound");
+      showToast(msg, "error");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
-    setSentOtp(result.otp || "");
-    showToast(`${t("otpSent")} (رمزك: ${result.otp})`, "success");
+    showToast(t("otpSent"), "success");
     setStage("otp");
     setTimeout(() => otpRef.current?.focus(), 400);
   };
 
   const handleVerifyOTP = () => {
-    if (!otp.trim()) { showToast(t("fillAll"), "error"); return; }
-    if (otp.trim() !== sentOtp) {
-      showToast(t("otpInvalid"), "error");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    if (!otp.trim() || otp.trim().length !== 6) {
+      showToast("أدخل رمز التحقق المكوّن من 6 أرقام", "error");
       return;
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setStage("reset");
     setTimeout(() => newPassRef.current?.focus(), 400);
   };
@@ -93,7 +91,17 @@ export default function ForgotPasswordScreen() {
       showToast(t("passwordChanged"), "success");
       setStage("done");
     } else {
-      showToast(t("otpInvalid"), "error");
+      const errMsg = result.error === "network_error"
+        ? "تعذّر الاتصال بالخادم. تحقق من اتصالك."
+        : result.error === "not_found"
+          ? t("emailNotFound")
+          : t("otpInvalid");
+      showToast(errMsg, "error");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (result.error !== "network_error" && result.error !== "not_found") {
+        setStage("otp");
+        setOtp("");
+      }
     }
   };
 

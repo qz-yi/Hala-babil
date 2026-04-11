@@ -1,5 +1,25 @@
 import { pgTable, text, serial, timestamp, integer, boolean, decimal } from "drizzle-orm/pg-core";
 
+// 0. جدول رموز OTP لإعادة تعيين كلمة المرور
+export const otps = pgTable("otps", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull(),
+  otpCode: text("otp_code").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 0b. رموز إعادة التعيين المؤقتة (بعد التحقق من OTP)
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull(),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // 1. جدول المستخدمين (بيانات كاملة)
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),

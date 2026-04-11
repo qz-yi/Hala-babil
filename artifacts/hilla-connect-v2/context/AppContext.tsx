@@ -263,7 +263,7 @@ interface AppContextValue {
   checkUsername: (username: string) => boolean;
   checkEmail: (email: string) => boolean;
   changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
-  sendEmailOTP: (email: string) => Promise<{ success: boolean; otp?: string }>;
+  sendEmailOTP: (email: string) => Promise<{ success: boolean; error?: string }>;
   resetPasswordWithOTP: (email: string, otp: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateProfile: (name: string, bio?: string, avatar?: string, accountType?: AccountType) => Promise<void>;
@@ -1114,34 +1114,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [currentUser, passwords]
   );
 
-  const pendingOTPs = React.useRef<Record<string, { otp: string; expires: number }>>({});
+  const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
+    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+    : "http://localhost:3000";
 
   const sendEmailOTP = useCallback(
-    async (email: string): Promise<{ success: boolean; otp?: string }> => {
-      const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-      if (!user) return { success: false };
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      pendingOTPs.current[email.toLowerCase()] = { otp, expires: Date.now() + 10 * 60 * 1000 };
-      return { success: true, otp };
+    async (email: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/send-otp`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.toLowerCase() }),
+        });
+        const data = await res.json();
+        if (!res.ok) return { success: false, error: data.error || "send_failed" };
+        return { success: true };
+      } catch {
+        return { success: false, error: "network_error" };
+      }
     },
-    [users]
+    [API_BASE]
   );
 
   const resetPasswordWithOTP = useCallback(
     async (email: string, otp: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
-      const entry = pendingOTPs.current[email.toLowerCase()];
-      if (!entry) return { success: false, error: "no_otp" };
-      if (Date.now() > entry.expires) return { success: false, error: "expired" };
-      if (entry.otp !== otp) return { success: false, error: "wrong_otp" };
-      const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-      if (!user) return { success: false, error: "not_found" };
-      const newPasswords = { ...passwords, [user.id]: newPassword };
-      setPasswords(newPasswords);
-      await AsyncStorage.setItem("passwords", JSON.stringify(newPasswords));
-      delete pendingOTPs.current[email.toLowerCase()];
-      return { success: true };
+      try {
+        const verifyRes = await fetch(`${API_BASE}/api/auth/verify-otp`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.toLowerCase(), otpCode: otp.trim() }),
+        });
+        const verifyData = await verifyRes.json();
+        if (!verifyRes.ok || !verifyData.success) {
+          return { success: false, error: verifyData.error || "wrong_otp" };
+        }
+        const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+        if (!user) return { success: false, error: "not_found" };
+        const newPasswords = { ...passwords, [user.id]: newPassword };
+        setPasswords(newPasswords);
+        await AsyncStorage.setItem("passwords", JSON.stringify(newPasswords));
+        return { success: true };
+      } catch {
+        return { success: false, error: "network_error" };
+      }
     },
-    [users, passwords]
+    [API_BASE, users, passwords]
   );
 
   const logout = useCallback(async () => {

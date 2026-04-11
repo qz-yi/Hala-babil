@@ -12,7 +12,7 @@ import {
   Dimensions,
   FlatList,
   Image,
-  KeyboardAvoidingView,
+  Keyboard,
   Modal,
   PanResponder,
   Platform,
@@ -613,6 +613,7 @@ export default function RoomScreen() {
   const [seatsVisible, setSeatsVisible] = useState(true);
   const seatsDragY = useRef(new Animated.Value(0)).current;
   const seatsHeightAnim = useRef(new Animated.Value(1)).current;
+  const keyboardAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(seatsHeightAnim, {
@@ -621,6 +622,32 @@ export default function RoomScreen() {
       useNativeDriver: false,
     }).start();
   }, [seatsVisible]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      Animated.timing(keyboardAnim, {
+        toValue: e.endCoordinates.height,
+        duration: Platform.OS === "ios" ? (e.duration ?? 250) : 150,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, (e) => {
+      Animated.timing(keyboardAnim, {
+        toValue: 0,
+        duration: Platform.OS === "ios" ? (e.duration ?? 250) : 150,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const seatsDividerPan = useRef(
     PanResponder.create({
@@ -1088,10 +1115,8 @@ export default function RoomScreen() {
       </View>
 
       {/* Chat */}
-      <KeyboardAvoidingView
-        style={[styles.chatArea, { borderTopColor: `${colors.border}55` }]}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      <Animated.View
+        style={[styles.chatArea, { borderTopColor: `${colors.border}55`, paddingBottom: keyboardAnim }]}
       >
         {/* Pinned Message Banner */}
         {pinnedMsg && (
@@ -1128,6 +1153,7 @@ export default function RoomScreen() {
           contentContainerStyle={styles.chatList}
           showsVerticalScrollIndicator={false}
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          removeClippedSubviews={false}
           renderItem={({ item }) => {
             const senderUser =
               (room.seatUsers ?? []).find((u: any) => u?.id === item.senderId) ??
@@ -1257,7 +1283,7 @@ export default function RoomScreen() {
             <Ionicons name={editingMsg ? "checkmark" : "send"} size={18} color={message.trim() ? "#fff" : colors.textSecondary} />
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </Animated.View>
 
       {/* User Actions Modal */}
       <UserActionsModal

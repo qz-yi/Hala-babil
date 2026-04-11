@@ -32,8 +32,7 @@ async function pickImage(aspect: [number, number] = [4, 3]): Promise<string | nu
   if (status !== "granted") return null;
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    allowsEditing: true,
-    aspect,
+    allowsEditing: false,
     quality: 0.7,
   });
   if (!result.canceled && result.assets[0]) {

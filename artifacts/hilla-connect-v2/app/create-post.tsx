@@ -120,7 +120,7 @@ export default function CreatePostScreen() {
     if (status !== "granted") { showToast("يرجى السماح بالوصول للمعرض", "error"); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-      allowsEditing: true,
+      allowsEditing: false,
       quality: 0.7,
     });
     if (!result.canceled && result.assets[0]) {

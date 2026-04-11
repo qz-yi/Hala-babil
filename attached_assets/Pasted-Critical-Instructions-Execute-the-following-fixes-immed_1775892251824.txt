@@ -1,0 +1,17 @@
+Critical Instructions: Execute the following fixes immediately. Do not remove existing functionalities; only repair and refactor as specified.
+​1️⃣ Chat Layout & Rendering Fix (Private & Room Chat)
+​Message Stretching: Fix the message bubble styling. Messages are currently appearing excessively long and "inverted/flipped".
+​Refactor: Reset the Flexbox or ListView properties. Ensure messages have a maxWidth (e.g., 75%) and that the flex-direction correctly distinguishes between the sender and receiver without mirroring the text or bubble shape.
+​User Identity: In the Room Chat, the user's Avatar (Profile Picture) is missing. Modify the message component to fetch and display the circular avatar next to the sender's name for every message.
+​2️⃣ Audio Room: Seat Management & Global Mute Bug
+​The "Lock Seats" Feature: You previously removed this button; restore it but move it to the Side Menu (Drawer).
+​Functionality: When "Lock Seats" is clicked in the menu, open a Multi-select Modal/List showing seat numbers (1-8). The owner can then select specific seats to lock or unlock. Update the state via Socket.io.
+​The Global Mute Bug (Critical): Fix the microphone logic. Currently, when the Manager/Moderator mutes their own mic, it mutes everyone in the room.
+​Fix: Isolate the toggleMute event. Ensure the socket broadcast for "Self-Mute" only updates the specific user_id state. A "Global Mute" should be a separate, intentional command, not linked to the manager's personal mute button.
+​3️⃣ Global UI: Image Cropper & Icons
+​Crop Button: The text "CROP" is still appearing in the image selection flow. Force-replace the text label with the Checkmark (✓) Icon globally (Profile, Cover, Posts, etc.).
+​Consistency: Ensure the icon is centered and styled according to the app's action button theme.
+​4️⃣ Room Header Info
+​Room ID: Ensure the Room ID is positioned discretely under the Room Name to prevent overlapping with other header elements.
+​5️⃣ Sync & Persistence
+​Verify that all fixes (especially the microphone isolation and seat locking) are correctly handled in the Backend (Socket.io/PostgreSQL) to prevent state desync between users.

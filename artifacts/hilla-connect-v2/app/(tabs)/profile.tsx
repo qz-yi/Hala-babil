@@ -452,8 +452,7 @@ export default function ProfileScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.85,
-      allowsEditing: true,
-      aspect: [16, 9],
+      allowsEditing: false,
     });
     if (!result.canceled && result.assets[0]) {
       await updateCoverPhoto(result.assets[0].uri);
@@ -489,8 +488,7 @@ export default function ProfileScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
-      allowsEditing: true,
-      aspect: [1, 1],
+      allowsEditing: false,
     });
     if (!result.canceled && result.assets[0]) {
       await updateProfile(currentUser!.name, currentUser!.bio, result.assets[0].uri);

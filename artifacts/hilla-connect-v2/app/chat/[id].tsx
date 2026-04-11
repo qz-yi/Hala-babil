@@ -1508,7 +1508,7 @@ const styles = StyleSheet.create({
   },
   msgAvatarImg: { width: "100%", height: "100%", borderRadius: 15 },
   msgAvatarText: { fontSize: 12, fontFamily: "Inter_700Bold" },
-  msgBubbleCol: { flex: 1 },
+  msgBubbleCol: { flexShrink: 1 },
   msgSenderName: { fontSize: 11, fontFamily: "Inter_600SemiBold", marginBottom: 3, paddingLeft: 2 },
   bubble: { borderRadius: 18, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 12, gap: 4 },
   bubbleText: { fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },

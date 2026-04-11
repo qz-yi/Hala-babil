@@ -98,8 +98,7 @@ export default function CreateStoryScreen() {
     if (status !== "granted") { showToast("يرجى السماح بالوصول للمعرض", "error"); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
-      allowsEditing: true,
-      aspect: [9, 16],
+      allowsEditing: false,
       quality: 0.7,
     });
     if (!result.canceled && result.assets[0]) {

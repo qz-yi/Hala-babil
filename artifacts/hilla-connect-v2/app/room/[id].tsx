@@ -241,7 +241,7 @@ const roomCtxStyles = StyleSheet.create({
 function ChatBubble({
   msg, isMe, colors, onMediaPress,
   onReply, onReaction, onDelete, onPin, onEdit,
-  isRoomOwner, currentUserId,
+  isRoomOwner, currentUserId, senderAvatar,
 }: {
   msg: Message; isMe: boolean; colors: any; onMediaPress: any;
   onReply: (m: Message) => void;
@@ -251,6 +251,7 @@ function ChatBubble({
   onEdit: (m: Message) => void;
   isRoomOwner: boolean;
   currentUserId: string;
+  senderAvatar?: string;
 }) {
   const color = ACCENT_COLORS[msg.senderName.length % ACCENT_COLORS.length];
   const translateX = useRef(new Animated.Value(0)).current;
@@ -316,12 +317,22 @@ function ChatBubble({
         </View>
       )}
 
-      {/* صف الاسم */}
+      {/* صف الاسم والصورة */}
       {!isMe && (
         <TouchableOpacity
           onPress={() => msg.senderId && router.push(`/profile/${msg.senderId}` as any)}
           activeOpacity={0.7}
+          style={{ flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 3 }}
         >
+          <View style={[styles.chatSenderAvatar, { backgroundColor: `${color}25` }]}>
+            {senderAvatar ? (
+              <Image source={{ uri: senderAvatar }} style={styles.chatSenderAvatarImg} />
+            ) : (
+              <Text style={[styles.chatSenderAvatarText, { color }]}>
+                {msg.senderName[0]?.toUpperCase()}
+              </Text>
+            )}
+          </View>
           <Text style={[styles.chatSender, { color }]}>{msg.senderName}</Text>
         </TouchableOpacity>
       )}
@@ -529,6 +540,8 @@ export default function RoomScreen() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showGameEngine, setShowGameEngine] = useState(false);
+  const [showLockSeatsModal, setShowLockSeatsModal] = useState(false);
+  const [lockSeatsTemp, setLockSeatsTemp] = useState<boolean[]>(Array(8).fill(false));
 
   // حالات جديدة
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -905,7 +918,7 @@ export default function RoomScreen() {
               }}
               colors={colors}
               t={t}
-              isMuted={effectiveMuted}
+              isMuted={room.seatUsers[i]?.id === currentUser?.id ? muted : false}
               isAdminMuted={mutedUsers.includes((room.seatUsers[i] as any)?.id ?? "")}
               isLocked={lockedSeats[i] ?? false}
             />
@@ -953,21 +966,27 @@ export default function RoomScreen() {
           inverted
           contentContainerStyle={styles.chatList}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <ChatBubble
-              msg={item}
-              isMe={item.senderId === currentUser?.id}
-              colors={colors}
-              onMediaPress={(uri: string, type: "image" | "video") => setMediaModal({ uri, type })}
-              onReply={handleReply}
-              onReaction={(m: Message) => setEmojiBarTarget(m)}
-              onDelete={handleDelete}
-              onPin={handlePin}
-              onEdit={handleEdit}
-              isRoomOwner={canAdmin}
-              currentUserId={currentUser?.id ?? ""}
-            />
-          )}
+          renderItem={({ item }) => {
+            const senderUser =
+              (room.seatUsers ?? []).find((u: any) => u?.id === item.senderId) ??
+              users.find((u: any) => u.id === item.senderId);
+            return (
+              <ChatBubble
+                msg={item}
+                isMe={item.senderId === currentUser?.id}
+                colors={colors}
+                onMediaPress={(uri: string, type: "image" | "video") => setMediaModal({ uri, type })}
+                onReply={handleReply}
+                onReaction={(m: Message) => setEmojiBarTarget(m)}
+                onDelete={handleDelete}
+                onPin={handlePin}
+                onEdit={handleEdit}
+                isRoomOwner={canAdmin}
+                currentUserId={currentUser?.id ?? ""}
+                senderAvatar={senderUser?.avatar}
+              />
+            );
+          }}
           ListEmptyComponent={
             <View style={styles.emptyChat}>
               <Ionicons name="chatbubbles-outline" size={32} color={colors.border} />
@@ -1443,6 +1462,24 @@ export default function RoomScreen() {
             </TouchableOpacity>
           )}
 
+          {/* قفل المقاعد */}
+          {canAdmin && (
+            <TouchableOpacity
+              style={[styles.optionsItem, { borderBottomColor: colors.border }]}
+              onPress={() => {
+                setLockSeatsTemp([...lockedSeats]);
+                setShowOptionsMenu(false);
+                setShowLockSeatsModal(true);
+              }}
+            >
+              <View style={[styles.optionsIconWrap, { backgroundColor: "#FF3B5C18" }]}>
+                <Ionicons name="lock-closed-outline" size={20} color="#FF3B5C" />
+              </View>
+              <Text style={[styles.optionsLabel, { color: colors.text }]}>قفل المقاعد</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+
           {/* حذف الغرفة */}
           {(isOwner || isSuperAdmin) && (
             <TouchableOpacity
@@ -1500,6 +1537,92 @@ export default function RoomScreen() {
             </View>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* Lock Seats Modal */}
+      <Modal
+        visible={showLockSeatsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowLockSeatsModal(false)}
+      >
+        <Pressable style={styles.presenceOverlay} onPress={() => setShowLockSeatsModal(false)} />
+        <View style={[styles.presenceSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.sheetHandle} />
+          <View style={styles.presenceHeader}>
+            <Ionicons name="lock-closed" size={18} color="#FF3B5C" />
+            <Text style={[styles.presenceTitle, { color: colors.text }]}>قفل المقاعد</Text>
+          </View>
+          <Text style={{ paddingHorizontal: 20, color: colors.textSecondary, fontFamily: "Inter_400Regular", fontSize: 13, marginBottom: 14 }}>
+            اضغط على المقعد لتبديل حالة القفل
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, paddingHorizontal: 20, paddingBottom: 16 }}>
+            {Array(8).fill(null).map((_, i) => {
+              const isLk = lockSeatsTemp[i] ?? false;
+              return (
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => {
+                    const next = [...lockSeatsTemp];
+                    next[i] = !next[i];
+                    setLockSeatsTemp(next);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  style={{
+                    width: 70, height: 70, borderRadius: 16,
+                    alignItems: "center", justifyContent: "center",
+                    backgroundColor: isLk ? "#FF3B5C22" : `${accentColor}18`,
+                    borderWidth: 2, borderColor: isLk ? "#FF3B5C" : `${accentColor}55`,
+                    gap: 4,
+                  }}
+                >
+                  <Ionicons
+                    name={isLk ? "lock-closed" : "lock-open-outline"}
+                    size={22}
+                    color={isLk ? "#FF3B5C" : accentColor}
+                  />
+                  <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: isLk ? "#FF3B5C" : accentColor }}>
+                    {i + 1}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={{ flexDirection: "row", gap: 12, paddingHorizontal: 20, paddingBottom: 32 }}>
+            <TouchableOpacity
+              onPress={() => setShowLockSeatsModal(false)}
+              style={[styles.modalCancelBtn, { flex: 1, borderColor: colors.border }]}
+            >
+              <Text style={{ color: colors.textSecondary, fontFamily: "Inter_500Medium", fontSize: 15 }}>
+                {t("cancel")}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                lockSeatsTemp.forEach((shouldLock, idx) => {
+                  if (shouldLock && !(lockedSeats[idx] ?? false)) {
+                    lockSeat(room.id, idx);
+                  } else if (!shouldLock && (lockedSeats[idx] ?? false)) {
+                    unlockSeat(room.id, idx);
+                  }
+                });
+                setShowLockSeatsModal(false);
+                showToast("تم تحديث حالة المقاعد 🔒", "success");
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }}
+              style={{ flex: 1 }}
+            >
+              <LinearGradient
+                colors={["#FF3B5C", "#c0392b"]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={styles.modalConfirmBtn}
+              >
+                <Ionicons name="checkmark" size={18} color="#fff" />
+                <Text style={styles.modalConfirmText}>تطبيق</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* Join Seat Confirmation Modal */}
@@ -1593,9 +1716,9 @@ const styles = StyleSheet.create({
   },
   headerAvatarImg: { width: "100%", height: "100%", borderRadius: 12, resizeMode: "cover" },
   headerAvatarText: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  headerInfo: { flex: 1 },
-  roomTitle: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  roomOwner: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
+  headerInfo: { flex: 1, minWidth: 0 },
+  roomTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  roomOwner: { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 1 },
   roomCodeSubtext: { fontSize: 9, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.3)", letterSpacing: 0.5 },
   presenceBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
@@ -1655,9 +1778,15 @@ const styles = StyleSheet.create({
   chatArea: { flex: 1, borderTopWidth: 1, backgroundColor: "rgba(0,0,0,0.55)" },
   chatList: { padding: 12, gap: 8 },
   chatMsg: { maxWidth: "82%" },
-  chatMsgLeft: { alignSelf: "flex-start" },
-  chatMsgRight: { alignSelf: "flex-end" },
-  chatSender: { fontSize: 11, fontFamily: "Inter_600SemiBold", marginBottom: 2, paddingHorizontal: 4 },
+  chatMsgLeft: { alignSelf: "flex-start", alignItems: "flex-start" },
+  chatMsgRight: { alignSelf: "flex-end", alignItems: "flex-end" },
+  chatSender: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  chatSenderAvatar: {
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: "center", justifyContent: "center", overflow: "hidden",
+  },
+  chatSenderAvatarImg: { width: "100%", height: "100%" },
+  chatSenderAvatarText: { fontSize: 9, fontFamily: "Inter_700Bold" },
   chatBubble: { borderRadius: 16, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 12 },
   chatText: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
   chatMediaWrap: {

@@ -125,7 +125,7 @@ function SharePostSheet({
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.shareUserName, { color: colors.text }]}>{item.name}</Text>
-                  <Text style={[styles.shareUserPhone, { color: colors.textSecondary }]}>{item.phone}</Text>
+                  <Text style={[styles.shareUserPhone, { color: colors.textSecondary }]}>@{item.username || item.email}</Text>
                 </View>
                 {isSent ? (
                   <Ionicons name="checkmark-circle" size={22} color="#10B981" />

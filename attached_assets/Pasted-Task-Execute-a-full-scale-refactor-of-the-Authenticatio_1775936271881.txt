@@ -1,0 +1,25 @@
+Task: Execute a full-scale refactor of the Authentication, Profile, and Restaurant modules. Maintain the "Manager/Admin" login as an exception (Phone + Password).
+​1️⃣ Database & User Logic (PostgreSQL/Backend)
+​Unique Username (User ID): Update the users table. username is now a unique identifier.
+​Constraints: Minimum length: 1 character. No maximum. Must be unique across the platform.
+​Sign-up Refactor: Remove phone_number and age fields from the registration schema.
+​Edit Username: Implement a check-and-update logic in the "Edit Profile" API. A user can change their username only if the new one is not already taken.
+​2️⃣ Login & Sign-up UI (Frontend)
+​Login Screen: - Change the first input label/placeholder from "Phone Number" to "Username or Email".
+​Admin Exception: Hardcode a logic check: If the login attempt is for an Admin role, allow login via Phone + Password as before.
+​Sign-up Screen: - Fields to Remove: "Phone Number", "Age".
+​Email Field: Must be a valid email format (ready for OTP).
+​Address Field (The Game Changer): Convert the "Address" text input into a Dropdown/Picker.
+​Data: Include all 18 Iraqi Governorates (Baghdad, Babylon, Basra, Nineveh, Erbil, Najaf, Karbala, Dhi Qar, Maysan, Al-Qadisiyah, Al-Muthanna, Al-Anbar, Saladin, Diyala, Kirkuk, Sulaymaniyah, Duhok, Halabja).
+​3️⃣ Localization & Restaurant Logic
+​Automatic Filtering: When a user selects a governorate (e.g., Babylon) during sign-up, save this as their primary_governorate.
+​UI Logic: Upon opening the "Restaurants" tab, the app must automatically filter and display ONLY the restaurants belonging to the user's selected governorate. Display the name/icon of the governorate at the top of the feed.
+​4️⃣ Security & Password Recovery (OTP System)
+​Reset Password (Profile Sidebar):
+​Create a "Reset Password" view. Requires Old Password to proceed.
+​Forgotten Password Logic:
+​Stage 1 (Email OTP): Send a 6-digit OTP code to the user's registered email. If verified, allow immediate password reset.
+​Stage 2 (Fallback): Add a "Try another way" button. Clicking this must redirect the user to a WhatsApp chat with the Manager for manual recovery.
+​5️⃣ Technical Sync
+​All UI changes must adhere to the current Dark Theme and Hilla Connect branding.
+​Ensure all real-time updates (like username availability checks) are handled via the API or Sockets efficiently

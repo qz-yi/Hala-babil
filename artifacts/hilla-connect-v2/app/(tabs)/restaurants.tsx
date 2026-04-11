@@ -154,10 +154,12 @@ function RestaurantCard({
 }
 
 export default function RestaurantsScreen() {
-  const { restaurants, isSuperAdmin, t, governorateImages } = useApp();
+  const { restaurants, isSuperAdmin, t, governorateImages, currentUser } = useApp();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const [selectedGov, setSelectedGov] = useState<string | null>(null);
+  const [selectedGov, setSelectedGov] = useState<string | null>(
+    currentUser?.primaryGovernorate || null
+  );
 
   const filtered = selectedGov
     ? restaurants.filter((r) => r.governorate === selectedGov)
@@ -166,7 +168,12 @@ export default function RestaurantsScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: topPad }]}>
-        <Text style={styles.headerTitle}>{t("restaurants")}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>{t("restaurants")}</Text>
+          {selectedGov && (
+            <Text style={styles.headerGov}>📍 {selectedGov}</Text>
+          )}
+        </View>
         {isSuperAdmin && (
           <TouchableOpacity
             onPress={() => router.push("/admin")}
@@ -233,6 +240,7 @@ const styles = StyleSheet.create({
     borderBottomColor: BORDER,
   },
   headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: TEXT },
+  headerGov: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#10B981", marginTop: 2 },
   addBtn: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: TEXT, alignItems: "center", justifyContent: "center",

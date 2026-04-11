@@ -92,7 +92,7 @@ export default function MentionInput({
   };
 
   const handleSelectUser = (user: User) => {
-    const handle = user.username || user.phone;
+    const handle = user.username || user.email;
     const before = value.slice(0, mentionStart);
     const after = value.slice(mentionStart + 1 + (mentionQuery?.length ?? 0));
     const newText = `${before}@${handle} ${after}`;

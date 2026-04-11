@@ -343,7 +343,7 @@ export default function RoomsScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.searchName}>{item.name}</Text>
-                  <Text style={styles.searchPhone}>{item.phone}</Text>
+                  <Text style={styles.searchPhone}>@{item.username || item.email}</Text>
                 </View>
                 <Feather name="chevron-right" size={16} color={TEXT2} strokeWidth={1.5} />
               </TouchableOpacity>

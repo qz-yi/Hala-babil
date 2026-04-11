@@ -5,17 +5,20 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  FlatList,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useApp } from "@/context/AppContext";
+import { useApp, IRAQI_GOVERNORATES } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 
 const BG = "#000000";
@@ -25,6 +28,10 @@ const TEXT = "#FFFFFF";
 const TEXT2 = "#8E8E93";
 const INPUT_BG = "#1C1C1C";
 const ACCENT = "#3D91F4";
+const SUCCESS = "#10B981";
+const ERROR = "#FF3B5C";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface FieldProps {
   icon: keyof typeof Feather.glyphMap;
@@ -39,7 +46,6 @@ interface FieldProps {
   onToggleSecure?: () => void;
   last?: boolean;
   onSubmit?: () => void;
-  prefix?: string;
   statusIcon?: "ok" | "error" | null;
 }
 
@@ -56,15 +62,11 @@ function RegisterField({
   onToggleSecure,
   last = false,
   onSubmit,
-  prefix,
   statusIcon,
 }: FieldProps) {
   return (
     <View style={styles.inputWrapper}>
       <Feather name={icon} size={18} color={TEXT2} strokeWidth={1.5} />
-      {prefix && (
-        <Text style={styles.inputPrefix}>{prefix}</Text>
-      )}
       <TextInput
         ref={inputRef}
         style={styles.input}
@@ -80,10 +82,10 @@ function RegisterField({
         autoCapitalize="none"
       />
       {statusIcon === "ok" && (
-        <Feather name="check-circle" size={16} color="#10B981" strokeWidth={1.5} />
+        <Feather name="check-circle" size={16} color={SUCCESS} strokeWidth={1.5} />
       )}
       {statusIcon === "error" && (
-        <Feather name="x-circle" size={16} color="#FF3B5C" strokeWidth={1.5} />
+        <Feather name="x-circle" size={16} color={ERROR} strokeWidth={1.5} />
       )}
       {secure && onToggleSecure && (
         <TouchableOpacity onPress={onToggleSecure}>
@@ -94,27 +96,73 @@ function RegisterField({
   );
 }
 
+function GovernoratePicker({
+  visible,
+  selected,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  selected: string;
+  onSelect: (g: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.modalBg} onPress={onClose} />
+      <View style={styles.pickerSheet}>
+        <View style={styles.pickerHandle} />
+        <Text style={styles.pickerTitle}>اختر محافظتك</Text>
+        <FlatList
+          data={IRAQI_GOVERNORATES as readonly string[]}
+          keyExtractor={(item) => item}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => {
+            const isSelected = item === selected;
+            return (
+              <TouchableOpacity
+                style={[styles.pickerItem, isSelected && styles.pickerItemSelected]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  onSelect(item);
+                  onClose();
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.pickerItemText, isSelected && styles.pickerItemTextSelected]}>
+                  🏛️  {item}
+                </Text>
+                {isSelected && (
+                  <Feather name="check" size={18} color={ACCENT} strokeWidth={2} />
+                )}
+              </TouchableOpacity>
+            );
+          }}
+        />
+      </View>
+    </Modal>
+  );
+}
+
 export default function RegisterScreen() {
-  const { register, checkUsername, t } = useApp();
+  const { register, checkUsername, checkEmail, t } = useApp();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
 
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
-  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [age, setAge] = useState("");
-  const [address, setAddress] = useState("");
+  const [emailValid, setEmailValid] = useState<boolean | null>(null);
+  const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null);
+  const [governorate, setGovernorate] = useState("");
+  const [showGovPicker, setShowGovPicker] = useState(false);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const usernameRef = useRef<TextInput>(null);
-  const phoneRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
-  const ageRef = useRef<TextInput>(null);
-  const addressRef = useRef<TextInput>(null);
   const passRef = useRef<TextInput>(null);
 
   const topPad = Platform.OS === "web" ? 30 : insets.top;
@@ -123,36 +171,53 @@ export default function RegisterScreen() {
   const handleUsernameChange = (val: string) => {
     const cleaned = val.replace(/[^a-zA-Z0-9_\u0600-\u06FF]/g, "").toLowerCase();
     setUsername(cleaned);
-    if (cleaned.length >= 3) {
+    if (cleaned.length >= 1) {
       setUsernameAvailable(checkUsername(cleaned));
     } else {
       setUsernameAvailable(null);
     }
   };
 
+  const handleEmailChange = (val: string) => {
+    setEmail(val);
+    const isValid = EMAIL_RE.test(val.trim());
+    setEmailValid(val.trim().length > 0 ? isValid : null);
+    if (isValid) {
+      setEmailAvailable(checkEmail(val.trim()));
+    } else {
+      setEmailAvailable(null);
+    }
+  };
+
   const handleRegister = async () => {
-    if (!name || !username || !phone || !email || !age || !address || !password) {
+    if (!name || !username || !email || !governorate || !password) {
       showToast(t("fillAll"), "error");
       return;
     }
-    if (username.length < 3) {
-      showToast("اسم المستخدم يجب أن يكون 3 أحرف على الأقل", "error");
+    if (username.length < 1) {
+      showToast("اسم المستخدم مطلوب", "error");
       return;
     }
     if (usernameAvailable === false) {
       showToast(t("usernameExists"), "error");
       return;
     }
+    if (!EMAIL_RE.test(email.trim())) {
+      showToast(t("invalidEmail"), "error");
+      return;
+    }
+    if (emailAvailable === false) {
+      showToast(t("emailExists"), "error");
+      return;
+    }
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const result = await register(
       name.trim(),
-      phone.trim(),
+      username.trim(),
       email.trim(),
-      parseInt(age),
-      address.trim(),
-      password,
-      username.trim()
+      governorate,
+      password
     );
     setLoading(false);
     if (result.success) {
@@ -162,8 +227,11 @@ export default function RegisterScreen() {
     } else if (result.error === "username_exists") {
       showToast(t("usernameExists"), "error");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } else if (result.error === "email_exists") {
+      showToast(t("emailExists"), "error");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } else {
-      showToast(t("phoneExists"), "error");
+      showToast(t("error"), "error");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
@@ -206,8 +274,16 @@ export default function RegisterScreen() {
           </View>
 
           <View style={styles.form}>
-            <RegisterField icon="user" placeholder={t("name")} value={name} onChangeText={setName} nextRef={usernameRef} />
+            {/* الاسم */}
+            <RegisterField
+              icon="user"
+              placeholder={t("name")}
+              value={name}
+              onChangeText={setName}
+              nextRef={usernameRef}
+            />
 
+            {/* اسم المستخدم */}
             <View>
               <RegisterField
                 icon="at-sign"
@@ -215,31 +291,85 @@ export default function RegisterScreen() {
                 value={username}
                 onChangeText={handleUsernameChange}
                 inputRef={usernameRef}
-                nextRef={phoneRef}
+                nextRef={emailRef}
                 statusIcon={
-                  username.length >= 3
+                  username.length >= 1
                     ? usernameAvailable === true
                       ? "ok"
                       : "error"
                     : null
                 }
               />
-              {username.length > 0 && username.length < 3 && (
-                <Text style={styles.fieldHint}>3 أحرف على الأقل</Text>
+              {username.length >= 1 && usernameAvailable === true && (
+                <Text style={[styles.fieldHint, { color: SUCCESS }]}>✓ اسم المستخدم متاح</Text>
               )}
-              {username.length >= 3 && usernameAvailable === true && (
-                <Text style={[styles.fieldHint, { color: "#10B981" }]}>✓ اسم المستخدم متاح</Text>
-              )}
-              {username.length >= 3 && usernameAvailable === false && (
-                <Text style={[styles.fieldHint, { color: "#FF3B5C" }]}>✗ {t("usernameExists")}</Text>
+              {username.length >= 1 && usernameAvailable === false && (
+                <Text style={[styles.fieldHint, { color: ERROR }]}>✗ {t("usernameExists")}</Text>
               )}
             </View>
 
-            <RegisterField icon="phone" placeholder={t("phone")} value={phone} onChangeText={setPhone} inputRef={phoneRef} nextRef={emailRef} keyboardType="phone-pad" />
-            <RegisterField icon="mail" placeholder={t("email")} value={email} onChangeText={setEmail} inputRef={emailRef} nextRef={ageRef} keyboardType="email-address" />
-            <RegisterField icon="calendar" placeholder={t("age")} value={age} onChangeText={setAge} inputRef={ageRef} nextRef={addressRef} keyboardType="number-pad" />
-            <RegisterField icon="map-pin" placeholder={t("address")} value={address} onChangeText={setAddress} inputRef={addressRef} nextRef={passRef} />
-            <RegisterField icon="lock" placeholder={t("password")} value={password} onChangeText={setPassword} inputRef={passRef} secure showSecure={showPassword} onToggleSecure={() => setShowPassword(!showPassword)} last onSubmit={handleRegister} />
+            {/* البريد الإلكتروني */}
+            <View>
+              <RegisterField
+                icon="mail"
+                placeholder={t("email")}
+                value={email}
+                onChangeText={handleEmailChange}
+                inputRef={emailRef}
+                nextRef={passRef}
+                keyboardType="email-address"
+                statusIcon={
+                  email.length > 0
+                    ? emailValid === false
+                      ? "error"
+                      : emailAvailable === false
+                      ? "error"
+                      : emailValid === true && emailAvailable === true
+                      ? "ok"
+                      : null
+                    : null
+                }
+              />
+              {email.length > 0 && emailValid === false && (
+                <Text style={[styles.fieldHint, { color: ERROR }]}>✗ {t("invalidEmail")}</Text>
+              )}
+              {email.length > 0 && emailValid === true && emailAvailable === false && (
+                <Text style={[styles.fieldHint, { color: ERROR }]}>✗ {t("emailExists")}</Text>
+              )}
+              {email.length > 0 && emailValid === true && emailAvailable === true && (
+                <Text style={[styles.fieldHint, { color: SUCCESS }]}>✓ البريد الإلكتروني متاح</Text>
+              )}
+            </View>
+
+            {/* المحافظة - Dropdown */}
+            <TouchableOpacity
+              style={[styles.inputWrapper, !governorate && styles.inputWrapperEmpty]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowGovPicker(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Feather name="map-pin" size={18} color={TEXT2} strokeWidth={1.5} />
+              <Text style={[styles.govPlaceholder, governorate && styles.govSelected]}>
+                {governorate || t("selectGovernorate")}
+              </Text>
+              <Feather name="chevron-down" size={18} color={TEXT2} strokeWidth={1.5} />
+            </TouchableOpacity>
+
+            {/* كلمة المرور */}
+            <RegisterField
+              icon="lock"
+              placeholder={t("password")}
+              value={password}
+              onChangeText={setPassword}
+              inputRef={passRef}
+              secure
+              showSecure={showPassword}
+              onToggleSecure={() => setShowPassword(!showPassword)}
+              last
+              onSubmit={handleRegister}
+            />
 
             <TouchableOpacity
               activeOpacity={0.85}
@@ -259,6 +389,13 @@ export default function RegisterScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <GovernoratePicker
+        visible={showGovPicker}
+        selected={governorate}
+        onSelect={setGovernorate}
+        onClose={() => setShowGovPicker(false)}
+      />
     </View>
   );
 }
@@ -284,9 +421,11 @@ const styles = StyleSheet.create({
     height: 56,
     gap: 12,
   },
-  inputPrefix: { fontSize: 16, color: ACCENT, fontFamily: "Inter_600SemiBold" },
+  inputWrapperEmpty: { borderColor: BORDER },
   input: { flex: 1, fontSize: 16, color: TEXT, fontFamily: "Inter_400Regular", height: "100%" },
   fieldHint: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2, marginTop: 4, marginRight: 4, textAlign: "right" },
+  govPlaceholder: { flex: 1, fontSize: 16, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "right" },
+  govSelected: { color: TEXT },
   submitBtn: {
     backgroundColor: TEXT,
     borderRadius: 100,
@@ -298,4 +437,48 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
   switchText: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2 },
   switchLink: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT },
+  modalBg: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.6)" },
+  pickerSheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: CARD,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 40,
+    maxHeight: "70%",
+    borderTopWidth: 0.5,
+    borderColor: BORDER,
+  },
+  pickerHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: BORDER,
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  pickerTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    color: TEXT,
+    textAlign: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: BORDER,
+  },
+  pickerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#1E1E1E",
+  },
+  pickerItemSelected: { backgroundColor: "#1C2C3C" },
+  pickerItemText: { fontSize: 16, fontFamily: "Inter_400Regular", color: TEXT },
+  pickerItemTextSelected: { color: ACCENT, fontFamily: "Inter_600SemiBold" },
 });

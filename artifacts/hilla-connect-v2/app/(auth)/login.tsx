@@ -29,7 +29,7 @@ export default function LoginScreen() {
   const { login, t } = useApp();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
-  const [phone, setPhone] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -39,13 +39,13 @@ export default function LoginScreen() {
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const handleLogin = async () => {
-    if (!phone.trim() || !password.trim()) {
+    if (!identifier.trim() || !password.trim()) {
       showToast(t("fillAll"), "error");
       return;
     }
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const success = await login(phone.trim(), password);
+    const success = await login(identifier.trim(), password);
     setLoading(false);
     if (success) {
       showToast(t("welcome") + "!", "success");
@@ -79,7 +79,6 @@ export default function LoginScreen() {
             <Feather name="arrow-left" size={22} color={TEXT} strokeWidth={1.5} />
           </TouchableOpacity>
 
-          {/* Logo / Title */}
           <View style={styles.headerBlock}>
             <LinearGradient
               colors={["#d6249f", "#285AEB"]}
@@ -95,17 +94,17 @@ export default function LoginScreen() {
             <Text style={styles.subtitle}>مرحباً بك في هلا بابل</Text>
           </View>
 
-          {/* Fields */}
           <View style={styles.form}>
             <View style={styles.inputWrapper}>
-              <Feather name="phone" size={18} color={TEXT2} strokeWidth={1.5} />
+              <Feather name="at-sign" size={18} color={TEXT2} strokeWidth={1.5} />
               <TextInput
                 style={styles.input}
-                placeholder={t("phone")}
+                placeholder={t("usernameOrEmail")}
                 placeholderTextColor={TEXT2}
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
+                value={identifier}
+                onChangeText={setIdentifier}
+                keyboardType="email-address"
+                autoCapitalize="none"
                 returnKeyType="next"
                 onSubmitEditing={() => passwordRef.current?.focus()}
                 textAlign={Platform.OS !== "web" ? "right" : "left"}

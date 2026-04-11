@@ -78,7 +78,7 @@ function ShareStoryModal({
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[ss.userName, { color: colors.text }]}>{item.name}</Text>
-                  <Text style={[ss.userPhone, { color: colors.textSecondary }]}>{item.phone}</Text>
+                  <Text style={[ss.userPhone, { color: colors.textSecondary }]}>@{item.username || item.email}</Text>
                 </View>
                 {isSent ? (
                   <Ionicons name="checkmark-circle" size={22} color="#10B981" />
@@ -540,7 +540,7 @@ export default function StoryViewerScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[ss.userName, { color: colors.text }]}>{viewer.name}</Text>
-                      <Text style={[ss.userPhone, { color: colors.textSecondary }]}>{viewer.phone}</Text>
+                      <Text style={[ss.userPhone, { color: colors.textSecondary }]}>@{viewer.username || viewer.email}</Text>
                     </View>
                     <Ionicons name="eye-outline" size={18} color={colors.textSecondary} />
                   </TouchableOpacity>

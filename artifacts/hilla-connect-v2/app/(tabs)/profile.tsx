@@ -55,7 +55,7 @@ function FollowListModal({
     .filter((u) => userIds.includes(u.id))
     .filter((u) =>
       u.name.toLowerCase().includes(query.toLowerCase()) ||
-      u.phone.includes(query)
+      (u.username && u.username.toLowerCase().includes(query.toLowerCase()))
     );
 
   return (
@@ -108,7 +108,7 @@ function FollowListModal({
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.followUserName, { color: colors.text }]}>{item.name}</Text>
-                  <Text style={[styles.followUserPhone, { color: colors.textSecondary }]}>{item.phone}</Text>
+                  <Text style={[styles.followUserPhone, { color: colors.textSecondary }]}>@{item.username || item.email}</Text>
                 </View>
                 <Feather name="chevron-right" size={16} color={colors.textSecondary} strokeWidth={1.5} />
               </TouchableOpacity>
@@ -243,6 +243,17 @@ function ProfileDrawer({
                   <Feather name="chevron-right" size={16} color="#FFD700" strokeWidth={1.5} />
                 </TouchableOpacity>
               )}
+
+              <TouchableOpacity
+                onPress={() => { onClose(); setTimeout(() => router.push("/change-password"), 350); }}
+                style={[styles.drawerItem, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
+              >
+                <View style={[styles.drawerItemIcon, { backgroundColor: "#F59E0B22" }]}>
+                  <Feather name="key" size={18} color="#F59E0B" strokeWidth={1.5} />
+                </View>
+                <Text style={[styles.drawerItemText, { color: colors.text }]}>{t("changePassword")}</Text>
+                <Feather name="chevron-right" size={16} color={colors.textSecondary} strokeWidth={1.5} />
+              </TouchableOpacity>
 
               <TouchableOpacity onPress={() => onSettingsItem("logout")} style={[styles.drawerItem, { borderColor: "#FF3B5C22", backgroundColor: colors.backgroundSecondary }]}>
                 <View style={[styles.drawerItemIcon, { backgroundColor: "#FF3B5C22" }]}>

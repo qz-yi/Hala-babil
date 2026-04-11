@@ -1327,7 +1327,7 @@ export default function RoomScreen() {
               renderItem={({ item }) => {
                 const isMe = item.id === currentUser?.id;
                 const uColor = ACCENT_COLORS[item.name.length % ACCENT_COLORS.length];
-                const isSA = item.phone === SUPER_ADMIN_PHONE;
+                const isSA = item.id === "admin" || item.phone === SUPER_ADMIN_PHONE;
                 const isMutedMember = mutedUsers.includes(item.id);
                 return (
                   <TouchableOpacity
@@ -1565,7 +1565,7 @@ export default function RoomScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.memberName, { color: colors.text }]}>{item.name}</Text>
-                      <Text style={[styles.memberRole, { color: colors.textSecondary }]}>{item.phone}</Text>
+                      <Text style={[styles.memberRole, { color: colors.textSecondary }]}>@{item.username || item.email}</Text>
                     </View>
                     <View style={[styles.sendInviteBtn, { backgroundColor: accentColor }]}>
                       <Ionicons name="send" size={14} color="#fff" />

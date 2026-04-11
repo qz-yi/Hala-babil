@@ -538,7 +538,7 @@ export default function AdminScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.listTitle, { color: colors.text }]}>{u.name}</Text>
-                    <Text style={[styles.listSub, { color: colors.textSecondary }]}>{u.phone}</Text>
+                    <Text style={[styles.listSub, { color: colors.textSecondary }]}>@{u.username || u.email}</Text>
                   </View>
                   <View style={{ flexDirection: "row", gap: 6 }}>
                     <TouchableOpacity

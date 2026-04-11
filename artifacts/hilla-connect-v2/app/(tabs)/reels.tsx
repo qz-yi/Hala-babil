@@ -534,7 +534,7 @@ function ShareSheet({
               <View>
                 <Text style={[styles.commentUser, { color: TEXT }]}>{item.name}</Text>
                 <Text style={[styles.commentText, { color: TEXT2, fontSize: 12 }]}>
-                  {item.phone}
+                  @{item.username || item.email}
                 </Text>
               </View>
               <Feather name="send" size={16} color="#3D91F4" strokeWidth={1.5} style={{ marginLeft: "auto" as any }} />

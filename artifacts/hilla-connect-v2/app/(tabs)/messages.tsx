@@ -55,7 +55,7 @@ function UserPickerModal({ users, currentUser, onSelect, onClose, t, colors }: a
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.userName, { color: colors.text }]}>{item.name}</Text>
-                  <Text style={[styles.userPhone, { color: colors.textSecondary }]}>{item.phone}</Text>
+                  <Text style={[styles.userPhone, { color: colors.textSecondary }]}>@{item.username || item.email}</Text>
                 </View>
                 <Feather name="chevron-right" size={16} color={colors.textSecondary} strokeWidth={1.5} />
               </TouchableOpacity>

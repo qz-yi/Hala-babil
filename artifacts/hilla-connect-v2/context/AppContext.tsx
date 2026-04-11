@@ -18,10 +18,11 @@ export interface User {
   id: string;
   name: string;
   username?: string;
-  phone: string;
+  phone?: string;
   email: string;
-  age: number;
-  address: string;
+  age?: number;
+  address?: string;
+  primaryGovernorate?: string;
   avatar?: string;
   coverUrl?: string;
   bio?: string;
@@ -251,17 +252,19 @@ interface AppContextValue {
   stories: Story[];
   follows: Follow[];
   notifications: AppNotification[];
-  login: (phone: string, password: string) => Promise<boolean>;
+  login: (identifier: string, password: string) => Promise<boolean>;
   register: (
     name: string,
-    phone: string,
+    username: string,
     email: string,
-    age: number,
-    address: string,
-    password: string,
-    username: string
-  ) => Promise<{ success: boolean; error?: "phone_exists" | "username_exists" }>;
+    governorate: string,
+    password: string
+  ) => Promise<{ success: boolean; error?: "email_exists" | "username_exists" }>;
   checkUsername: (username: string) => boolean;
+  checkEmail: (email: string) => boolean;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  sendEmailOTP: (email: string) => Promise<{ success: boolean; otp?: string }>;
+  resetPasswordWithOTP: (email: string, otp: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateProfile: (name: string, bio?: string, avatar?: string, accountType?: AccountType) => Promise<void>;
   updateCoverPhoto: (coverUrl: string) => Promise<void>;
@@ -458,9 +461,28 @@ const translations: Record<Language, Record<string, string>> = {
     close: "إغلاق",
     error: "خطأ",
     success: "نجح",
-    invalidCredentials: "رقم الهاتف أو كلمة المرور غير صحيحة",
+    invalidCredentials: "اسم المستخدم أو البريد أو كلمة المرور غير صحيحة",
     phoneExists: "رقم الهاتف مسجل مسبقاً",
+    emailExists: "البريد الإلكتروني مسجل مسبقاً",
     fillAll: "يرجى ملء جميع الحقول",
+    governorate: "المحافظة",
+    selectGovernorate: "اختر محافظتك",
+    usernameOrEmail: "اسم المستخدم أو البريد الإلكتروني",
+    changePassword: "تغيير كلمة المرور",
+    oldPassword: "كلمة المرور الحالية",
+    confirmPassword: "تأكيد كلمة المرور الجديدة",
+    wrongPassword: "كلمة المرور الحالية غير صحيحة",
+    passwordChanged: "تم تغيير كلمة المرور بنجاح",
+    passwordMismatch: "كلمة المرور الجديدة غير متطابقة",
+    sendOTP: "إرسال رمز التحقق",
+    otpSent: "تم إرسال رمز التحقق إلى بريدك الإلكتروني",
+    enterOTP: "أدخل رمز التحقق",
+    verifyOTP: "تحقق من الرمز",
+    otpInvalid: "رمز التحقق غير صحيح أو منتهي الصلاحية",
+    emailNotFound: "البريد الإلكتروني غير مسجل",
+    tryAnotherWay: "جرّب طريقة أخرى",
+    whatsappRecovery: "تواصل مع المشرف عبر واتساب",
+    invalidEmail: "البريد الإلكتروني غير صالح",
     userBanned: "تم حظر هذا الحساب",
     noRoomSlot: "يمكنك إنشاء غرفة واحدة فقط. لديك غرفة بالفعل!",
     myRoom: "غرفتي",
@@ -676,9 +698,28 @@ const translations: Record<Language, Record<string, string>> = {
     close: "Close",
     error: "Error",
     success: "Success",
-    invalidCredentials: "Invalid phone or password",
+    invalidCredentials: "Invalid username, email or password",
     phoneExists: "Phone number already registered",
+    emailExists: "Email already registered",
     fillAll: "Please fill all fields",
+    governorate: "Governorate",
+    selectGovernorate: "Select your governorate",
+    usernameOrEmail: "Username or Email",
+    changePassword: "Change Password",
+    oldPassword: "Current Password",
+    confirmPassword: "Confirm New Password",
+    wrongPassword: "Current password is incorrect",
+    passwordChanged: "Password changed successfully",
+    passwordMismatch: "New passwords do not match",
+    sendOTP: "Send Verification Code",
+    otpSent: "Verification code sent to your email",
+    enterOTP: "Enter verification code",
+    verifyOTP: "Verify Code",
+    otpInvalid: "Invalid or expired verification code",
+    emailNotFound: "Email not registered",
+    tryAnotherWay: "Try another way",
+    whatsappRecovery: "Contact admin via WhatsApp",
+    invalidEmail: "Invalid email address",
     userBanned: "This account is banned",
     noRoomSlot: "You can only create one room. You already have one!",
     myRoom: "My Room",
@@ -837,7 +878,7 @@ function parseMentions(content: string, allUsers: User[]): User[] {
     const user = allUsers.find(
       (u) =>
         (u.username && u.username.toLowerCase() === handle.toLowerCase()) ||
-        u.phone === handle
+        u.email.toLowerCase() === handle.toLowerCase()
     );
     if (user && !mentioned.find((m) => m.id === user.id)) {
       mentioned.push(user);
@@ -979,8 +1020,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const isSuperAdmin = currentUser?.phone === SUPER_ADMIN_PHONE;
 
   const login = useCallback(
-    async (phone: string, password: string): Promise<boolean> => {
-      if (phone === SUPER_ADMIN_PHONE && password === SUPER_ADMIN_PASSWORD) {
+    async (identifier: string, password: string): Promise<boolean> => {
+      if (identifier === SUPER_ADMIN_PHONE && password === SUPER_ADMIN_PASSWORD) {
         let adminUser = users.find((u) => u.phone === SUPER_ADMIN_PHONE);
         if (!adminUser) {
           adminUser = {
@@ -989,8 +1030,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             username: "admin",
             phone: SUPER_ADMIN_PHONE,
             email: "admin@hillaconnect.com",
-            age: 30,
-            address: "الحلة",
+            primaryGovernorate: "بابل",
             accountType: "public",
             createdAt: Date.now(),
           };
@@ -1004,7 +1044,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await AsyncStorage.setItem("currentUser", JSON.stringify(adminUser));
         return true;
       }
-      const user = users.find((u) => u.phone === phone);
+      const id = identifier.trim().toLowerCase();
+      const user = users.find(
+        (u) =>
+          (u.username && u.username.toLowerCase() === id) ||
+          u.email.toLowerCase() === id
+      );
       if (!user) return false;
       if (passwords[user.id] !== password) return false;
       if (user.isBanned) return false;
@@ -1022,20 +1067,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [users]
   );
 
+  const checkEmail = useCallback(
+    (email: string): boolean => {
+      return !users.some((u) => u.email.toLowerCase() === email.toLowerCase());
+    },
+    [users]
+  );
+
   const register = useCallback(
-    async (name: string, phone: string, email: string, age: number, address: string, password: string, username: string): Promise<{ success: boolean; error?: "phone_exists" | "username_exists" }> => {
-      const phoneExists = users.find((u) => u.phone === phone);
-      if (phoneExists) return { success: false, error: "phone_exists" };
+    async (name: string, username: string, email: string, governorate: string, password: string): Promise<{ success: boolean; error?: "email_exists" | "username_exists" }> => {
+      const emailExists = users.some((u) => u.email.toLowerCase() === email.toLowerCase());
+      if (emailExists) return { success: false, error: "email_exists" };
       const usernameExists = users.some((u) => u.username && u.username.toLowerCase() === username.toLowerCase());
       if (usernameExists) return { success: false, error: "username_exists" };
       const newUser: User = {
         id: generateId(),
         name,
         username,
-        phone,
         email,
-        age,
-        address,
+        address: governorate,
+        primaryGovernorate: governorate,
         accountType: "public",
         createdAt: Date.now(),
       };
@@ -1046,6 +1097,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await AsyncStorage.setItem("passwords", JSON.stringify(newPasswords));
       setCurrentUser(newUser);
       await AsyncStorage.setItem("currentUser", JSON.stringify(newUser));
+      return { success: true };
+    },
+    [users, passwords]
+  );
+
+  const changePassword = useCallback(
+    async (oldPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+      if (!currentUser) return { success: false, error: "not_logged_in" };
+      if (passwords[currentUser.id] !== oldPassword) return { success: false, error: "wrong_password" };
+      const newPasswords = { ...passwords, [currentUser.id]: newPassword };
+      setPasswords(newPasswords);
+      await AsyncStorage.setItem("passwords", JSON.stringify(newPasswords));
+      return { success: true };
+    },
+    [currentUser, passwords]
+  );
+
+  const pendingOTPs = React.useRef<Record<string, { otp: string; expires: number }>>({});
+
+  const sendEmailOTP = useCallback(
+    async (email: string): Promise<{ success: boolean; otp?: string }> => {
+      const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+      if (!user) return { success: false };
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      pendingOTPs.current[email.toLowerCase()] = { otp, expires: Date.now() + 10 * 60 * 1000 };
+      return { success: true, otp };
+    },
+    [users]
+  );
+
+  const resetPasswordWithOTP = useCallback(
+    async (email: string, otp: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+      const entry = pendingOTPs.current[email.toLowerCase()];
+      if (!entry) return { success: false, error: "no_otp" };
+      if (Date.now() > entry.expires) return { success: false, error: "expired" };
+      if (entry.otp !== otp) return { success: false, error: "wrong_otp" };
+      const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+      if (!user) return { success: false, error: "not_found" };
+      const newPasswords = { ...passwords, [user.id]: newPassword };
+      setPasswords(newPasswords);
+      await AsyncStorage.setItem("passwords", JSON.stringify(newPasswords));
+      delete pendingOTPs.current[email.toLowerCase()];
       return { success: true };
     },
     [users, passwords]
@@ -2037,7 +2130,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!query.trim()) return [];
       const q = query.trim().toLowerCase();
       return users.filter(
-        (u) => u.id !== currentUser?.id && (u.name.toLowerCase().includes(q) || u.phone.includes(q))
+        (u) =>
+          u.id !== currentUser?.id &&
+          (u.name.toLowerCase().includes(q) ||
+            (u.username && u.username.toLowerCase().includes(q)) ||
+            u.email.toLowerCase().includes(q))
       );
     },
     [users, currentUser]
@@ -2672,7 +2769,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       language, setLanguage, theme, toggleTheme, currentUser, isAuthenticated: !!currentUser,
       isSuperAdmin, users, rooms, conversations, restaurants, reels, reelLikes, reelComments,
       posts, postLikes, postComments, stories, follows, notifications,
-      login, register, logout, updateProfile, updateCoverPhoto, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
+      login, register, logout, updateProfile, updateCoverPhoto, checkUsername, checkEmail,
+      changePassword, sendEmailOTP, resetPasswordWithOTP,
+      createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
       joinRoomPresence, leaveRoomPresence,
       sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
       kickFromRoom, banFromRoom, muteUserInRoom,
@@ -2698,7 +2797,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [
       language, theme, currentUser, isSuperAdmin, users, rooms, conversations, restaurants,
       reels, reelLikes, reelComments, posts, postLikes, postComments, stories, follows, notifications,
-      login, register, logout, updateProfile, updateCoverPhoto, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
+      login, register, logout, updateProfile, updateCoverPhoto, checkUsername, checkEmail,
+      changePassword, sendEmailOTP, resetPasswordWithOTP,
+      createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
       joinRoomPresence, leaveRoomPresence,
       sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
       kickFromRoom, banFromRoom, muteUserInRoom,

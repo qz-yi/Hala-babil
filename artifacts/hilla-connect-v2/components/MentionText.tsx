@@ -22,7 +22,7 @@ export default function MentionText({ text, users, style, mentionStyle, numberOf
           const mentioned = users.find(
             (u) =>
               (u.username && u.username.toLowerCase() === handle.toLowerCase()) ||
-              u.phone === handle
+              u.email.toLowerCase() === handle.toLowerCase()
           );
           if (mentioned) {
             return (

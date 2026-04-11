@@ -3,11 +3,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
-  Alert,
   Dimensions,
   FlatList,
   Image,
+  Modal,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -117,31 +118,10 @@ export default function UserProfileScreen() {
   const canViewContent =
     !userIsBlocked && (user.accountType === "public" || isMe || followStatus === "following");
 
+  const [showBlockModal, setShowBlockModal] = useState(false);
+
   const handleBlock = () => {
-    if (userIsBlocked) {
-      Alert.alert("إلغاء الحظر", `هل تريد إلغاء حظر ${user.name}؟`, [
-        { text: "إلغاء", style: "cancel" },
-        {
-          text: "إلغاء الحظر",
-          onPress: () => {
-            unblockUser(id);
-            showToast("تم إلغاء الحظر", "success");
-          },
-        },
-      ]);
-    } else {
-      Alert.alert("حظر المستخدم", `هل تريد حظر ${user.name}؟ لن يتمكن من رؤية منشوراتك.`, [
-        { text: "إلغاء", style: "cancel" },
-        {
-          text: "حظر",
-          style: "destructive",
-          onPress: () => {
-            blockUser(id);
-            showToast("تم الحظر", "info");
-          },
-        },
-      ]);
-    }
+    setShowBlockModal(true);
   };
 
   const handleFollow = () => {
@@ -344,6 +324,61 @@ export default function UserProfileScreen() {
           )
         }
       />
+
+      {/* Custom Dark Block/Unblock Confirmation Modal */}
+      <Modal
+        visible={showBlockModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBlockModal(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "center", alignItems: "center", padding: 32 }}
+          onPress={() => setShowBlockModal(false)}
+        >
+          <Pressable
+            style={{ backgroundColor: colors.card, borderRadius: 24, borderWidth: 1, borderColor: colors.border, padding: 28, width: "100%", alignItems: "center", gap: 14 }}
+            onPress={() => {}}
+          >
+            <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: userIsBlocked ? "#10B98122" : "#FF3B5C22", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="ban" size={28} color={userIsBlocked ? "#10B981" : "#FF3B5C"} />
+            </View>
+            <Text style={{ color: colors.text, fontFamily: "Inter_700Bold", fontSize: 18 }}>
+              {userIsBlocked ? "إلغاء الحظر" : "حظر المستخدم"}
+            </Text>
+            <Text style={{ color: colors.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }}>
+              {userIsBlocked
+                ? `هل تريد إلغاء حظر ${user.name}؟`
+                : `هل تريد حظر ${user.name}؟ لن يتمكن من رؤية منشوراتك.`}
+            </Text>
+            <View style={{ flexDirection: "row", gap: 12, width: "100%", marginTop: 4 }}>
+              <TouchableOpacity
+                onPress={() => setShowBlockModal(false)}
+                style={{ flex: 1, height: 50, borderRadius: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: colors.textSecondary, fontFamily: "Inter_500Medium", fontSize: 15 }}>إلغاء</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowBlockModal(false);
+                  if (userIsBlocked) {
+                    unblockUser(id);
+                    showToast("تم إلغاء الحظر", "success");
+                  } else {
+                    blockUser(id);
+                    showToast("تم الحظر", "info");
+                  }
+                }}
+                style={{ flex: 1, height: 50, borderRadius: 14, backgroundColor: userIsBlocked ? "#10B981" : "#FF3B5C", alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 }}>
+                  {userIsBlocked ? "إلغاء الحظر" : "حظر"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -371,6 +406,8 @@ const styles = StyleSheet.create({
   statNum: { fontSize: 20, fontFamily: "Inter_700Bold" },
   statLabel: { fontSize: 12, fontFamily: "Inter_400Regular" },
   actionRow: { flexDirection: "row", gap: 10, marginHorizontal: 20 },
+  blockedBanner: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
+  blockedBannerText: { fontFamily: "Inter_500Medium", fontSize: 14, color: "#FF3B5C" },
   followBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 44, borderRadius: 14, shadowColor: "#7C3AED", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 8 },
   followBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 },
   followingBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 44, borderRadius: 14, borderWidth: 1.5 },

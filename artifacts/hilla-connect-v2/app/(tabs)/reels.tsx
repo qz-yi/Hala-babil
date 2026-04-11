@@ -735,18 +735,11 @@ export default function ReelsScreen() {
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 });
 
+  const [deleteReelId, setDeleteReelId] = useState<string | null>(null);
+
   const handleDelete = (reelId: string) => {
-    Alert.alert("حذف المقطع", "هل أنت متأكد؟", [
-      { text: "إلغاء", style: "cancel" },
-      {
-        text: "حذف",
-        style: "destructive",
-        onPress: () => {
-          deleteReel(reelId);
-          showToast("تم حذف المقطع", "info");
-        },
-      },
-    ]);
+    setDeleteReelId(reelId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   const getCreator = (creatorId: string) => users.find((u) => u.id === creatorId);
@@ -782,10 +775,10 @@ export default function ReelsScreen() {
       <FlatList
         data={reels}
         keyExtractor={(r) => r.id}
-        pagingEnabled
         showsVerticalScrollIndicator={false}
         snapToInterval={REEL_HEIGHT}
-        decelerationRate="fast"
+        snapToAlignment="start"
+        decelerationRate={0.88}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig.current}
         getItemLayout={(_, index) => ({
@@ -853,6 +846,52 @@ export default function ReelsScreen() {
         onClose={() => setShowPublish(false)}
         insets={insets}
       />
+
+      {/* Custom Dark Delete Reel Modal */}
+      <Modal
+        visible={!!deleteReelId}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteReelId(null)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "center", alignItems: "center", padding: 32 }}
+          onPress={() => setDeleteReelId(null)}
+        >
+          <Pressable
+            style={{ backgroundColor: CARD, borderRadius: 24, borderWidth: 1, borderColor: BORDER, padding: 28, width: "100%", alignItems: "center", gap: 14 }}
+            onPress={() => {}}
+          >
+            <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "#FF3B5C22", alignItems: "center", justifyContent: "center" }}>
+              <Feather name="trash-2" size={28} color="#FF3B5C" strokeWidth={1.5} />
+            </View>
+            <Text style={{ color: TEXT, fontFamily: "Inter_700Bold", fontSize: 18 }}>حذف المقطع</Text>
+            <Text style={{ color: TEXT2, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }}>
+              هل أنت متأكد من حذف هذا المقطع؟ لا يمكن التراجع عن هذا الإجراء.
+            </Text>
+            <View style={{ flexDirection: "row", gap: 12, width: "100%", marginTop: 4 }}>
+              <TouchableOpacity
+                onPress={() => setDeleteReelId(null)}
+                style={{ flex: 1, height: 50, borderRadius: 14, borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: TEXT2, fontFamily: "Inter_500Medium", fontSize: 15 }}>إلغاء</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  if (deleteReelId) {
+                    deleteReel(deleteReelId);
+                    showToast("تم حذف المقطع", "info");
+                  }
+                  setDeleteReelId(null);
+                }}
+                style={{ flex: 1, height: 50, borderRadius: 14, backgroundColor: "#FF3B5C", alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 }}>حذف</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

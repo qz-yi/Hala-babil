@@ -1,14 +1,18 @@
 import { BlurView } from "expo-blur";
 import { isLiquidGlassAvailable } from "expo-glass-effect";
-import { Tabs } from "expo-router";
+import { Tabs, router, useSegments } from "expo-router";
 import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
-import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import React, { useRef } from "react";
+import { Dimensions, PanResponder, Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/context/AppContext";
+
+const { width: SW } = Dimensions.get("window");
+const TAB_ROUTES = ["index", "rooms", "reels", "restaurants", "profile"];
+const EDGE_WIDTH = Math.round(SW * 0.08); // 8% of screen width for edge detection
 
 function NativeTabLayout() {
   const { t } = useApp();
@@ -38,12 +42,50 @@ function NativeTabLayout() {
   );
 }
 
+function useSwipeTabNav() {
+  const segments = useSegments();
+  const currentRoute = segments[segments.length - 1] ?? "index";
+  const currentIdx = TAB_ROUTES.indexOf(currentRoute);
+
+  const navigateTab = (dir: 1 | -1) => {
+    const nextIdx = currentIdx + dir;
+    if (nextIdx < 0 || nextIdx >= TAB_ROUTES.length) return;
+    const route = TAB_ROUTES[nextIdx];
+    router.replace(`/(tabs)/${route === "index" ? "" : route}` as any);
+  };
+
+  const leftEdgePan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (e) => e.nativeEvent.pageX < EDGE_WIDTH,
+      onMoveShouldSetPanResponder: (e, gs) =>
+        e.nativeEvent.pageX < EDGE_WIDTH && gs.dx > 12 && Math.abs(gs.dy) < 40,
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dx > SW * 0.25) navigateTab(-1);
+      },
+    })
+  ).current;
+
+  const rightEdgePan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (e) => e.nativeEvent.pageX > SW - EDGE_WIDTH,
+      onMoveShouldSetPanResponder: (e, gs) =>
+        e.nativeEvent.pageX > SW - EDGE_WIDTH && gs.dx < -12 && Math.abs(gs.dy) < 40,
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dx < -(SW * 0.25)) navigateTab(1);
+      },
+    })
+  ).current;
+
+  return { leftEdgePan, rightEdgePan };
+}
+
 function ClassicTabLayout() {
   const { t, theme } = useApp();
   const safeAreaInsets = useSafeAreaInsets();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
   const isDark = theme === "dark";
+  const { leftEdgePan, rightEdgePan } = useSwipeTabNav();
 
   const tabBarBg = isDark ? "rgba(0,0,0,0.92)" : "rgba(255,255,255,0.95)";
   const borderColor = isDark ? "#262626" : "#E5E5E5";
@@ -51,6 +93,19 @@ function ClassicTabLayout() {
   const inactiveColor = isDark ? "#636366" : "#9CA3AF";
 
   return (
+    <View style={{ flex: 1 }}>
+      {/* Left edge swipe zone */}
+      <View
+        {...leftEdgePan.panHandlers}
+        style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: EDGE_WIDTH, zIndex: 999 }}
+        pointerEvents="box-only"
+      />
+      {/* Right edge swipe zone */}
+      <View
+        {...rightEdgePan.panHandlers}
+        style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: EDGE_WIDTH, zIndex: 999 }}
+        pointerEvents="box-only"
+      />
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -155,6 +210,7 @@ function ClassicTabLayout() {
         }}
       />
     </Tabs>
+    </View>
   );
 }
 

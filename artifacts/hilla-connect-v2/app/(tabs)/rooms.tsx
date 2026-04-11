@@ -9,6 +9,7 @@ import {
   Animated,
   FlatList,
   Image,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -218,6 +219,7 @@ export default function RoomsScreen() {
   const { rooms, currentUser, isSuperAdmin, createRoom, deleteRoom, searchUsers, searchRoomByCode, t } = useApp();
   const insets = useSafeAreaInsets();
   const [showCreate, setShowCreate] = useState(false);
+  const [showRoomLimitModal, setShowRoomLimitModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -243,7 +245,7 @@ export default function RoomsScreen() {
 
   const handleCreateRoom = async (name: string) => {
     if (myRoom) {
-      Alert.alert(t("error"), t("noRoomSlot"));
+      setShowRoomLimitModal(true);
       return;
     }
     await createRoom(name);
@@ -384,6 +386,38 @@ export default function RoomsScreen() {
           t={t}
         />
       )}
+
+      {/* Room Creation Limit Modal */}
+      <Modal
+        visible={showRoomLimitModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRoomLimitModal(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "center", alignItems: "center", padding: 32 }}
+          onPress={() => setShowRoomLimitModal(false)}
+        >
+          <Pressable
+            style={{ backgroundColor: CARD, borderRadius: 24, borderWidth: 1, borderColor: BORDER, padding: 28, width: "100%", alignItems: "center", gap: 14 }}
+            onPress={() => {}}
+          >
+            <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "#F59E0B22", alignItems: "center", justifyContent: "center" }}>
+              <Feather name="alert-circle" size={28} color="#F59E0B" strokeWidth={1.5} />
+            </View>
+            <Text style={{ color: TEXT, fontFamily: "Inter_700Bold", fontSize: 18 }}>تنبيه</Text>
+            <Text style={{ color: "#8E8E93", fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }}>
+              يمكنك إنشاء غرفة واحدة فقط. يرجى حذف غرفتك الحالية أولاً.
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowRoomLimitModal(false)}
+              style={{ width: "100%", height: 50, borderRadius: 14, backgroundColor: TEXT, alignItems: "center", justifyContent: "center", marginTop: 4 }}
+            >
+              <Text style={{ color: BG, fontFamily: "Inter_700Bold", fontSize: 15 }}>حسناً</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

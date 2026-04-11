@@ -280,6 +280,7 @@ interface AppContextValue {
   setRoomAnnouncement: (roomId: string, text: string) => void;
   lockSeat: (roomId: string, seatIndex: number) => void;
   unlockSeat: (roomId: string, seatIndex: number) => void;
+  lockSeatsInRoom: (roomId: string, lockedStates: boolean[]) => void;
   shareRoomToDM: (roomId: string, receiverId: string) => void;
   searchRoomByCode: (code: string) => Room | null;
   getConversation: (otherUserId: string) => Conversation;
@@ -1355,6 +1356,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const lockedSeats = [...(r.lockedSeats ?? Array(8).fill(false))];
         lockedSeats[seatIndex] = false;
         return { ...r, lockedSeats };
+      });
+      saveRooms(updated);
+    },
+    [rooms]
+  );
+
+  const lockSeatsInRoom = useCallback(
+    (roomId: string, lockedStates: boolean[]) => {
+      const updated = rooms.map((r) => {
+        if (r.id !== roomId) return r;
+        const lockedSeats = [...lockedStates];
+        const seats = [...r.seats];
+        const seatUsers = [...r.seatUsers];
+        lockedStates.forEach((shouldLock, idx) => {
+          if (shouldLock && seats[idx]) {
+            seats[idx] = null;
+            seatUsers[idx] = null;
+          }
+        });
+        return { ...r, lockedSeats, seats, seatUsers };
       });
       saveRooms(updated);
     },
@@ -2619,7 +2640,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       login, register, logout, updateProfile, updateCoverPhoto, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
       sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
       kickFromRoom, banFromRoom, muteUserInRoom,
-      updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, shareRoomToDM, searchRoomByCode,
+      updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, lockSeatsInRoom, shareRoomToDM, searchRoomByCode,
       getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       governorateImages, setGovernorateImage,
@@ -2644,7 +2665,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       login, register, logout, updateProfile, updateCoverPhoto, checkUsername, createRoom, deleteRoom, joinRoomSeat, leaveRoomSeat,
       sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
       kickFromRoom, banFromRoom, muteUserInRoom,
-      updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, shareRoomToDM, searchRoomByCode,
+      updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, lockSeatsInRoom, shareRoomToDM, searchRoomByCode,
       getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       governorateImages, setGovernorateImage,

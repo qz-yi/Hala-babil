@@ -1,0 +1,27 @@
+Task: Execute the following high-priority UI/UX enhancements and logic repairs. Focus on performance, smoothness, and visual identity.
+​1️⃣ Top Priority: Reels & Navigation Performance (UX)
+​Reels Scroll Sensitivity: The scrolling logic is currently too "heavy".
+​Fix: Reduce the swipe threshold required to trigger a page change (Snap Interval).
+​Deceleration: Increase the scroll speed and deceleration rate so that a short flick successfully transitions to the next reel.
+​Feedback: If the user stops mid-swipe, the reel must snap to the closest one instantly without lag.
+​Global Gesture Navigation: Implement edge-to-edge swipe navigation between main tabs (Home, Rooms, Reels, Profile) similar to Instagram.
+​Logic: Swiping from the right or left edge (covering ~75% of the distance) should trigger a smooth transition to the adjacent tab.
+​2️⃣ Global UI Consistency (Theming)
+​Standardize Modals: Apply the custom App Dark Theme to the following dialogs which currently use system defaults:
+​Delete Reel confirmation dialog.
+​Room Creation Limit error message ("You can only create one room").
+​User Block confirmation dialog within the Profile view.
+​3️⃣ Audio Room: Logic & Interaction
+​Seat Locking Logic (Bug Fix): The multi-lock feature is currently broken (only locks the last selected seat).
+​Fix: Refactor the lockSeats function to accept an array of seat IDs. Clicking "Apply" must update the state of all selected seats simultaneously via Socket.io.
+​Draggable Seat Divider (Hide Seats): * Feature: Add a "Grip/Handle" bar between the seat area and the chat area.
+​Interaction: Allow users to drag this handle upwards to hide the seats completely, transforming the view into a full-screen chat interface.
+​Persistence: Audio must remain active while seats are hidden. A simple pull-down gesture must restore the seat view.
+​4️⃣ The "Royal Entrance" & Admin Identity (Visual Branding)
+​Eliminate Text Banner: Remove the "Dukhul Malaki" yellow banner entirely.
+​Entrance Sound: Trigger a high-quality "Royal Trumpets/Fanfare" audio effect (.mp3) immediately when the Room Manager enters.
+​Admin Aura: Replace the static yellow border for the Manager with a Dynamic Fiery Aura (Dragon Ball Z / Power Aura style). Use a shader or high-quality Lottie animation that glows and moves around the profile picture.
+​Crown Icon: Place the specific Crown Icon (provided in previous assets) as an absolute-positioned overlay on top of the Manager's profile picture.
+​5️⃣ General Chat & UI Cleanup
+​Room Chat Avatars: Ensure the circular user avatar is visible next to every message in the room chat.
+​Message Inversion Fix: Ensure message bubbles follow a standard flex-direction (Start/End) without horizontal flipping of text or timestamp.

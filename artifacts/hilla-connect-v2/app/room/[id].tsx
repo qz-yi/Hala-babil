@@ -4,10 +4,12 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
+import { Audio } from "expo-av";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
+  Dimensions,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -32,6 +34,56 @@ import GameEngine from "@/components/games/GameEngine";
 
 const SUPER_ADMIN_PHONE = "07719820537";
 const EMOJI_REACTIONS = ["❤️", "😂", "😮", "😢", "😡", "👍", "🔥", "⭐"];
+const { width: SCREEN_W } = Dimensions.get("window");
+
+// ─── تأثير الهالة النارية للمدير ───
+function FieryAura({ size }: { size: number }) {
+  const anim1 = useRef(new Animated.Value(0)).current;
+  const anim2 = useRef(new Animated.Value(0)).current;
+  const anim3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const makeLoop = (anim: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, { toValue: 1, duration: 900, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0, duration: 900, useNativeDriver: true }),
+        ])
+      );
+    const l1 = makeLoop(anim1, 0);
+    const l2 = makeLoop(anim2, 300);
+    const l3 = makeLoop(anim3, 600);
+    l1.start(); l2.start(); l3.start();
+    return () => { l1.stop(); l2.stop(); l3.stop(); };
+  }, []);
+
+  const ring = (anim: Animated.Value, color: string, extraSize: number) => {
+    const rSize = size + extraSize;
+    const offset = -extraSize / 2;
+    return (
+      <Animated.View
+        style={{
+          position: "absolute",
+          width: rSize, height: rSize, borderRadius: rSize / 2,
+          top: offset, left: offset,
+          borderWidth: 2.5,
+          borderColor: color,
+          opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.95] }),
+          transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] }) }],
+        }}
+      />
+    );
+  };
+
+  return (
+    <>
+      {ring(anim1, "#FFD700", 8)}
+      {ring(anim2, "#FF8C00", 16)}
+      {ring(anim3, "#FF4500", 24)}
+    </>
+  );
+}
 
 // ─── مكوّن حلقة التحدث ───
 function SpeakingRing({ color, speaking }: { color: string; speaking: boolean }) {
@@ -81,7 +133,14 @@ function SeatCard({
   }, [user?.id]);
 
   return (
-    <View style={styles.seatWrapper}>
+    <View style={[styles.seatWrapper, { overflow: "visible" }]}>
+      {/* Fiery aura for super admin */}
+      {isSuperAdminUser && user && (
+        <View style={{ position: "absolute", top: 0, left: 0, width: SEAT_SIZE, height: SEAT_SIZE }}>
+          <FieryAura size={SEAT_SIZE} />
+        </View>
+      )}
+
       <TouchableOpacity
         onPress={() => {
           if (isLocked && !canAdmin) { Alert.alert("", t("seatLocked")); return; }
@@ -96,16 +155,16 @@ function SeatCard({
               ? isSuperAdminUser ? "#FFD70020" : `${userColor}20`
               : isLocked ? "#1A0A0A" : colors.backgroundTertiary,
             borderColor: user
-              ? speaking && !effectiveMuted ? (isSuperAdminUser ? "#FFD700" : userColor) : "transparent"
+              ? isSuperAdminUser ? "#FFD700" : (speaking && !effectiveMuted ? userColor : "transparent")
               : isLocked ? "#FF3B5C44" : colors.border,
-            borderWidth: user && speaking && !effectiveMuted ? 2.5 : 1,
+            borderWidth: user ? (isSuperAdminUser ? 2.5 : speaking && !effectiveMuted ? 2.5 : 1) : 1,
           },
         ]}
       >
         {user ? (
           <>
-            {!effectiveMuted && (
-              <SpeakingRing color={isSuperAdminUser ? "#FFD700" : userColor} speaking={speaking} />
+            {!effectiveMuted && !isSuperAdminUser && (
+              <SpeakingRing color={userColor} speaking={speaking} />
             )}
             {/* Avatar fills the full circle */}
             <View style={styles.seatAvatarFill}>
@@ -119,6 +178,12 @@ function SeatCard({
                 </View>
               )}
             </View>
+            {/* Crown icon for super admin */}
+            {isSuperAdminUser && (
+              <View style={{ position: "absolute", top: -10, alignSelf: "center", zIndex: 10 }}>
+                <Text style={{ fontSize: 18 }}>👑</Text>
+              </View>
+            )}
             {/* Mic badge overlay */}
             <View style={[styles.seatMicBadge, { backgroundColor: effectiveMuted ? "#FF3B5C" : speaking ? (isSuperAdminUser ? "#FFD700" : userColor) : "#1C1C1E" }]}>
               <Ionicons name={effectiveMuted ? "mic-off" : "mic"} size={9} color={effectiveMuted ? "#fff" : isSuperAdminUser && !effectiveMuted ? "#000" : "#fff"} />
@@ -134,7 +199,7 @@ function SeatCard({
       {/* Label below seat */}
       <Text style={[styles.seatLabelName, { color: user ? colors.text : colors.textSecondary }]} numberOfLines={1}>
         {user
-          ? (isSuperAdminUser ? "👑 " : "") + (isMe ? "أنا" : user.name.split(" ")[0])
+          ? (isMe ? "أنا" : user.name.split(" ")[0])
           : isLocked ? "🔒" : `${index + 1}`}
       </Text>
 
@@ -519,7 +584,7 @@ export default function RoomScreen() {
     joinRoomSeat, leaveRoomSeat, kickFromRoom, banFromRoom, deleteRoom,
     sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
     muteUserInRoom, updateRoomBackground, setRoomAnnouncement,
-    lockSeat, unlockSeat, shareRoomToDM, t, theme,
+    lockSeat, unlockSeat, lockSeatsInRoom, shareRoomToDM, t, theme,
   } = useApp();
   const { showToast } = useToast();
   const colors = Colors[theme];
@@ -542,6 +607,30 @@ export default function RoomScreen() {
   const [showGameEngine, setShowGameEngine] = useState(false);
   const [showLockSeatsModal, setShowLockSeatsModal] = useState(false);
   const [lockSeatsTemp, setLockSeatsTemp] = useState<boolean[]>(Array(8).fill(false));
+
+  // Draggable seat divider
+  const [seatsVisible, setSeatsVisible] = useState(true);
+  const seatsDragY = useRef(new Animated.Value(0)).current;
+  const seatsDividerPan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 5,
+      onPanResponderMove: (_, gs) => {
+        if (gs.dy < 0) seatsDragY.setValue(Math.max(gs.dy, -200));
+        else if (gs.dy > 0) seatsDragY.setValue(Math.min(gs.dy, 200));
+      },
+      onPanResponderRelease: (_, gs) => {
+        seatsDragY.setValue(0);
+        if (gs.dy < -50) {
+          setSeatsVisible(false);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        } else if (gs.dy > 50) {
+          setSeatsVisible(true);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        }
+      },
+    })
+  ).current;
 
   // حالات جديدة
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -576,6 +665,23 @@ export default function RoomScreen() {
   const effectiveMuted = !isInRoom || muted || isAdminMutedMe;
   const isSuperAdminUser = currentUser?.phone === SUPER_ADMIN_PHONE;
   const canAdmin = isOwner || isSuperAdmin;
+
+  // Royal entrance sound for super admin
+  useEffect(() => {
+    if (!isSuperAdminUser) return;
+    let sound: Audio.Sound | null = null;
+    (async () => {
+      try {
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+        const { sound: s } = await Audio.Sound.createAsync(
+          { uri: "https://www.soundjay.com/misc/sounds/trumpet-fanfare-1.mp3" },
+          { shouldPlay: true, volume: 0.85 }
+        );
+        sound = s;
+      } catch (_) {}
+    })();
+    return () => { sound?.unloadAsync(); };
+  }, []);
 
   const presentMembers = (room.seatUsers ?? []).filter(Boolean) as User[];
   const presenceCount = presentMembers.length;
@@ -860,17 +966,6 @@ export default function RoomScreen() {
           </TouchableOpacity>
         </View>
 
-        {isSuperAdminUser && (
-          <View style={{ marginTop: 10 }}>
-            <LinearGradient
-              colors={["#FFD700", "#FFA500"]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={styles.royalBanner}
-            >
-              <Text style={styles.royalText}>👑 {t("royal")} 👑</Text>
-            </LinearGradient>
-          </View>
-        )}
       </LinearGradient>
 
       {/* Announcement Card */}
@@ -892,6 +987,7 @@ export default function RoomScreen() {
       )}
 
       {/* Seats — 2 rows × 4 cols */}
+      {seatsVisible && (
       <View style={styles.seatsSection}>
         <View style={styles.seatsGrid}>
           {Array(8).fill(null).map((_, i) => (
@@ -923,6 +1019,33 @@ export default function RoomScreen() {
               isLocked={lockedSeats[i] ?? false}
             />
           ))}
+        </View>
+      </View>
+      )}
+
+      {/* Draggable Seat/Chat Divider */}
+      <View
+        {...seatsDividerPan.panHandlers}
+        style={{
+          height: 28, alignItems: "center", justifyContent: "center",
+          backgroundColor: "transparent",
+        }}
+      >
+        <View style={{ width: 48, height: 5, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.18)" }} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+          <Ionicons
+            name={seatsVisible ? "chevron-up" : "chevron-down"}
+            size={12}
+            color="rgba(255,255,255,0.3)"
+          />
+          <Text style={{ color: "rgba(255,255,255,0.25)", fontSize: 9, fontFamily: "Inter_400Regular" }}>
+            {seatsVisible ? "إخفاء المقاعد" : "إظهار المقاعد"}
+          </Text>
+          <Ionicons
+            name={seatsVisible ? "chevron-up" : "chevron-down"}
+            size={12}
+            color="rgba(255,255,255,0.3)"
+          />
         </View>
       </View>
 
@@ -1599,13 +1722,7 @@ export default function RoomScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => {
-                lockSeatsTemp.forEach((shouldLock, idx) => {
-                  if (shouldLock && !(lockedSeats[idx] ?? false)) {
-                    lockSeat(room.id, idx);
-                  } else if (!shouldLock && (lockedSeats[idx] ?? false)) {
-                    unlockSeat(room.id, idx);
-                  }
-                });
+                lockSeatsInRoom(room.id, lockSeatsTemp);
                 setShowLockSeatsModal(false);
                 showToast("تم تحديث حالة المقاعد 🔒", "success");
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

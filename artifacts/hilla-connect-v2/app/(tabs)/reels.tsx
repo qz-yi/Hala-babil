@@ -67,6 +67,7 @@ function ReelPlayerItem({
   isOwner,
   creatorName,
   creatorAvatar,
+  isCreatorVerified,
   insets,
 }: {
   reel: Reel;

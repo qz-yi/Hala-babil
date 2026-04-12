@@ -1,0 +1,32 @@
+Objective: Transform "Hilla Connect" into a professional Multi-Vendor Marketplace. You must implement a rigid Role-Based Access Control (RBAC) system for Managers, Restaurant Owners, and Customers.
+​1️⃣ Core Architecture & Role-Based UI (Crucial Fix)
+​User Roles: Implement three distinct roles: MANAGER, RESTAURANT_OWNER, and CUSTOMER.
+​Dynamic UI Switch: * If role === 'RESTAURANT_OWNER', the "Restaurants" tab MUST be replaced by a "My Restaurant" (مطعمي) tab.
+​Owners must be redirected to their dashboard upon login. They should NOT see the general list of restaurants.
+​If an owner account is disabled by the Manager (isActive: false), show a full-screen "Account Disabled" view with a button to contact the Manager via WhatsApp.
+​2️⃣ Manager Dashboard Refactor (Cleanup Required)
+​DELETE the old "Add Restaurant" (إضافة مطعم) manual form where the manager adds items.
+​NEW WORKFLOW: The Manager ONLY creates Restaurant Owner Accounts (Username, Email, Province).
+​Auto-Generation: Once an owner account is created, the system must automatically generate an empty Restaurant profile linked to that owner.
+​Manager Controls: * View list of restaurants by Province.
+​Per-Restaurant Commission: Add a variable input field (e.g., 5%, 10%, 12%) for each restaurant.
+​Dues Management: View "Monthly Dues" (المستحقات) for each restaurant and a "Clear Dues" button to reset the counter to zero.
+​3️⃣ Restaurant Owner Dashboard (The Business Hub)
+​Create a dedicated interface for owners to manage their business:
+​Identity: Upload a square cover photo and edit the restaurant description.
+​Menu Management: Full CRUD (Create, Read, Update, Delete) for menu items with:
+​Image, Name, and Price.
+​Visibility Toggle: A "Show/Hide" switch for every item. Hidden items must not appear to customers.
+​Auto-Numbering: Items should be numbered from 1 to N automatically.
+​Financial Stats: A real-time counter at the top showing "Monthly Dues" based on the commission rate set by the Manager.
+​4️⃣ Customer & Ordering System (The Cart Flow)
+​NO External Links: Remove all Phone/WhatsApp buttons from restaurant profiles to ensure in-app ordering.
+​Shopping Cart: Build a "Beautiful & Organized Cart". Customers can add multiple items from a restaurant.
+​The Order Action: Clicking "Order" MUST trigger a Structured Chat Message sent directly to the Restaurant Owner.
+​Format: "New Order: [Item 1 x Qty], [Item 2 x Qty]. Total: [Price] IQD."
+​Commission Logic: Upon a successful order, the system must automatically calculate the commission and add it to the Restaurant's "Monthly Dues".
+​5️⃣ Technical & Design Specs
+​Theme: Follow the existing Hilla Connect Dark Theme.
+​UX: Use smooth animations for the cart and status toggles.
+​Persistence: Ensure all dues and roles are stored securely in the database.
+​Execution Rule: Do not just write boilerplate code. DEPLOY these changes to the screens and verify that the RESTAURANT_OWNER role is correctly identified and the UI shifts accordingly

@@ -85,7 +85,7 @@ export default function ChangePasswordScreen() {
         <Feather name="arrow-left" size={22} color={TEXT} strokeWidth={1.5} />
       </TouchableOpacity>
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"

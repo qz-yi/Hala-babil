@@ -13,6 +13,7 @@ export type Theme = "light" | "dark";
 export type ReelFilter = "none" | "grayscale" | "warm" | "cool" | "vintage";
 export type AccountType = "public" | "private";
 export type PostFilter = "none" | "grayscale" | "warm" | "cool" | "vintage";
+export type UserRole = "MANAGER" | "RESTAURANT_OWNER" | "CUSTOMER";
 
 export interface User {
   id: string;
@@ -28,6 +29,8 @@ export interface User {
   bio?: string;
   accountType: AccountType;
   isBanned?: boolean;
+  role?: UserRole;
+  isActive?: boolean;
   createdAt: number;
 }
 
@@ -130,6 +133,11 @@ export interface Restaurant {
   governorate: string;
   menuItems: MenuItem[];
   createdAt: number;
+  ownerId?: string;
+  commissionRate?: number;
+  monthlyDues?: number;
+  isActive?: boolean;
+  description?: string;
 }
 
 export interface MenuItem {
@@ -138,6 +146,21 @@ export interface MenuItem {
   price: number;
   description?: string;
   image?: string;
+  isVisible?: boolean;
+}
+
+export interface CartItem {
+  menuItemId: string;
+  menuItemName: string;
+  menuItemPrice: number;
+  quantity: number;
+}
+
+export interface Cart {
+  restaurantId: string;
+  restaurantName: string;
+  restaurantOwnerId: string;
+  items: CartItem[];
 }
 
 export interface Reel {
@@ -301,6 +324,25 @@ interface AppContextValue {
   deleteConversation: (conversationId: string) => void;
   governorateImages: GovernorateImage[];
   setGovernorateImage: (name: string, image: string) => void;
+  isManager: boolean;
+  isRestaurantOwner: boolean;
+  getMyRestaurant: () => Restaurant | null;
+  createOwnerAccount: (name: string, email: string, governorate: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  setOwnerActive: (userId: string, isActive: boolean) => void;
+  setCommissionRate: (restaurantId: string, rate: number) => void;
+  clearDues: (restaurantId: string) => void;
+  addMenuItemToRestaurant: (restaurantId: string, item: Omit<MenuItem, "id">) => void;
+  updateMenuItemInRestaurant: (restaurantId: string, itemId: string, data: Partial<MenuItem>) => void;
+  deleteMenuItemFromRestaurant: (restaurantId: string, itemId: string) => void;
+  toggleMenuItemVisibility: (restaurantId: string, itemId: string) => void;
+  updateRestaurantProfile: (restaurantId: string, data: { name?: string; description?: string; image?: string; category?: string }) => void;
+  cart: Cart | null;
+  addToCart: (restaurant: Restaurant, item: MenuItem) => void;
+  removeFromCart: (menuItemId: string) => void;
+  updateCartQty: (menuItemId: string, qty: number) => void;
+  clearCart: () => void;
+  getCartTotal: () => number;
+  placeOrder: () => Promise<void>;
   addRestaurant: (restaurant: Omit<Restaurant, "id" | "createdAt">) => void;
   updateRestaurant: (id: string, data: Partial<Restaurant>) => void;
   deleteRestaurant: (id: string) => void;
@@ -908,6 +950,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [savedPosts, setSavedPostsState] = useState<string[]>([]);
   const [governorateImages, setGovernorateImagesState] = useState<GovernorateImage[]>([]);
+  const [cart, setCart] = useState<Cart | null>(null);
 
   useEffect(() => {
     loadData();
@@ -1017,7 +1060,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const isSuperAdmin = currentUser?.phone === SUPER_ADMIN_PHONE;
+  const isSuperAdmin = currentUser?.phone === SUPER_ADMIN_PHONE || currentUser?.role === "MANAGER";
+  const isManager = currentUser?.phone === SUPER_ADMIN_PHONE || currentUser?.role === "MANAGER";
+  const isRestaurantOwner = currentUser?.role === "RESTAURANT_OWNER";
+
+  const getMyRestaurant = useCallback((): Restaurant | null => {
+    if (!currentUser || currentUser.role !== "RESTAURANT_OWNER") return null;
+    return restaurants.find((r) => r.ownerId === currentUser.id) ?? null;
+  }, [currentUser, restaurants]);
 
   const login = useCallback(
     async (identifier: string, password: string): Promise<boolean> => {
@@ -1032,6 +1082,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             email: "admin@hillaconnect.com",
             primaryGovernorate: "بابل",
             accountType: "public",
+            role: "MANAGER" as UserRole,
+            isActive: true,
             createdAt: Date.now(),
           };
           const newUsers = [...users, adminUser];
@@ -1039,6 +1091,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const newPasswords = { ...passwords, [adminUser.id]: SUPER_ADMIN_PASSWORD };
           setPasswords(newPasswords);
           await AsyncStorage.setItem("passwords", JSON.stringify(newPasswords));
+        } else if (!adminUser.role) {
+          adminUser = { ...adminUser, role: "MANAGER" as UserRole, isActive: true };
+          saveUsers(users.map((u) => (u.phone === SUPER_ADMIN_PHONE ? adminUser! : u)));
         }
         setCurrentUser(adminUser);
         await AsyncStorage.setItem("currentUser", JSON.stringify(adminUser));
@@ -1800,6 +1855,226 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     (id: string) => { saveRestaurants(restaurants.filter((r) => r.id !== id)); },
     [restaurants]
   );
+
+  const createOwnerAccount = useCallback(
+    async (name: string, email: string, governorate: string, password: string): Promise<{ success: boolean; error?: string }> => {
+      if (users.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
+        return { success: false, error: "email_exists" };
+      }
+      const newUser: User = {
+        id: generateId(),
+        name,
+        username: email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, ""),
+        email,
+        primaryGovernorate: governorate,
+        accountType: "public",
+        role: "RESTAURANT_OWNER",
+        isActive: true,
+        createdAt: Date.now(),
+      };
+      const newRestaurant: Restaurant = {
+        id: generateId(),
+        name: `مطعم ${name}`,
+        ownerId: newUser.id,
+        governorate,
+        menuItems: [],
+        commissionRate: 10,
+        monthlyDues: 0,
+        isActive: true,
+        phone: "",
+        category: "مطعم",
+        createdAt: Date.now(),
+      };
+      const newUsers = [...users, newUser];
+      saveUsers(newUsers);
+      const newPasswords = { ...passwords, [newUser.id]: password };
+      setPasswords(newPasswords);
+      await AsyncStorage.setItem("passwords", JSON.stringify(newPasswords));
+      saveRestaurants([...restaurants, newRestaurant]);
+      return { success: true };
+    },
+    [users, passwords, restaurants]
+  );
+
+  const setOwnerActive = useCallback(
+    (userId: string, isActive: boolean) => {
+      saveUsers(users.map((u) => (u.id === userId ? { ...u, isActive } : u)));
+      if (currentUser && currentUser.id === userId) {
+        const updated = { ...currentUser, isActive };
+        setCurrentUser(updated);
+        AsyncStorage.setItem("currentUser", JSON.stringify(updated));
+      }
+    },
+    [users, currentUser]
+  );
+
+  const setCommissionRate = useCallback(
+    (restaurantId: string, rate: number) => {
+      saveRestaurants(restaurants.map((r) => (r.id === restaurantId ? { ...r, commissionRate: rate } : r)));
+    },
+    [restaurants]
+  );
+
+  const clearDues = useCallback(
+    (restaurantId: string) => {
+      saveRestaurants(restaurants.map((r) => (r.id === restaurantId ? { ...r, monthlyDues: 0 } : r)));
+    },
+    [restaurants]
+  );
+
+  const addMenuItemToRestaurant = useCallback(
+    (restaurantId: string, item: Omit<MenuItem, "id">) => {
+      const newItem: MenuItem = { ...item, id: generateId(), isVisible: item.isVisible ?? true };
+      saveRestaurants(
+        restaurants.map((r) =>
+          r.id === restaurantId ? { ...r, menuItems: [...r.menuItems, newItem] } : r
+        )
+      );
+    },
+    [restaurants]
+  );
+
+  const updateMenuItemInRestaurant = useCallback(
+    (restaurantId: string, itemId: string, data: Partial<MenuItem>) => {
+      saveRestaurants(
+        restaurants.map((r) =>
+          r.id === restaurantId
+            ? { ...r, menuItems: r.menuItems.map((m) => (m.id === itemId ? { ...m, ...data } : m)) }
+            : r
+        )
+      );
+    },
+    [restaurants]
+  );
+
+  const deleteMenuItemFromRestaurant = useCallback(
+    (restaurantId: string, itemId: string) => {
+      saveRestaurants(
+        restaurants.map((r) =>
+          r.id === restaurantId ? { ...r, menuItems: r.menuItems.filter((m) => m.id !== itemId) } : r
+        )
+      );
+    },
+    [restaurants]
+  );
+
+  const toggleMenuItemVisibility = useCallback(
+    (restaurantId: string, itemId: string) => {
+      saveRestaurants(
+        restaurants.map((r) =>
+          r.id === restaurantId
+            ? { ...r, menuItems: r.menuItems.map((m) => (m.id === itemId ? { ...m, isVisible: !(m.isVisible ?? true) } : m)) }
+            : r
+        )
+      );
+    },
+    [restaurants]
+  );
+
+  const updateRestaurantProfile = useCallback(
+    (restaurantId: string, data: { name?: string; description?: string; image?: string; category?: string }) => {
+      saveRestaurants(restaurants.map((r) => (r.id === restaurantId ? { ...r, ...data } : r)));
+    },
+    [restaurants]
+  );
+
+  const addToCart = useCallback(
+    (restaurant: Restaurant, item: MenuItem) => {
+      setCart((prev) => {
+        if (!restaurant.ownerId) return prev;
+        if (prev && prev.restaurantId !== restaurant.id) {
+          const existing = prev.items.find((i) => i.menuItemId === item.id);
+          if (existing) {
+            return { ...prev, items: prev.items.map((i) => i.menuItemId === item.id ? { ...i, quantity: i.quantity + 1 } : i) };
+          }
+          return prev;
+        }
+        if (!prev) {
+          return {
+            restaurantId: restaurant.id,
+            restaurantName: restaurant.name,
+            restaurantOwnerId: restaurant.ownerId,
+            items: [{ menuItemId: item.id, menuItemName: item.name, menuItemPrice: item.price, quantity: 1 }],
+          };
+        }
+        const existing = prev.items.find((i) => i.menuItemId === item.id);
+        if (existing) {
+          return { ...prev, items: prev.items.map((i) => i.menuItemId === item.id ? { ...i, quantity: i.quantity + 1 } : i) };
+        }
+        return { ...prev, items: [...prev.items, { menuItemId: item.id, menuItemName: item.name, menuItemPrice: item.price, quantity: 1 }] };
+      });
+    },
+    []
+  );
+
+  const removeFromCart = useCallback((menuItemId: string) => {
+    setCart((prev) => {
+      if (!prev) return null;
+      const items = prev.items.filter((i) => i.menuItemId !== menuItemId);
+      return items.length === 0 ? null : { ...prev, items };
+    });
+  }, []);
+
+  const updateCartQty = useCallback((menuItemId: string, qty: number) => {
+    setCart((prev) => {
+      if (!prev) return null;
+      if (qty <= 0) {
+        const items = prev.items.filter((i) => i.menuItemId !== menuItemId);
+        return items.length === 0 ? null : { ...prev, items };
+      }
+      return { ...prev, items: prev.items.map((i) => i.menuItemId === menuItemId ? { ...i, quantity: qty } : i) };
+    });
+  }, []);
+
+  const clearCart = useCallback(() => setCart(null), []);
+
+  const getCartTotal = useCallback((): number => {
+    if (!cart) return 0;
+    return cart.items.reduce((sum, i) => sum + i.menuItemPrice * i.quantity, 0);
+  }, [cart]);
+
+  const placeOrder = useCallback(async (): Promise<void> => {
+    if (!cart || !currentUser) return;
+    const restaurant = restaurants.find((r) => r.id === cart.restaurantId);
+    if (!restaurant || !restaurant.ownerId) return;
+    const itemLines = cart.items.map((i) => `${i.menuItemName} x${i.quantity}`).join("، ");
+    const total = cart.items.reduce((sum, i) => sum + i.menuItemPrice * i.quantity, 0);
+    const orderMsg = `🛒 طلب جديد من ${currentUser.name}:\n${itemLines}\n💰 المجموع: ${total.toLocaleString()} د.ع`;
+    const conv = conversations.find((c) => c.participants.includes(currentUser.id) && c.participants.includes(restaurant.ownerId!)) ?? (() => {
+      const newConv: Conversation = {
+        id: generateId(),
+        participants: [currentUser.id, restaurant.ownerId!],
+        participantUsers: [currentUser, users.find((u) => u.id === restaurant.ownerId) ?? currentUser],
+        messages: [],
+        updatedAt: Date.now(),
+      };
+      saveConversations([...conversations, newConv]);
+      return newConv;
+    })();
+    const newMsg: PrivateMessage = {
+      id: generateId(),
+      senderId: currentUser.id,
+      receiverId: restaurant.ownerId!,
+      content: orderMsg,
+      type: "text",
+      timestamp: Date.now(),
+      read: false,
+    };
+    const updatedConvs = conversations.map((c) =>
+      c.id === conv.id
+        ? { ...c, messages: [...(c.messages ?? []), newMsg], lastMessage: newMsg, updatedAt: Date.now() }
+        : c
+    );
+    if (!conversations.find((c) => c.id === conv.id)) {
+      updatedConvs.push({ ...conv, messages: [newMsg], lastMessage: newMsg, updatedAt: Date.now() });
+    }
+    saveConversations(updatedConvs);
+    const commission = total * ((restaurant.commissionRate ?? 10) / 100);
+    saveRestaurants(
+      restaurants.map((r) => r.id === restaurant.id ? { ...r, monthlyDues: (r.monthlyDues ?? 0) + commission } : r)
+    );
+    setCart(null);
+  }, [cart, currentUser, restaurants, conversations, users]);
 
   const banUser = useCallback(
     (userId: string) => { saveUsers(users.map((u) => (u.id === userId ? { ...u, isBanned: true } : u))); },
@@ -2792,7 +3067,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       language, setLanguage, theme, toggleTheme, currentUser, isAuthenticated: !!currentUser,
-      isSuperAdmin, users, rooms, conversations, restaurants, reels, reelLikes, reelComments,
+      isSuperAdmin, isManager, isRestaurantOwner, getMyRestaurant,
+      users, rooms, conversations, restaurants, reels, reelLikes, reelComments,
       posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, updateCoverPhoto, checkUsername, checkEmail,
       changePassword, sendEmailOTP, resetPasswordWithOTP,
@@ -2804,6 +3080,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       governorateImages, setGovernorateImage,
+      createOwnerAccount, setOwnerActive, setCommissionRate, clearDues,
+      addMenuItemToRestaurant, updateMenuItemInRestaurant, deleteMenuItemFromRestaurant, toggleMenuItemVisibility,
+      updateRestaurantProfile,
+      cart, addToCart, removeFromCart, updateCartQty, clearCart, getCartTotal, placeOrder,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, deleteReelComment, getReelComments,
       likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers, getPostCommentLikers,
@@ -2820,7 +3100,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       t,
     }),
     [
-      language, theme, currentUser, isSuperAdmin, users, rooms, conversations, restaurants,
+      language, theme, currentUser, isSuperAdmin, isManager, isRestaurantOwner, getMyRestaurant,
+      users, rooms, conversations, restaurants,
       reels, reelLikes, reelComments, posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, updateCoverPhoto, checkUsername, checkEmail,
       changePassword, sendEmailOTP, resetPasswordWithOTP,
@@ -2832,6 +3113,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       governorateImages, setGovernorateImage,
+      createOwnerAccount, setOwnerActive, setCommissionRate, clearDues,
+      addMenuItemToRestaurant, updateMenuItemInRestaurant, deleteMenuItemFromRestaurant, toggleMenuItemVisibility,
+      updateRestaurantProfile,
+      cart, addToCart, removeFromCart, updateCartQty, clearCart, getCartTotal, placeOrder,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, deleteReelComment, getReelComments,
       likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers, getPostCommentLikers,

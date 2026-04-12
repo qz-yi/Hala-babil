@@ -53,14 +53,24 @@ export default function ForgotPasswordScreen() {
 
   const handleSendOTP = async () => {
     if (!email.trim()) { showToast(t("fillAll"), "error"); return; }
+    const trimmedEmail = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      showToast("أدخل بريداً إلكترونياً صالحاً", "error");
+      return;
+    }
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const result = await sendEmailOTP(email.trim());
+    const result = await sendEmailOTP(trimmedEmail);
     setLoading(false);
     if (!result.success) {
-      const msg = result.error === "network_error"
-        ? "تعذّر الاتصال بالخادم. تحقق من اتصالك."
-        : t("emailNotFound");
+      let msg = "حدث خطأ. حاول مرة أخرى.";
+      if (result.error === "network_error") {
+        msg = "تعذّر الاتصال بالخادم. تحقق من اتصالك بالإنترنت.";
+      } else if (result.error === "invalid_email") {
+        msg = "البريد الإلكتروني المُدخَل غير صالح.";
+      } else if (result.error === "send_failed") {
+        msg = "فشل إرسال الرمز إلى بريدك. تحقق من صحة العنوان أو جرّب واتساب.";
+      }
       showToast(msg, "error");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;

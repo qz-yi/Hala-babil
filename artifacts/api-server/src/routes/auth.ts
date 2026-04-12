@@ -1,149 +1,152 @@
 import { Router } from "express";
 import crypto from "node:crypto";
-import { db, otps, passwordResetTokens } from "@workspace/db";
-import { eq, and, gt } from "drizzle-orm";
 import { sendOtpEmail } from "../lib/email.js";
 import { logger } from "../lib/logger.js";
 
 const router = Router();
 
+// ─── In-memory OTP store (OTPs expire in 5 min — no persistence needed) ───────
+interface OtpRecord {
+  otpCode: string;
+  expiresAt: number; // Unix ms
+  used: boolean;
+}
+interface ResetTokenRecord {
+  email: string;
+  expiresAt: number;
+  used: boolean;
+}
+
+const otpStore = new Map<string, OtpRecord>();       // key: email (lower)
+const resetTokenStore = new Map<string, ResetTokenRecord>(); // key: token
+
 function generateOtp(): string {
-  const num = crypto.randomInt(100000, 999999);
-  return num.toString();
+  return crypto.randomInt(100000, 999999).toString();
 }
 
 function generateResetToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
-// POST /api/auth/send-otp
+// Purge expired entries lazily to keep memory tidy
+function purgeExpired() {
+  const now = Date.now();
+  for (const [k, v] of otpStore) {
+    if (v.expiresAt < now) otpStore.delete(k);
+  }
+  for (const [k, v] of resetTokenStore) {
+    if (v.expiresAt < now) resetTokenStore.delete(k);
+  }
+}
+
+// ─── POST /api/auth/send-otp ──────────────────────────────────────────────────
 // body: { email: string }
 router.post("/auth/send-otp", async (req, res) => {
-  const { email } = req.body as { email?: string };
+  const rawEmail = (req.body as { email?: string }).email;
 
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ error: "البريد الإلكتروني غير صالح" });
+  logger.info({ rawEmail }, "[send-otp] received request");
+
+  if (!rawEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail.trim())) {
+    return res.status(400).json({ error: "invalid_email", message: "البريد الإلكتروني غير صالح" });
   }
 
-  const normalizedEmail = email.toLowerCase();
+  const email = rawEmail.trim().toLowerCase();
+  logger.info({ email }, "[send-otp] normalized email");
+
+  purgeExpired();
+
+  const otpCode = generateOtp();
+  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+  otpStore.set(email, { otpCode, expiresAt, used: false });
+
+  logger.info({ email, otpCode }, "[send-otp] OTP generated (dev log — remove in prod)");
 
   try {
-    await db.delete(otps).where(eq(otps.email, normalizedEmail));
-
-    const otpCode = generateOtp();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-    await db.insert(otps).values({
-      email: normalizedEmail,
-      otpCode,
-      expiresAt,
-      used: false,
-    });
-
     await sendOtpEmail(email, otpCode);
-
-    logger.info({ email: normalizedEmail }, "OTP sent");
+    logger.info({ email }, "[send-otp] OTP email dispatched");
     return res.json({ success: true, message: "تم إرسال رمز التحقق إلى بريدك الإلكتروني" });
   } catch (err) {
-    logger.error({ err, email: normalizedEmail }, "Failed to send OTP");
-    return res.status(500).json({ error: "فشل إرسال رمز التحقق. حاول مرة أخرى." });
+    logger.error({ err, email }, "[send-otp] Failed to send OTP email");
+    otpStore.delete(email);
+    return res.status(500).json({ error: "send_failed", message: "فشل إرسال رمز التحقق. تحقق من الاتصال وحاول مرة أخرى." });
   }
 });
 
-// POST /api/auth/verify-otp
+// ─── POST /api/auth/verify-otp ───────────────────────────────────────────────
 // body: { email: string, otpCode: string }
 // Returns: { success: true, resetToken: string }
 router.post("/auth/verify-otp", async (req, res) => {
-  const { email, otpCode } = req.body as { email?: string; otpCode?: string };
+  const { email: rawEmail, otpCode } = req.body as { email?: string; otpCode?: string };
 
-  if (!email || !otpCode) {
-    return res.status(400).json({ error: "البريد الإلكتروني والرمز مطلوبان" });
+  logger.info({ rawEmail, otpCode }, "[verify-otp] received request");
+
+  if (!rawEmail || !otpCode) {
+    return res.status(400).json({ error: "missing_fields", message: "البريد الإلكتروني والرمز مطلوبان" });
   }
 
-  const normalizedEmail = email.toLowerCase();
+  const email = rawEmail.trim().toLowerCase();
+  const code = otpCode.trim();
 
-  try {
-    const now = new Date();
+  purgeExpired();
 
-    const [record] = await db
-      .select()
-      .from(otps)
-      .where(
-        and(
-          eq(otps.email, normalizedEmail),
-          eq(otps.otpCode, otpCode.trim()),
-          eq(otps.used, false),
-          gt(otps.expiresAt, now),
-        ),
-      )
-      .limit(1);
+  const record = otpStore.get(email);
 
-    if (!record) {
-      return res.status(400).json({ error: "الرمز غير صحيح أو انتهت صلاحيته" });
-    }
+  logger.info({ email, record: record ? { used: record.used, expired: record.expiresAt < Date.now() } : null }, "[verify-otp] looked up OTP record");
 
-    await db.update(otps).set({ used: true }).where(eq(otps.id, record.id));
-
-    await db.delete(passwordResetTokens).where(eq(passwordResetTokens.email, normalizedEmail));
-
-    const token = generateResetToken();
-    const tokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
-
-    await db.insert(passwordResetTokens).values({
-      email: normalizedEmail,
-      token,
-      expiresAt: tokenExpiresAt,
-      used: false,
-    });
-
-    logger.info({ email: normalizedEmail }, "OTP verified — reset token issued");
-    return res.json({ success: true, resetToken: token });
-  } catch (err) {
-    logger.error({ err, email: normalizedEmail }, "OTP verification failed");
-    return res.status(500).json({ error: "حدث خطأ أثناء التحقق. حاول مرة أخرى." });
+  if (!record) {
+    return res.status(400).json({ error: "otp_not_found", message: "لم يُرسَل رمز تحقق لهذا البريد أو انتهت صلاحيته" });
   }
+  if (record.used) {
+    return res.status(400).json({ error: "otp_used", message: "تم استخدام هذا الرمز بالفعل" });
+  }
+  if (record.expiresAt < Date.now()) {
+    otpStore.delete(email);
+    return res.status(400).json({ error: "otp_expired", message: "انتهت صلاحية الرمز. أعد طلب رمز جديد." });
+  }
+  if (record.otpCode !== code) {
+    return res.status(400).json({ error: "wrong_otp", message: "الرمز غير صحيح" });
+  }
+
+  // Mark as used
+  otpStore.set(email, { ...record, used: true });
+
+  // Issue a short-lived reset token
+  const token = generateResetToken();
+  const tokenExpiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+
+  // Clean up any existing tokens for this email
+  for (const [k, v] of resetTokenStore) {
+    if (v.email === email) resetTokenStore.delete(k);
+  }
+  resetTokenStore.set(token, { email, expiresAt: tokenExpiresAt, used: false });
+
+  logger.info({ email }, "[verify-otp] OTP verified — reset token issued");
+  return res.json({ success: true, resetToken: token });
 });
 
-// POST /api/auth/validate-reset-token
+// ─── POST /api/auth/validate-reset-token ─────────────────────────────────────
 // body: { resetToken: string }
 // Returns: { valid: true, email: string }
 router.post("/auth/validate-reset-token", async (req, res) => {
   const { resetToken } = req.body as { resetToken?: string };
 
   if (!resetToken) {
-    return res.status(400).json({ error: "رمز إعادة التعيين مطلوب" });
+    return res.status(400).json({ error: "missing_token", message: "رمز إعادة التعيين مطلوب" });
   }
 
-  try {
-    const now = new Date();
+  purgeExpired();
 
-    const [record] = await db
-      .select()
-      .from(passwordResetTokens)
-      .where(
-        and(
-          eq(passwordResetTokens.token, resetToken),
-          eq(passwordResetTokens.used, false),
-          gt(passwordResetTokens.expiresAt, now),
-        ),
-      )
-      .limit(1);
+  const record = resetTokenStore.get(resetToken);
 
-    if (!record) {
-      return res.status(400).json({ error: "رمز إعادة التعيين غير صالح أو منتهي الصلاحية" });
-    }
-
-    await db
-      .update(passwordResetTokens)
-      .set({ used: true })
-      .where(eq(passwordResetTokens.id, record.id));
-
-    logger.info({ email: record.email }, "Reset token validated");
-    return res.json({ valid: true, email: record.email });
-  } catch (err) {
-    logger.error({ err }, "Reset token validation failed");
-    return res.status(500).json({ error: "حدث خطأ. حاول مرة أخرى." });
+  if (!record || record.used || record.expiresAt < Date.now()) {
+    return res.status(400).json({ error: "invalid_token", message: "رمز إعادة التعيين غير صالح أو منتهي الصلاحية" });
   }
+
+  resetTokenStore.set(resetToken, { ...record, used: true });
+
+  logger.info({ email: record.email }, "[validate-reset-token] token validated");
+  return res.json({ valid: true, email: record.email });
 });
 
 export default router;

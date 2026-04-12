@@ -21,8 +21,8 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 ```text
 artifacts-monorepo/
 ├── artifacts/              # Deployable applications
-│   ├── api-server/         # Express API server
-│   └── hilla-connect/      # Expo React Native mobile app (main product)
+│   ├── api-server/         # Express API server (port 3001)
+│   └── hilla-connect-v2/   # Expo React Native mobile app (port 8080)
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
@@ -31,6 +31,11 @@ artifacts-monorepo/
 ├── scripts/                # Utility scripts
 └── pnpm-workspace.yaml
 ```
+
+## Workflows
+
+- **Start Backend**: `cd artifacts/api-server && PORT=3001 pnpm run dev` (port 3001)
+- **Start Expo**: `PORT=8080 pnpm --filter @workspace/hilla-connect-v2 run dev` (port 8080)
 
 ---
 

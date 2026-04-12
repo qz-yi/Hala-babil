@@ -13,10 +13,8 @@ import {
 } from "./gameTypes";
 import GameSplash from "./GameSplash";
 import WinScreen from "./WinScreen";
-import UnoGame from "./UnoGame";
+import TicTacToeGame from "./TicTacToeGame";
 import DominoGame from "./DominoGame";
-import LudoGame from "./LudoGame";
-import DiceGame from "./DiceGame";
 
 interface SeatUser {
   id: string;
@@ -47,10 +45,8 @@ export default function GameEngine({
   const {
     game, isMyTurn, amIPlayer,
     startGame, endGame,
-    unoPlayCard, unoChooseColor, unoDrawCard, callUno,
+    ticTacToePlay, ticTacToeReset,
     dominoPlayTile, dominoDrawFromBoneyard,
-    ludoRollDice, ludoMovePiece,
-    diceRoll,
   } = useGameEngine(currentUserId);
 
   React.useEffect(() => {
@@ -211,7 +207,7 @@ export default function GameEngine({
                 {isOwner && (
                   <TouchableOpacity onPress={() => setGamePickerVisible(true)} style={styles.startGameBtn}>
                     <LinearGradient
-                      colors={["#6A1B9A", "#4A148C"]}
+                      colors={["#6366F1", "#4F46E5"]}
                       start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                       style={styles.startGameBtnGradient}
                     >
@@ -222,7 +218,7 @@ export default function GameEngine({
                 )}
 
                 <View style={styles.gameGrid}>
-                  {(Object.entries(GAME_INFO) as [GameType, typeof GAME_INFO.uno][]).map(([gt, info]) => (
+                  {(Object.entries(GAME_INFO) as [GameType, typeof GAME_INFO.tictactoe][]).map(([gt, info]) => (
                     <View key={gt} style={[styles.gameInfoCard, { borderColor: info.color + "55" }]}>
                       <Text style={styles.gameInfoEmoji}>{info.emoji}</Text>
                       <Text style={styles.gameInfoName}>{info.name}</Text>
@@ -242,18 +238,16 @@ export default function GameEngine({
             {/* Playing */}
             {game && game.status === "playing" && (
               <>
-                {game.gameType === "uno" && game.uno && (
-                  <UnoGame
-                    state={game.uno}
+                {game.gameType === "tictactoe" && game.tictactoe && (
+                  <TicTacToeGame
+                    state={game.tictactoe}
                     players={game.players}
                     currentTurnIndex={game.currentTurnIndex}
                     currentUserId={currentUserId}
                     isMyTurn={isMyTurn}
                     amIPlayer={amIPlayer}
-                    onPlayCard={unoPlayCard}
-                    onDrawCard={unoDrawCard}
-                    onCallUno={callUno}
-                    onChooseColor={unoChooseColor}
+                    onPlay={ticTacToePlay}
+                    onReset={ticTacToeReset}
                   />
                 )}
                 {game.gameType === "domino" && game.domino && (
@@ -268,29 +262,6 @@ export default function GameEngine({
                     onDrawFromBoneyard={dominoDrawFromBoneyard}
                   />
                 )}
-                {game.gameType === "ludo" && game.ludo && (
-                  <LudoGame
-                    state={game.ludo}
-                    players={game.players}
-                    currentTurnIndex={game.currentTurnIndex}
-                    currentUserId={currentUserId}
-                    isMyTurn={isMyTurn}
-                    amIPlayer={amIPlayer}
-                    onRollDice={ludoRollDice}
-                    onMovePiece={ludoMovePiece}
-                  />
-                )}
-                {game.gameType === "dice" && game.dice && (
-                  <DiceGame
-                    state={game.dice}
-                    players={game.players}
-                    currentTurnIndex={game.currentTurnIndex}
-                    currentUserId={currentUserId}
-                    isMyTurn={isMyTurn}
-                    amIPlayer={amIPlayer}
-                    onRoll={diceRoll}
-                  />
-                )}
               </>
             )}
 
@@ -300,12 +271,7 @@ export default function GameEngine({
                 winner={winnerPlayer}
                 gameType={game.gameType}
                 players={game.players}
-                scores={
-                  game.dice ? game.dice.scores :
-                  game.domino ? game.domino.scores :
-                  game.ludo ? game.ludo.scores :
-                  undefined
-                }
+                scores={game.domino ? game.domino.scores : undefined}
                 onClose={endGame}
               />
             )}
@@ -320,7 +286,7 @@ export default function GameEngine({
           <View style={styles.sheetHandle} />
           <Text style={styles.pickerTitle}>اختر لعبة 🎮</Text>
           <ScrollView contentContainerStyle={{ gap: 10, paddingHorizontal: 16, paddingBottom: 32 }}>
-            {(Object.entries(GAME_INFO) as [GameType, typeof GAME_INFO.uno][]).map(([gt, info]) => (
+            {(Object.entries(GAME_INFO) as [GameType, typeof GAME_INFO.tictactoe][]).map(([gt, info]) => (
               <TouchableOpacity
                 key={gt}
                 onPress={() => { handleSelectGame(gt); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}

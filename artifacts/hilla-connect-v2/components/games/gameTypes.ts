@@ -1,4 +1,4 @@
-export type GameType = "uno" | "domino" | "ludo" | "dice";
+export type GameType = "tictactoe" | "domino";
 export type GameStatus = "idle" | "selecting" | "splash" | "playing" | "finished";
 
 export interface GamePlayer {
@@ -9,27 +9,16 @@ export interface GamePlayer {
   color: string;
 }
 
-// ─── UNO ───
-export type UnoColor = "red" | "green" | "blue" | "yellow" | "wild";
-export type UnoAction = "skip" | "reverse" | "draw2" | "wild" | "wild4" | null;
+// ─── TIC-TAC-TOE ───
+export type TicTacToeSymbol = "X" | "O";
+export type TicTacToeCell = TicTacToeSymbol | null;
 
-export interface UnoCard {
-  id: string;
-  color: UnoColor;
-  value: number | null;
-  action: UnoAction;
-}
-
-export interface UnoState {
-  hands: Record<string, UnoCard[]>;
-  discardPile: UnoCard[];
-  deckSize: number;
-  currentColor: UnoColor;
-  direction: 1 | -1;
-  drawStack: number;
-  skipNext: boolean;
-  choosingColor: boolean;
-  unoCallers: string[];
+export interface TicTacToeState {
+  board: TicTacToeCell[];
+  symbols: Record<string, TicTacToeSymbol>;
+  currentSymbol: TicTacToeSymbol;
+  winLine: number[] | null;
+  isDraw: boolean;
   lastAction: string;
 }
 
@@ -58,35 +47,6 @@ export interface DominoState {
   lastAction: string;
 }
 
-// ─── LUDO ───
-export interface LudoPiece {
-  id: string;
-  playerId: string;
-  position: number;
-  isHome: boolean;
-  isFinished: boolean;
-}
-
-export interface LudoState {
-  pieces: LudoPiece[];
-  dice: number;
-  diceRolled: boolean;
-  movablePieces: string[];
-  scores: Record<string, number>;
-  lastAction: string;
-}
-
-// ─── DICE BATTLE ───
-export interface DiceState {
-  dice: Record<string, number[]>;
-  rolling: boolean;
-  scores: Record<string, number>;
-  round: number;
-  maxRounds: number;
-  lastAction: string;
-  roundWinner: string | null;
-}
-
 export interface GameState {
   id: string;
   gameType: GameType;
@@ -95,21 +55,19 @@ export interface GameState {
   currentTurnIndex: number;
   winner: string | null;
   startTime: number;
-  uno?: UnoState;
+  tictactoe?: TicTacToeState;
   domino?: DominoState;
-  ludo?: LudoState;
-  dice?: DiceState;
 }
 
 export const GAME_INFO = {
-  uno: {
-    name: "أونو",
-    emoji: "🃏",
-    description: "العب أوراق الألوان وتخلص من يدك أولاً",
+  tictactoe: {
+    name: "إكس أو",
+    emoji: "⭕",
+    description: "أكمل صف أو عمود أو قطر قبل خصمك",
     minPlayers: 2,
-    maxPlayers: 6,
-    color: "#E53935",
-    gradient: ["#E53935", "#B71C1C"] as [string, string],
+    maxPlayers: 2,
+    color: "#6366F1",
+    gradient: ["#6366F1", "#4F46E5"] as [string, string],
   },
   domino: {
     name: "دومينو",
@@ -120,27 +78,22 @@ export const GAME_INFO = {
     color: "#1565C0",
     gradient: ["#1565C0", "#0D47A1"] as [string, string],
   },
-  ludo: {
-    name: "لودو",
-    emoji: "🎲",
-    description: "سبق قطعك للنهاية قبل خصومك",
-    minPlayers: 2,
-    maxPlayers: 4,
-    color: "#2E7D32",
-    gradient: ["#2E7D32", "#1B5E20"] as [string, string],
-  },
-  dice: {
-    name: "نرد الحظ",
-    emoji: "🎯",
-    description: "من يرمي أعلى رقم في ٥ جولات يفوز",
-    minPlayers: 2,
-    maxPlayers: 2,
-    color: "#6A1B9A",
-    gradient: ["#6A1B9A", "#4A148C"] as [string, string],
-  },
 };
 
 export const PLAYER_COLORS = [
   "#E53935", "#1565C0", "#2E7D32", "#F57F17",
   "#6A1B9A", "#00838F",
 ];
+
+const WIN_LINES = [
+  [0, 1, 2], [3, 4, 5], [6, 7, 8],
+  [0, 3, 6], [1, 4, 7], [2, 5, 8],
+  [0, 4, 8], [2, 4, 6],
+];
+
+export function checkTicTacToeWin(board: TicTacToeCell[], symbol: TicTacToeSymbol): number[] | null {
+  for (const line of WIN_LINES) {
+    if (line.every((i) => board[i] === symbol)) return line;
+  }
+  return null;
+}

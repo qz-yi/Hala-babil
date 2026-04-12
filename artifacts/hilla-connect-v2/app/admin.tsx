@@ -541,7 +541,7 @@ export default function AdminScreen() {
           {tab === "governorates" && (
             <View>
               <SectionHeader title="صور المحافظات" subtitle="اضغط على المحافظة لتغيير صورتها" />
-              <View style={{ flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 10 }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 10, alignItems: "flex-start" }}>
                 {IRAQI_GOVERNORATES.map((g) => {
                   const img = governorateImages.find((gi) => gi.name === g);
                   return (
@@ -679,7 +679,7 @@ const styles = StyleSheet.create({
   roomOwner: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2 },
   roomCode: { fontSize: 11, fontFamily: "Inter_500Medium", color: ACCENT },
   govCard: { width: 100, borderRadius: 12, overflow: "hidden", backgroundColor: CARD, borderWidth: 0.5, borderColor: BORDER },
-  govCardImg: { width: "100%", height: 64, resizeMode: "cover" },
-  govCardPlaceholder: { width: "100%", height: 64, backgroundColor: CARD2, alignItems: "center", justifyContent: "center" },
+  govCardImg: { width: "100%", aspectRatio: 1, resizeMode: "cover" },
+  govCardPlaceholder: { width: "100%", aspectRatio: 1, backgroundColor: CARD2, alignItems: "center", justifyContent: "center" },
   govCardName: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: TEXT, textAlign: "center", paddingVertical: 6, paddingHorizontal: 4 },
 });

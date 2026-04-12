@@ -430,6 +430,12 @@ interface AppContextValue {
   isPostSaved: (postId: string) => boolean;
   getSavedPosts: () => Post[];
   t: (key: string) => string;
+  isRoomMinimized: boolean;
+  minimizedRoomId: string | null;
+  minimizedRoomName: string;
+  minimizedRoomImage: string | undefined;
+  minimizeRoom: (roomId: string, roomName: string, roomImage?: string) => void;
+  expandRoom: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -959,6 +965,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [savedPosts, setSavedPostsState] = useState<string[]>([]);
   const [governorateImages, setGovernorateImagesState] = useState<GovernorateImage[]>([]);
   const [cart, setCart] = useState<Cart | null>(null);
+  const [isRoomMinimized, setIsRoomMinimized] = useState(false);
+  const [minimizedRoomId, setMinimizedRoomId] = useState<string | null>(null);
+  const [minimizedRoomName, setMinimizedRoomName] = useState<string>("");
+  const [minimizedRoomImage, setMinimizedRoomImage] = useState<string | undefined>(undefined);
+
+  const minimizeRoom = useCallback((roomId: string, roomName: string, roomImage?: string) => {
+    setIsRoomMinimized(true);
+    setMinimizedRoomId(roomId);
+    setMinimizedRoomName(roomName);
+    setMinimizedRoomImage(roomImage);
+  }, []);
+
+  const expandRoom = useCallback(() => {
+    setIsRoomMinimized(false);
+    setMinimizedRoomId(null);
+    setMinimizedRoomName("");
+    setMinimizedRoomImage(undefined);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -3128,6 +3152,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       getUserPosts, getUserReels,
       savedPosts, savePost, unsavePost, isPostSaved, getSavedPosts,
       t,
+      isRoomMinimized, minimizedRoomId, minimizedRoomName, minimizedRoomImage, minimizeRoom, expandRoom,
     }),
     [
       language, theme, currentUser, isSuperAdmin, isManager, isRestaurantOwner, getMyRestaurant,
@@ -3160,6 +3185,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markNotificationRead, markAllNotificationsRead, getUnreadNotificationsCount,
       getFeedPosts, getFeedReels, getLikedReels, getMyComments, getMyPostComments, getLikedPosts,
       getUserPosts, getUserReels, t,
+      isRoomMinimized, minimizedRoomId, minimizedRoomName, minimizedRoomImage, minimizeRoom, expandRoom,
     ]
   );
 

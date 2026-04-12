@@ -11,7 +11,7 @@ import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import React, { useEffect, useRef } from "react";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -19,6 +19,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { ToastProvider } from "@/components/Toast";
+import { FloatingRoomWidget } from "@/components/FloatingRoomWidget";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -106,7 +107,7 @@ function RootLayoutNav() {
   const bg = theme === "dark" ? "#000000" : "#FFFFFF";
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <NotificationSetup />
       <Stack
         screenOptions={{
@@ -213,7 +214,8 @@ function RootLayoutNav() {
           }}
         />
       </Stack>
-    </>
+      <FloatingRoomWidget />
+    </View>
   );
 }
 

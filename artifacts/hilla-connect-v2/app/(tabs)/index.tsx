@@ -363,10 +363,11 @@ function CommentSheet({
                   )}
                 </TouchableOpacity>
                 <View style={styles.commentBody}>
-                  <TouchableOpacity onPress={() => handleNavigateToProfile(item.userId)} activeOpacity={0.8}>
+                  <TouchableOpacity onPress={() => handleNavigateToProfile(item.userId)} activeOpacity={0.8} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                     <Text style={[styles.commentUser, { color: "#3D91F4" }]}>
                       {commenter?.username || item.userName}
                     </Text>
+                    {isUserVerified(commenter) && <VerifiedBadge size={13} />}
                   </TouchableOpacity>
                   <MentionText
                     text={item.content}

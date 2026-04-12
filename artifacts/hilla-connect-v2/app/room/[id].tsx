@@ -590,6 +590,7 @@ export default function RoomScreen() {
     sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
     muteUserInRoom, updateRoomBackground, setRoomAnnouncement,
     lockSeat, unlockSeat, lockSeatsInRoom, shareRoomToDM, t, theme,
+    minimizeRoom,
   } = useApp();
   const { showToast } = useToast();
   const colors = Colors[theme];
@@ -1236,12 +1237,7 @@ export default function RoomScreen() {
             { paddingBottom: botPad + 8, borderTopColor: `${colors.border}55`, backgroundColor: "rgba(0,0,0,0.45)" },
           ]}
         >
-          {/* زر الخروج */}
-          <TouchableOpacity onPress={handleLeaveRoom} style={[styles.roundBtn, { backgroundColor: `${colors.danger}22` }]}>
-            <Ionicons name="exit-outline" size={20} color={colors.danger} />
-          </TouchableOpacity>
-
-          {/* زر المرفقات */}
+            {/* زر المرفقات */}
           <TouchableOpacity
             onPress={() => setShowAttach((v) => !v)}
             style={[styles.roundBtn, { backgroundColor: showAttach ? `${accentColor}22` : colors.backgroundTertiary }]}
@@ -1672,6 +1668,35 @@ export default function RoomScreen() {
             </TouchableOpacity>
           )}
 
+          {/* تصغير الغرفة */}
+          <TouchableOpacity
+            style={[styles.optionsItem, { borderBottomColor: colors.border }]}
+            onPress={() => {
+              setShowOptionsMenu(false);
+              minimizeRoom(room.id, room.name, room.image);
+              router.back();
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            }}
+          >
+            <View style={[styles.optionsIconWrap, { backgroundColor: "#6366F118" }]}>
+              <Ionicons name="remove-circle-outline" size={20} color="#6366F1" />
+            </View>
+            <Text style={[styles.optionsLabel, { color: colors.text }]}>تصغير الغرفة</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          {/* مغادرة الغرفة */}
+          <TouchableOpacity
+            style={[styles.optionsItem, { borderBottomColor: (isOwner || isSuperAdmin) ? colors.border : "transparent" }]}
+            onPress={() => { setShowOptionsMenu(false); handleLeaveRoom(); }}
+          >
+            <View style={[styles.optionsIconWrap, { backgroundColor: `${colors.danger}18` }]}>
+              <Ionicons name="exit-outline" size={20} color={colors.danger} />
+            </View>
+            <Text style={[styles.optionsLabel, { color: colors.danger }]}>مغادرة الغرفة</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.danger} />
+          </TouchableOpacity>
+
           {/* حذف الغرفة */}
           {(isOwner || isSuperAdmin) && (
             <TouchableOpacity
@@ -1882,7 +1907,7 @@ export default function RoomScreen() {
   );
 }
 
-const SEAT_SIZE = 78;
+const SEAT_SIZE = 66;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -1922,7 +1947,7 @@ const styles = StyleSheet.create({
   },
 
   // Seats — simplified: circular avatar only + mic badge
-  seatsSection: { paddingHorizontal: 8, paddingBottom: 4 },
+  seatsSection: { paddingHorizontal: 8, paddingBottom: 4, marginTop: 8 },
   seatsGrid: {
     flexDirection: "row", flexWrap: "wrap",
     justifyContent: "space-evenly", gap: 10,

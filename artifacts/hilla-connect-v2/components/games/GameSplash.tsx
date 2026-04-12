@@ -57,11 +57,9 @@ export default function GameSplash({ gameType }: Props) {
   const spin = rotate.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
 
   const splashEmojis = {
-    uno: ["🃏", "🎴", "🃏"],
+    tictactoe: ["❌", "⭕", "❌"],
     domino: ["🀱", "🀲", "🀳"],
-    ludo: ["🎲", "♟️", "🎯"],
-    dice: ["🎲", "🎯", "🎲"],
-  }[gameType];
+  }[gameType] ?? ["🎮", "🕹️", "🎮"];
 
   return (
     <Animated.View

@@ -33,13 +33,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
-import { useApp } from "@/context/AppContext";
+import { useApp, isUserVerified } from "@/context/AppContext";
 import type {
   MessageLocation,
   PrivateMessage,
   SharedContent,
   User,
 } from "@/context/AppContext";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 const BG = "#000000";
 const CARD = "#121212";
@@ -1144,7 +1145,10 @@ export default function ChatScreen() {
             style={styles.headerInfo}
             onPress={() => otherUser && router.push(`/chat/info/${id}` as any)}
           >
-            <Text style={[styles.headerName, { color: TEXT }]}>{otherUser?.name}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+              <Text style={[styles.headerName, { color: TEXT }]}>{otherUser?.name}</Text>
+              {isUserVerified(otherUser) && <VerifiedBadge size={14} />}
+            </View>
             <View style={styles.onlineRow}>
               <View style={styles.onlineDot} />
               <Text style={[styles.onlineText, { color: TEXT2 }]}>{t("online")}</Text>

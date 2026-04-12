@@ -130,7 +130,7 @@ function GovernoratePicker({
                 activeOpacity={0.8}
               >
                 <Text style={[styles.pickerItemText, isSelected && styles.pickerItemTextSelected]}>
-                  🏛️  {item}
+                  {item}
                 </Text>
                 {isSelected && (
                   <Feather name="check" size={18} color={ACCENT} strokeWidth={2} />

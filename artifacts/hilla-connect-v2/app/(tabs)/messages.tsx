@@ -18,8 +18,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ACCENT_COLORS } from "@/constants/colors";
 import Colors from "@/constants/colors";
-import { useApp } from "@/context/AppContext";
+import { useApp, isUserVerified } from "@/context/AppContext";
 import type { Conversation, User } from "@/context/AppContext";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 function UserPickerModal({ users, currentUser, onSelect, onClose, t, colors }: any) {
   const others = users.filter((u: User) => u.id !== currentUser?.id);
@@ -207,7 +208,10 @@ export default function MessagesScreen() {
                 </View>
                 <View style={[styles.convoInfo, { borderBottomColor: colors.border }]}>
                   <View style={styles.convoTopRow}>
-                    <Text style={[styles.convoName, { color: hasUnread ? colors.text : colors.textSecondary }]}>{other.name}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flex: 1 }}>
+                      <Text style={[styles.convoName, { color: hasUnread ? colors.text : colors.textSecondary }]}>{other.name}</Text>
+                      {isUserVerified(other) && <VerifiedBadge size={12} />}
+                    </View>
                     {item.lastMessage && (
                       <Text style={[styles.convoTime, { color: colors.textSecondary }]}>{formatTime(item.lastMessage.timestamp)}</Text>
                     )}

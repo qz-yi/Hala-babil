@@ -26,8 +26,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ACCENT_COLORS } from "@/constants/colors";
-import { useApp, type Reel, type ReelFilter } from "@/context/AppContext";
+import { useApp, type Reel, type ReelFilter, isUserVerified } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 import MentionInput from "@/components/MentionInput";
 import MentionText from "@/components/MentionText";
 
@@ -80,6 +81,7 @@ function ReelPlayerItem({
   isOwner: boolean;
   creatorName: string;
   creatorAvatar?: string;
+  isCreatorVerified?: boolean;
   insets: any;
 }) {
   const [paused, setPaused] = useState(false);
@@ -156,6 +158,7 @@ function ReelPlayerItem({
             </View>
           )}
           <Text style={styles.creatorName}>{creatorName}</Text>
+          {isCreatorVerified && <VerifiedBadge size={14} />}
         </TouchableOpacity>
         {!!reel.title && (
           <Text style={styles.reelTitle} numberOfLines={2}>
@@ -826,6 +829,7 @@ export default function ReelsScreen() {
               isOwner={item.creatorId === currentUser?.id}
               creatorName={creator?.name ?? "مستخدم"}
               creatorAvatar={creator?.avatar}
+              isCreatorVerified={isUserVerified(creator)}
               insets={insets}
             />
           );

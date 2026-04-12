@@ -32,6 +32,12 @@ export interface User {
   role?: UserRole;
   isActive?: boolean;
   createdAt: number;
+  verifiedUntil?: number;
+}
+
+export function isUserVerified(user: User | null | undefined): boolean {
+  if (!user || !user.verifiedUntil) return false;
+  return Date.now() < user.verifiedUntil;
 }
 
 export interface Message {
@@ -349,6 +355,8 @@ interface AppContextValue {
   banUser: (userId: string) => void;
   unbanUser: (userId: string) => void;
   resetUserPassword: (userId: string, newPassword: string) => void;
+  verifyUser: (userId: string, months: number) => void;
+  revokeVerification: (userId: string) => void;
   addReel: (videoUrl: string, title: string, filter: ReelFilter) => void;
   deleteReel: (reelId: string) => void;
   likeReel: (reelId: string) => void;
@@ -2095,6 +2103,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [passwords]
   );
 
+  const verifyUser = useCallback(
+    (userId: string, months: number) => {
+      const ms = months * 30 * 24 * 60 * 60 * 1000;
+      saveUsers(users.map((u) => (u.id === userId ? { ...u, verifiedUntil: Date.now() + ms } : u)));
+    },
+    [users]
+  );
+
+  const revokeVerification = useCallback(
+    (userId: string) => {
+      saveUsers(users.map((u) => (u.id === userId ? { ...u, verifiedUntil: undefined } : u)));
+    },
+    [users]
+  );
+
   const addReel = useCallback(
     (videoUrl: string, title: string, filter: ReelFilter) => {
       if (!currentUser) return;
@@ -3011,9 +3034,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const feedIds = new Set([currentUser.id, ...followingIds]);
       const followingReels = reels.filter((r) => feedIds.has(r.creatorId));
       const otherReels = reels.filter((r) => !feedIds.has(r.creatorId));
-      return [...followingReels, ...otherReels].sort((a, b) => b.createdAt - a.createdAt);
+      const BOOST = 1.2;
+      const getScore = (r: Reel) => {
+        const creator = users.find((u) => u.id === r.creatorId);
+        const boost = isUserVerified(creator) ? BOOST : 1;
+        return r.createdAt * boost;
+      };
+      return [...followingReels, ...otherReels].sort((a, b) => getScore(b) - getScore(a));
     },
-    [currentUser, reels, follows]
+    [currentUser, reels, follows, users]
   );
 
   // ============================
@@ -3085,6 +3114,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateRestaurantProfile,
       cart, addToCart, removeFromCart, updateCartQty, clearCart, getCartTotal, placeOrder,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
+      verifyUser, revokeVerification,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, deleteReelComment, getReelComments,
       likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers, getPostCommentLikers,
       shareReelToConversation, sharePostToDM, shareStoryToDM, searchUsers,
@@ -3118,6 +3148,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateRestaurantProfile,
       cart, addToCart, removeFromCart, updateCartQty, clearCart, getCartTotal, placeOrder,
       addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
+      verifyUser, revokeVerification,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, deleteReelComment, getReelComments,
       likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers, getPostCommentLikers,
       shareReelToConversation, sharePostToDM, shareStoryToDM, searchUsers,

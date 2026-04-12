@@ -26,8 +26,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
-import { useApp } from "@/context/AppContext";
+import { useApp, isUserVerified } from "@/context/AppContext";
 import type { Message, User } from "@/context/AppContext";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useToast } from "@/components/Toast";
 import UserActionsModal from "@/components/UserActionsModal";
 import GameEngine from "@/components/games/GameEngine";
@@ -197,11 +198,14 @@ function SeatCard({
       </TouchableOpacity>
 
       {/* Label below seat */}
-      <Text style={[styles.seatLabelName, { color: user ? colors.text : colors.textSecondary }]} numberOfLines={1}>
-        {user
-          ? (isMe ? "أنا" : user.name.split(" ")[0])
-          : isLocked ? "🔒" : `${index + 1}`}
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, maxWidth: 72 }}>
+        <Text style={[styles.seatLabelName, { color: user ? colors.text : colors.textSecondary }]} numberOfLines={1}>
+          {user
+            ? (isMe ? "أنا" : user.name.split(" ")[0])
+            : isLocked ? "🔒" : `${index + 1}`}
+        </Text>
+        {user && isUserVerified(user) && <VerifiedBadge size={11} />}
+      </View>
 
       {/* Leave seat button for current user */}
       {user && isMe && (

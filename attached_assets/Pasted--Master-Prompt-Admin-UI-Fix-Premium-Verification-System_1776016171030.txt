@@ -1,0 +1,22 @@
+🚀 Master Prompt: Admin UI Fix & Premium Verification System
+Task: Execute final UI cleanups and implement the "Blue Checkmark" subscription system with premium visual effects and algorithmic logic.
+1️⃣ UI Fixes & Clean-up
+Admin Dashboard Grid: Fix the Admin Panel icons. Change the layout from vertical stretching to a proper Grid or Horizontal Row with consistent aspect ratios.
+Sign-up Picker: In the governorate selection list, REMOVE the house/building icons. Keep only text and checkmarks for a cleaner look.
+Restore Admin Functionality: Re-add the "Change Password" (Lock Icon) next to each user in the Admin list.
+2️⃣ The Verification Logic (Backend)
+Admin Controls: Add a "Verify User" button in the Admin Panel.
+Subscription Options: When clicked, a modal appears with: (1 Month, 3 Months, 1 Year).
+Logic: Store a verifiedUntil timestamp. If CurrentDate > verifiedUntil, the verification must auto-expire.
+Expiry Message: Upon expiry, show the user: "انتهت فترة التوثيق، هل تريد التجديد؟" with a "Contact Support" button.
+User Sidebar: Add a "Verify Account" (توثيق الحساب) button that opens a WhatsApp/Phone contact dialog with the Manager.
+3️⃣ Premium Visuals & Algorithmic Boost (The "Smart" Part)
+The Blue Badge: Display the blue checkmark next to the user's name everywhere (Profile, Comments, Voice Rooms, Chats,In Reels, the Main Feed, and when searching for a username or visiting a profile by other users.).
+Premium Avatar Frame: * If verified, add a Moving Gradient Animation Frame around the profile picture.
+Visual Spec: Use a subtle rotating blue-to-light-blue gradient to give it a "Luxury/Premium" feel.
+Algorithm Boost: * In the Reels/Videos feed logic, apply a boost_factor = 1.2 for verified users.
+This ensures a 20% increase in visibility/ranking compared to regular users, maintaining a healthy balance in the community.
+4️⃣ Technical Sync
+Use Framer Motion for the animated frame and badge transitions.
+Ensure the isVerified state is synced via Socket.io for real-time updates.
+Adhere to the Hilla Connect Dark Theme

@@ -24,8 +24,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
-import { useApp } from "@/context/AppContext";
+import { useApp, isUserVerified } from "@/context/AppContext";
 import type { PostComment, PostFilter } from "@/context/AppContext";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 import MentionInput from "@/components/MentionInput";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -294,8 +295,9 @@ function CommentsSheet({
                   )}
                 </TouchableOpacity>
                 <View style={{ flex: 1 }}>
-                  <TouchableOpacity onPress={() => commenter && router.push(`/profile/${commenter.id}`)} activeOpacity={0.8}>
+                  <TouchableOpacity onPress={() => commenter && router.push(`/profile/${commenter.id}`)} activeOpacity={0.8} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                     <Text style={[styles.commentUser, { color: colors.tint }]}>{item.userName}</Text>
+                    {isUserVerified(commenter) && <VerifiedBadge size={11} />}
                   </TouchableOpacity>
                   <Text style={[styles.commentContent, { color: colors.text }]}>{item.content}</Text>
                   <Text style={[styles.commentTime, { color: colors.textSecondary }]}>{formatTime(item.createdAt)}</Text>
@@ -661,7 +663,10 @@ export default function PostDetailScreen() {
             )}
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.creatorName, { color: colors.text }]}>{creator?.name}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+              <Text style={[styles.creatorName, { color: colors.text }]}>{creator?.name}</Text>
+              {isUserVerified(creator) && <VerifiedBadge size={13} />}
+            </View>
             <Text style={[styles.timeText, { color: colors.textSecondary }]}>
               {formatTime(post.createdAt)}
             </Text>

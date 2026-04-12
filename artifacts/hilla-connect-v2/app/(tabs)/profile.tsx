@@ -22,9 +22,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS, STORY_GRADIENT_COLORS } from "@/constants/colors";
-import { useApp } from "@/context/AppContext";
+import { useApp, isUserVerified } from "@/context/AppContext";
 import type { AccountType, Post, Reel } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
+import { VerifiedBadge, VerifiedAvatarFrame } from "@/components/VerifiedBadge";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_ITEM_SIZE = (SCREEN_WIDTH - 3) / 3;
@@ -153,6 +154,9 @@ function ProfileDrawer({
     getLikedPosts,
     getSavedPosts,
   } = useApp();
+  const verified = isUserVerified(currentUser);
+  const isExpired = currentUser?.verifiedUntil && !verified;
+  const MANAGER_WHATSAPP = "07719820537";
   const [page, setPage] = useState<DrawerPage>("settings");
   const followRequests = getFollowRequests();
   const likedReels = getLikedReels();
@@ -254,6 +258,44 @@ function ProfileDrawer({
                 <Text style={[styles.drawerItemText, { color: colors.text }]}>{t("changePassword")}</Text>
                 <Feather name="chevron-right" size={16} color={colors.textSecondary} strokeWidth={1.5} />
               </TouchableOpacity>
+
+              {isExpired ? (
+                <View style={[styles.drawerItem, { borderColor: "#FF3B5C44", backgroundColor: "#FF3B5C11", flexDirection: "column", alignItems: "flex-end", gap: 10 }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, width: "100%" }}>
+                    <View style={[styles.drawerItemIcon, { backgroundColor: "#FF3B5C22" }]}>
+                      <Feather name="shield-off" size={18} color="#FF3B5C" strokeWidth={1.5} />
+                    </View>
+                    <Text style={[styles.drawerItemText, { color: "#FF3B5C", flex: 1 }]}>انتهت فترة التوثيق</Text>
+                  </View>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "right", width: "100%" }}>
+                    انتهت فترة التوثيق، هل تريد التجديد؟
+                  </Text>
+                  <TouchableOpacity
+                    style={{ backgroundColor: "#3D91F4", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8, alignSelf: "flex-end" }}
+                    onPress={() => { import("react-native").then(({ Linking }) => Linking.openURL(`https://wa.me/${MANAGER_WHATSAPP}?text=${encodeURIComponent("مرحبا، أريد تجديد التوثيق")}`)); }}
+                  >
+                    <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>التواصل مع الدعم</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : !verified ? (
+                <TouchableOpacity
+                  style={[styles.drawerItem, { borderColor: "#3D91F422", backgroundColor: "#3D91F411" }]}
+                  onPress={() => { import("react-native").then(({ Linking }) => Linking.openURL(`https://wa.me/${MANAGER_WHATSAPP}?text=${encodeURIComponent("مرحبا، أريد توثيق حسابي")}`)); }}
+                >
+                  <View style={[styles.drawerItemIcon, { backgroundColor: "#3D91F422" }]}>
+                    <Feather name="check-circle" size={18} color="#3D91F4" strokeWidth={1.5} />
+                  </View>
+                  <Text style={[styles.drawerItemText, { color: "#3D91F4" }]}>توثيق الحساب</Text>
+                  <Feather name="chevron-right" size={16} color="#3D91F4" strokeWidth={1.5} />
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.drawerItem, { borderColor: "#3D91F422", backgroundColor: "#3D91F411" }]}>
+                  <View style={[styles.drawerItemIcon, { backgroundColor: "#3D91F422" }]}>
+                    <Feather name="check-circle" size={18} color="#3D91F4" strokeWidth={1.5} />
+                  </View>
+                  <Text style={[styles.drawerItemText, { color: "#3D91F4" }]}>حساب موثق ✓</Text>
+                </View>
+              )}
 
               <TouchableOpacity onPress={() => onSettingsItem("logout")} style={[styles.drawerItem, { borderColor: "#FF3B5C22", backgroundColor: colors.backgroundSecondary }]}>
                 <View style={[styles.drawerItemIcon, { backgroundColor: "#FF3B5C22" }]}>
@@ -633,6 +675,16 @@ export default function ProfileScreen() {
                       <Text style={styles.avatarInitial}>{currentUser.name[0]?.toUpperCase()}</Text>
                     )}
                   </LinearGradient>
+                ) : isUserVerified(currentUser) ? (
+                  <VerifiedAvatarFrame size={90}>
+                    {currentUser.avatar ? (
+                      <Image source={{ uri: currentUser.avatar }} style={{ width: 90, height: 90, borderRadius: 45 }} resizeMode="cover" />
+                    ) : (
+                      <View style={{ width: 90, height: 90, borderRadius: 45, alignItems: "center", justifyContent: "center", backgroundColor: `${accentColor}33` }}>
+                        <Text style={[styles.avatarInitial, { color: accentColor }]}>{currentUser.name[0]?.toUpperCase()}</Text>
+                      </View>
+                    )}
+                  </VerifiedAvatarFrame>
                 ) : (
                   <LinearGradient
                     colors={STORY_GRADIENT_COLORS}
@@ -679,6 +731,7 @@ export default function ProfileScreen() {
               {/* Name + Bio */}
               <View style={styles.nameRow}>
                 <Text style={[styles.profileName, { color: colors.text }]}>{currentUser.name}</Text>
+                {isUserVerified(currentUser) && <VerifiedBadge size={16} style={{ marginTop: 1 }} />}
                 {currentUser.accountType === "private" && (
                   <View style={[styles.privateBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <Feather name="lock" size={12} color={colors.textSecondary} strokeWidth={1.5} />

@@ -25,8 +25,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS, STORY_GRADIENT_COLORS } from "@/constants/colors";
-import { useApp } from "@/context/AppContext";
+import { useApp, isUserVerified } from "@/context/AppContext";
 import type { Post, PostComment, Story, User } from "@/context/AppContext";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 import MentionInput from "@/components/MentionInput";
 import MentionText from "@/components/MentionText";
 
@@ -654,7 +655,10 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
           )}
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.postCreatorName, { color: colors.text }]}>{creator.name}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Text style={[styles.postCreatorName, { color: colors.text }]}>{creator.name}</Text>
+            {isUserVerified(creator) && <VerifiedBadge size={13} />}
+          </View>
           <Text style={[styles.postTime, { color: colors.textSecondary }]}>{formatTime(post.createdAt)}</Text>
         </View>
         {currentUser?.id === post.creatorId && (

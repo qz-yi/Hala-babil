@@ -17,8 +17,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
-import { useApp } from "@/context/AppContext";
+import { useApp, isUserVerified } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
+import { VerifiedBadge, VerifiedAvatarFrame } from "@/components/VerifiedBadge";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_SIZE = (SCREEN_WIDTH - 3) / 3;
@@ -181,13 +182,26 @@ export default function UserProfileScreen() {
               <View style={[styles.avatarSectionRow, { marginTop: -48 }]}>
                 <TouchableOpacity
                   onPress={() => hasStory && router.push(`/story/${user.id}`)}
-                  style={[styles.avatarRing, { borderColor: hasStory ? "#E1306C" : `${accentColor}66`, borderWidth: hasStory ? 3 : 2 }]}
                 >
-                  {user.avatar ? (
-                    <Image source={{ uri: user.avatar }} style={styles.avatar} />
+                  {isUserVerified(user) ? (
+                    <VerifiedAvatarFrame size={80}>
+                      {user.avatar ? (
+                        <Image source={{ uri: user.avatar }} style={{ width: 80, height: 80, borderRadius: 40 }} resizeMode="cover" />
+                      ) : (
+                        <View style={{ width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center", backgroundColor: `${accentColor}33` }}>
+                          <Text style={[styles.avatarInitial, { color: accentColor }]}>{user.name[0]?.toUpperCase()}</Text>
+                        </View>
+                      )}
+                    </VerifiedAvatarFrame>
                   ) : (
-                    <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: `${accentColor}33` }]}>
-                      <Text style={[styles.avatarInitial, { color: accentColor }]}>{user.name[0]?.toUpperCase()}</Text>
+                    <View style={[styles.avatarRing, { borderColor: hasStory ? "#E1306C" : `${accentColor}66`, borderWidth: hasStory ? 3 : 2 }]}>
+                      {user.avatar ? (
+                        <Image source={{ uri: user.avatar }} style={styles.avatar} />
+                      ) : (
+                        <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: `${accentColor}33` }]}>
+                          <Text style={[styles.avatarInitial, { color: accentColor }]}>{user.name[0]?.toUpperCase()}</Text>
+                        </View>
+                      )}
                     </View>
                   )}
                 </TouchableOpacity>
@@ -195,7 +209,10 @@ export default function UserProfileScreen() {
 
               {/* Name / Bio */}
               <View style={styles.avatarSection}>
-                <Text style={[styles.userName, { color: colors.text }]}>{user.name}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={[styles.userName, { color: colors.text }]}>{user.name}</Text>
+                  {isUserVerified(user) && <VerifiedBadge size={16} />}
+                </View>
                 {user.username ? (
                   <Text style={{ color: colors.tint, fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 }}>
                     @{user.username}

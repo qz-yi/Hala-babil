@@ -20,9 +20,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useToast } from "@/components/Toast";
-import { IRAQI_GOVERNORATES, useApp } from "@/context/AppContext";
+import { IRAQI_GOVERNORATES, useApp, isUserVerified } from "@/context/AppContext";
 import type { Restaurant, User } from "@/context/AppContext";
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 const BG = "#000000";
 const CARD = "#111111";
@@ -293,7 +294,7 @@ export default function AdminScreen() {
     isManager, users, restaurants, rooms, governorateImages,
     setOwnerActive, setCommissionRate, clearDues, deleteRestaurant,
     setGovernorateImage, theme, banUser, unbanUser, resetUserPassword,
-    deleteRoom,
+    deleteRoom, verifyUser, revokeVerification,
   } = useApp();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
@@ -302,6 +303,9 @@ export default function AdminScreen() {
   const [tab, setTab] = useState<Tab>("owners");
   const [selectedGov, setSelectedGov] = useState<string | null>(null);
   const [createdRefresh, setCreatedRefresh] = useState(0);
+  const [verifyModal, setVerifyModal] = useState<{ userId: string; userName: string } | null>(null);
+  const [pwModal, setPwModal] = useState<{ userId: string; userName: string } | null>(null);
+  const [newPw, setNewPw] = useState("");
 
   if (!isManager) {
     return (
@@ -443,33 +447,67 @@ export default function AdminScreen() {
           {tab === "users" && (
             <View>
               <SectionHeader title={`المستخدمون (${users.filter(u => !u.role || u.role === "CUSTOMER").length})`} />
-              {users.filter((u) => !u.role || u.role === "CUSTOMER").map((u) => (
-                <View key={u.id} style={styles.userCard}>
-                  <View style={styles.userAvatar}>
-                    {u.avatar ? <Image source={{ uri: u.avatar }} style={styles.userAvatarImg} /> : (
-                      <Text style={{ fontSize: 18 }}>👤</Text>
-                    )}
-                  </View>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={styles.userName}>{u.name}</Text>
-                    <Text style={styles.userEmail}>{u.email}</Text>
-                    {u.primaryGovernorate && <Text style={styles.userGov}>📍 {u.primaryGovernorate}</Text>}
-                  </View>
-                  <View style={{ gap: 6 }}>
-                    {u.isBanned ? (
-                      <TouchableOpacity onPress={() => { unbanUser(u.id); showToast("تم رفع الحظر", "success"); }}
-                        style={[styles.actionBtn, { borderColor: ACCENT }]}>
-                        <Text style={[styles.actionBtnTxt, { color: ACCENT }]}>رفع الحظر</Text>
+              {users.filter((u) => !u.role || u.role === "CUSTOMER").map((u) => {
+                const verified = isUserVerified(u);
+                return (
+                  <View key={u.id} style={styles.userCard}>
+                    <View style={styles.userAvatar}>
+                      {u.avatar ? <Image source={{ uri: u.avatar }} style={styles.userAvatarImg} /> : (
+                        <Text style={{ fontSize: 18 }}>👤</Text>
+                      )}
+                    </View>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <Text style={styles.userName}>{u.name}</Text>
+                        {verified && <VerifiedBadge size={13} />}
+                      </View>
+                      <Text style={styles.userEmail}>{u.email}</Text>
+                      {u.primaryGovernorate && <Text style={styles.userGov}>📍 {u.primaryGovernorate}</Text>}
+                      {verified && u.verifiedUntil && (
+                        <Text style={{ fontSize: 10, color: BLUE, fontFamily: "Inter_500Medium" }}>
+                          موثق حتى {new Date(u.verifiedUntil).toLocaleDateString("ar-IQ")}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={{ gap: 6 }}>
+                      <TouchableOpacity
+                        onPress={() => { setVerifyModal({ userId: u.id, userName: u.name }); }}
+                        style={[styles.actionBtn, { borderColor: BLUE }]}
+                      >
+                        <Feather name="check-circle" size={12} color={BLUE} strokeWidth={2} />
+                        <Text style={[styles.actionBtnTxt, { color: BLUE }]}>{verified ? "تجديد" : "توثيق"}</Text>
                       </TouchableOpacity>
-                    ) : (
-                      <TouchableOpacity onPress={() => { banUser(u.id); showToast("تم حظر المستخدم", "success"); }}
-                        style={[styles.actionBtn, { borderColor: RED }]}>
-                        <Text style={[styles.actionBtnTxt, { color: RED }]}>حظر</Text>
+                      {verified && (
+                        <TouchableOpacity
+                          onPress={() => { revokeVerification(u.id); showToast("تم إلغاء التوثيق", "success"); }}
+                          style={[styles.actionBtn, { borderColor: ORANGE }]}
+                        >
+                          <Feather name="x-circle" size={12} color={ORANGE} strokeWidth={2} />
+                          <Text style={[styles.actionBtnTxt, { color: ORANGE }]}>إلغاء</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity
+                        onPress={() => { setPwModal({ userId: u.id, userName: u.name }); setNewPw(""); }}
+                        style={[styles.actionBtn, { borderColor: TEXT2 }]}
+                      >
+                        <Feather name="lock" size={12} color={TEXT2} strokeWidth={2} />
+                        <Text style={[styles.actionBtnTxt, { color: TEXT2 }]}>كلمة المرور</Text>
                       </TouchableOpacity>
-                    )}
+                      {u.isBanned ? (
+                        <TouchableOpacity onPress={() => { unbanUser(u.id); showToast("تم رفع الحظر", "success"); }}
+                          style={[styles.actionBtn, { borderColor: ACCENT }]}>
+                          <Text style={[styles.actionBtnTxt, { color: ACCENT }]}>رفع الحظر</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity onPress={() => { banUser(u.id); showToast("تم حظر المستخدم", "success"); }}
+                          style={[styles.actionBtn, { borderColor: RED }]}>
+                          <Text style={[styles.actionBtnTxt, { color: RED }]}>حظر</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
 
@@ -528,6 +566,81 @@ export default function AdminScreen() {
 
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* ── Verify User Modal ── */}
+      <Modal visible={!!verifyModal} transparent animationType="slide" onRequestClose={() => setVerifyModal(null)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }} onPress={() => setVerifyModal(null)}>
+          <Pressable style={{ backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 16 }} onPress={() => {}}>
+            <View style={{ alignItems: "center", gap: 8 }}>
+              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: `${BLUE}22`, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="check-circle" size={26} color={BLUE} strokeWidth={1.5} />
+              </View>
+              <Text style={{ color: TEXT, fontFamily: "Inter_700Bold", fontSize: 18 }}>توثيق الحساب</Text>
+              <Text style={{ color: TEXT2, fontFamily: "Inter_400Regular", fontSize: 14 }}>{verifyModal?.userName}</Text>
+            </View>
+            <Text style={{ color: TEXT2, fontFamily: "Inter_500Medium", fontSize: 14, textAlign: "center" }}>اختر مدة التوثيق</Text>
+            {[{ label: "شهر واحد (1M)", months: 1 }, { label: "ثلاثة أشهر (3M)", months: 3 }, { label: "سنة كاملة (1Y)", months: 12 }].map((opt) => (
+              <TouchableOpacity
+                key={opt.months}
+                style={{ backgroundColor: `${BLUE}22`, borderRadius: 14, paddingVertical: 14, alignItems: "center", borderWidth: 1, borderColor: `${BLUE}55` }}
+                onPress={() => {
+                  if (verifyModal) {
+                    verifyUser(verifyModal.userId, opt.months);
+                    showToast(`تم توثيق ${verifyModal.userName} لمدة ${opt.label}`, "success");
+                    setVerifyModal(null);
+                  }
+                }}
+              >
+                <Text style={{ color: BLUE, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>{opt.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity onPress={() => setVerifyModal(null)} style={{ paddingVertical: 12, alignItems: "center" }}>
+              <Text style={{ color: TEXT2, fontFamily: "Inter_500Medium" }}>إلغاء</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── Change Password Modal ── */}
+      <Modal visible={!!pwModal} transparent animationType="slide" onRequestClose={() => setPwModal(null)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }} onPress={() => setPwModal(null)}>
+          <Pressable style={{ backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14 }} onPress={() => {}}>
+            <View style={{ alignItems: "center", gap: 8 }}>
+              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: "#F59E0B22", alignItems: "center", justifyContent: "center" }}>
+                <Feather name="lock" size={24} color="#F59E0B" strokeWidth={1.5} />
+              </View>
+              <Text style={{ color: TEXT, fontFamily: "Inter_700Bold", fontSize: 18 }}>تغيير كلمة المرور</Text>
+              <Text style={{ color: TEXT2, fontFamily: "Inter_400Regular", fontSize: 13 }}>{pwModal?.userName}</Text>
+            </View>
+            <TextInput
+              style={{ backgroundColor: CARD2, borderRadius: 12, borderWidth: 0.5, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 13, color: TEXT, fontFamily: "Inter_400Regular", fontSize: 15 }}
+              placeholder="كلمة المرور الجديدة"
+              placeholderTextColor={TEXT2}
+              value={newPw}
+              onChangeText={setNewPw}
+              secureTextEntry
+              textAlign="right"
+            />
+            <TouchableOpacity
+              style={{ backgroundColor: "#F59E0B", borderRadius: 14, paddingVertical: 14, alignItems: "center" }}
+              onPress={() => {
+                if (!newPw.trim()) { showToast("يرجى إدخال كلمة المرور", "error"); return; }
+                if (pwModal) {
+                  resetUserPassword(pwModal.userId, newPw.trim());
+                  showToast("تم تغيير كلمة المرور بنجاح", "success");
+                  setPwModal(null);
+                  setNewPw("");
+                }
+              }}
+            >
+              <Text style={{ color: BG, fontFamily: "Inter_700Bold", fontSize: 15 }}>حفظ</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setPwModal(null)} style={{ paddingVertical: 10, alignItems: "center" }}>
+              <Text style={{ color: TEXT2, fontFamily: "Inter_500Medium" }}>إلغاء</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

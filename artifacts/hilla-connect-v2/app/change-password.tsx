@@ -24,6 +24,7 @@ const TEXT = "#FFFFFF";
 const TEXT2 = "#8E8E93";
 const INPUT_BG = "#1C1C1C";
 const SUCCESS = "#10B981";
+const ACCENT = "#3D91F4";
 
 export default function ChangePasswordScreen() {
   const { changePassword, t, theme } = useApp();
@@ -164,6 +165,35 @@ export default function ChangePasswordScreen() {
           >
             <Text style={styles.submitBtnText}>{loading ? "..." : t("save")}</Text>
           </TouchableOpacity>
+
+          {/* Forgot Password link */}
+          <TouchableOpacity
+            onPress={() => router.push("/(auth)/forgot-password")}
+            style={styles.forgotLink}
+            activeOpacity={0.7}
+          >
+            <Feather name="help-circle" size={14} color={ACCENT} strokeWidth={1.5} />
+            <Text style={styles.forgotLinkText}>{t("forgotPassword")}</Text>
+          </TouchableOpacity>
+
+          {/* WhatsApp support fallback */}
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>أو</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity
+            onPress={() => {
+              const { Linking } = require("react-native");
+              Linking.openURL("https://wa.me/9647719820537?text=طلب+مساعدة+في+تغيير+كلمة+المرور");
+            }}
+            style={styles.waBtn}
+            activeOpacity={0.85}
+          >
+            <Feather name="message-circle" size={18} color="#fff" strokeWidth={1.5} />
+            <Text style={styles.waBtnText}>التواصل مع الدعم عبر واتساب</Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -225,4 +255,36 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   submitBtnText: { color: BG, fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  forgotLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 4,
+  },
+  forgotLinkText: {
+    color: ACCENT,
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+    marginTop: 4,
+  },
+  dividerLine: { flex: 1, height: 0.5, backgroundColor: BORDER },
+  dividerText: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2 },
+  waBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#25D366",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 100,
+    width: "100%",
+    justifyContent: "center",
+  },
+  waBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });

@@ -266,7 +266,7 @@ interface AppContextValue {
   sendEmailOTP: (email: string) => Promise<{ success: boolean; error?: string }>;
   resetPasswordWithOTP: (email: string, otp: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  updateProfile: (name: string, bio?: string, avatar?: string, accountType?: AccountType) => Promise<void>;
+  updateProfile: (name: string, bio?: string, avatar?: string, accountType?: AccountType, username?: string) => Promise<{ success: boolean; error?: "username_taken" }>;
   updateCoverPhoto: (coverUrl: string) => Promise<void>;
   createRoom: (name: string, image?: string) => Promise<Room | null>;
   deleteRoom: (roomId: string) => Promise<void>;
@@ -1167,14 +1167,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateProfile = useCallback(
-    async (name: string, bio?: string, avatar?: string, accountType?: AccountType) => {
-      if (!currentUser) return;
+    async (name: string, bio?: string, avatar?: string, accountType?: AccountType, username?: string): Promise<{ success: boolean; error?: "username_taken" }> => {
+      if (!currentUser) return { success: false };
+      if (username !== undefined && username.trim() !== "" && username !== currentUser.username) {
+        const taken = users.some(
+          (u) => u.id !== currentUser.id && u.username && u.username.toLowerCase() === username.toLowerCase()
+        );
+        if (taken) return { success: false, error: "username_taken" };
+      }
       const updated: User = {
         ...currentUser,
         name,
         ...(bio !== undefined ? { bio } : {}),
         ...(avatar !== undefined ? { avatar } : {}),
         ...(accountType !== undefined ? { accountType } : {}),
+        ...(username !== undefined ? { username: username.trim() } : {}),
       };
       setCurrentUser(updated);
       await AsyncStorage.setItem("currentUser", JSON.stringify(updated));
@@ -1195,6 +1202,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         c.userId === updated.id ? { ...c, userName: updated.name, userAvatar: updated.avatar } : c
       );
       saveComments(updatedComments);
+      return { success: true };
     },
     [currentUser, users, rooms, conversations, reelComments]
   );

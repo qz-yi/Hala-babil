@@ -23,6 +23,7 @@ const CARD = "#121212";
 const BORDER = "#262626";
 const TEXT = "#FFFFFF";
 const TEXT2 = "#8E8E93";
+const ACCENT = "#10B981";
 
 function GovernorateBar({
   selected,
@@ -39,13 +40,12 @@ function GovernorateBar({
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.govBar}
     >
-      {/* زر الكل */}
       <TouchableOpacity
         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onSelect(null); }}
         activeOpacity={0.85}
-        style={[styles.govAllBtn, { borderColor: selected === null ? "#10B981" : BORDER, backgroundColor: selected === null ? "#10B98122" : CARD }]}
+        style={[styles.govAllBtn, { borderColor: selected === null ? ACCENT : BORDER, backgroundColor: selected === null ? `${ACCENT}22` : CARD }]}
       >
-        <Text style={[styles.govAllTxt, { color: selected === null ? "#10B981" : TEXT2 }]}>الكل</Text>
+        <Text style={[styles.govAllTxt, { color: selected === null ? ACCENT : TEXT2 }]}>الكل</Text>
       </TouchableOpacity>
 
       {IRAQI_GOVERNORATES.map((gov) => {
@@ -61,13 +61,7 @@ function GovernorateBar({
             activeOpacity={0.85}
             style={styles.govItem}
           >
-            {/* Wide Horizontal Oval */}
-            <View
-              style={[
-                styles.govOval,
-                isSelected && styles.govOvalSelected,
-              ]}
-            >
+            <View style={[styles.govOval, isSelected && styles.govOvalSelected]}>
               {imgObj?.image ? (
                 <Image source={{ uri: imgObj.image }} style={styles.govOvalImg} />
               ) : (
@@ -75,14 +69,11 @@ function GovernorateBar({
                   <Text style={styles.govOvalPlaceholderEmoji}>🏛️</Text>
                 </View>
               )}
-              {/* Dark gradient overlay */}
               <View style={styles.govOvalGradient} />
-              {/* Name */}
               <Text style={styles.govOvalName}>{gov}</Text>
-              {/* Selected checkmark */}
               {isSelected && (
                 <View style={styles.govOvalCheck}>
-                  <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                  <Ionicons name="checkmark-circle" size={18} color={ACCENT} />
                 </View>
               )}
             </View>
@@ -90,6 +81,52 @@ function GovernorateBar({
         );
       })}
     </ScrollView>
+  );
+}
+
+function SelectedGovernorateHeader({
+  gov,
+  governorateImages,
+  onClear,
+}: {
+  gov: string;
+  governorateImages: { name: string; image?: string }[];
+  onClear: () => void;
+}) {
+  const imgObj = governorateImages.find((g) => g.name === gov);
+  return (
+    <View style={styles.selectedGovHeader}>
+      {/* Oval thumbnail */}
+      <View style={styles.selectedGovOval}>
+        {imgObj?.image ? (
+          <Image source={{ uri: imgObj.image }} style={styles.selectedGovOvalImg} />
+        ) : (
+          <View style={styles.selectedGovOvalPlaceholder}>
+            <Text style={{ fontSize: 22 }}>🏛️</Text>
+          </View>
+        )}
+        <View style={styles.govOvalGradient} />
+      </View>
+
+      {/* Name */}
+      <View style={styles.selectedGovNameWrap}>
+        <Text style={styles.selectedGovPin}>📍</Text>
+        <Text style={styles.selectedGovName}>{gov}</Text>
+      </View>
+
+      {/* Change button */}
+      <TouchableOpacity
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          onClear();
+        }}
+        style={styles.changeGovBtn}
+        activeOpacity={0.75}
+      >
+        <Feather name="edit-2" size={13} color={ACCENT} strokeWidth={2} />
+        <Text style={styles.changeGovBtnText}>تغيير</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -170,9 +207,6 @@ export default function RestaurantsScreen() {
       <View style={[styles.header, { paddingTop: topPad }]}>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>{t("restaurants")}</Text>
-          {selectedGov && (
-            <Text style={styles.headerGov}>📍 {selectedGov}</Text>
-          )}
         </View>
         {isSuperAdmin && (
           <TouchableOpacity
@@ -184,12 +218,20 @@ export default function RestaurantsScreen() {
         )}
       </View>
 
-      {/* شريط المحافظات */}
-      <GovernorateBar
-        selected={selectedGov}
-        onSelect={setSelectedGov}
-        governorateImages={governorateImages}
-      />
+      {/* Governorate selector — full bar when none selected, compact header when one is selected */}
+      {selectedGov ? (
+        <SelectedGovernorateHeader
+          gov={selectedGov}
+          governorateImages={governorateImages}
+          onClear={() => setSelectedGov(null)}
+        />
+      ) : (
+        <GovernorateBar
+          selected={selectedGov}
+          onSelect={setSelectedGov}
+          governorateImages={governorateImages}
+        />
+      )}
 
       {filtered.length === 0 ? (
         <View style={styles.emptyState}>
@@ -240,11 +282,12 @@ const styles = StyleSheet.create({
     borderBottomColor: BORDER,
   },
   headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: TEXT },
-  headerGov: { fontSize: 13, fontFamily: "Inter_400Regular", color: "#10B981", marginTop: 2 },
   addBtn: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: TEXT, alignItems: "center", justifyContent: "center",
   },
+
+  /* ── Full governorate scroll bar ── */
   govBar: {
     paddingHorizontal: 12,
     paddingVertical: 14,
@@ -253,61 +296,78 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   govAllBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 40,
-    borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 52,
-    height: 80,
+    paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: 40, borderWidth: 1.5,
+    alignItems: "center", justifyContent: "center",
+    minWidth: 52, height: 80,
   },
   govAllTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   govItem: { alignItems: "center" },
   govOval: {
-    width: 130,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 2,
-    borderColor: BORDER,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-    backgroundColor: "#1a1a1a",
+    width: 130, height: 80,
+    borderRadius: 40, borderWidth: 2, borderColor: BORDER,
+    overflow: "hidden", alignItems: "center", justifyContent: "center",
+    position: "relative", backgroundColor: "#1a1a1a",
   },
-  govOvalSelected: {
-    borderColor: "#10B981",
-    borderWidth: 2.5,
-  },
+  govOvalSelected: { borderColor: ACCENT, borderWidth: 2.5 },
   govOvalImg: { width: "100%", height: "100%", resizeMode: "cover" },
   govOvalPlaceholder: {
     width: "100%", height: "100%",
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: "#1e1e2e",
+    alignItems: "center", justifyContent: "center", backgroundColor: "#1e1e2e",
   },
   govOvalPlaceholderEmoji: { fontSize: 28 },
   govOvalGradient: {
-    position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: "rgba(0,0,0,0.38)",
   },
   govOvalName: {
-    position: "absolute",
-    bottom: 0, left: 0, right: 0,
-    textAlign: "center",
-    color: "#fff",
-    fontFamily: "Inter_700Bold",
-    fontSize: 13,
-    paddingBottom: 8,
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    textAlign: "center", color: "#fff",
+    fontFamily: "Inter_700Bold", fontSize: 13, paddingBottom: 8,
     textShadowColor: "rgba(0,0,0,0.8)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
-  govOvalCheck: {
-    position: "absolute",
-    top: 6, right: 8,
+  govOvalCheck: { position: "absolute", top: 6, right: 8 },
+
+  /* ── Selected governorate compact header ── */
+  selectedGovHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: BORDER,
+    backgroundColor: "#0a0a0a",
+    gap: 12,
   },
+  selectedGovOval: {
+    width: 56, height: 34,
+    borderRadius: 17, overflow: "hidden",
+    borderWidth: 1.5, borderColor: ACCENT,
+    position: "relative", backgroundColor: "#1a1a1a",
+  },
+  selectedGovOvalImg: { width: "100%", height: "100%", resizeMode: "cover" },
+  selectedGovOvalPlaceholder: {
+    width: "100%", height: "100%",
+    alignItems: "center", justifyContent: "center", backgroundColor: "#1e1e2e",
+  },
+  selectedGovNameWrap: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
+  selectedGovPin: { fontSize: 16 },
+  selectedGovName: {
+    fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT,
+  },
+  changeGovBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 20, borderWidth: 1, borderColor: `${ACCENT}66`,
+    backgroundColor: `${ACCENT}11`,
+  },
+  changeGovBtnText: {
+    color: ACCENT, fontSize: 13, fontFamily: "Inter_600SemiBold",
+  },
+
+  /* ── Restaurant list ── */
   list: { padding: 12, paddingTop: 4 },
   row: { gap: 10, marginBottom: 10 },
   card: {
@@ -323,8 +383,7 @@ const styles = StyleSheet.create({
   govTagOnCard: {
     position: "absolute", top: 6, left: 6,
     backgroundColor: "rgba(0,0,0,0.55)",
-    paddingHorizontal: 6, paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 6, paddingVertical: 3, borderRadius: 8,
   },
   govTagTxt: { fontSize: 9, fontFamily: "Inter_500Medium", color: "#fff" },
   cardBody: { padding: 12, gap: 4 },
@@ -334,6 +393,8 @@ const styles = StyleSheet.create({
   actionBadge: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   viewBtn: { marginLeft: "auto" as any, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100 },
   viewBtnText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
+
+  /* ── Empty state ── */
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, padding: 32 },
   emptyTitle: { fontSize: 18, fontFamily: "Inter_500Medium", color: TEXT2, textAlign: "center" },
   emptyBtn: { backgroundColor: TEXT, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 100, marginTop: 8 },

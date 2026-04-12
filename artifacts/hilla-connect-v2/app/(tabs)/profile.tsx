@@ -451,6 +451,7 @@ export default function ProfileScreen() {
   const [editModal, setEditModal] = useState(false);
   const [editName, setEditName] = useState(currentUser?.name || "");
   const [editBio, setEditBio] = useState(currentUser?.bio || "");
+  const [editUsername, setEditUsername] = useState(currentUser?.username || "");
   const [saving, setSaving] = useState(false);
   const [accountTypeModal, setAccountTypeModal] = useState(false);
   const [logoutModal, setLogoutModal] = useState(false);
@@ -510,9 +511,24 @@ export default function ProfileScreen() {
 
   const handleSaveProfile = async () => {
     if (!editName.trim()) { showToast(t("fillAll"), "error"); return; }
+    if (editUsername.trim() && editUsername.trim().length < 1) {
+      showToast("اسم المستخدم يجب أن يكون حرفاً واحداً على الأقل", "error");
+      return;
+    }
     setSaving(true);
-    await updateProfile(editName.trim(), editBio.trim());
+    const result = await updateProfile(
+      editName.trim(),
+      editBio.trim(),
+      undefined,
+      undefined,
+      editUsername.trim() || undefined
+    );
     setSaving(false);
+    if (!result.success && result.error === "username_taken") {
+      showToast("اسم المستخدم غير متاح", "error");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
     setEditModal(false);
     showToast(t("saved"), "success");
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -647,6 +663,7 @@ export default function ProfileScreen() {
                 onPress={() => {
                   setEditName(currentUser.name);
                   setEditBio(currentUser.bio || "");
+                  setEditUsername(currentUser.username || "");
                   setEditModal(true);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 }}
@@ -795,6 +812,8 @@ export default function ProfileScreen() {
         <Pressable style={styles.modalOverlay} onPress={() => setEditModal(false)}>
           <Pressable style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => {}}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>{t("editProfile")}</Text>
+
+            {/* Name */}
             <View style={[styles.modalInput, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
               <TextInput
                 style={[styles.modalInputField, { color: colors.text }]}
@@ -805,6 +824,23 @@ export default function ProfileScreen() {
                 textAlign="right"
               />
             </View>
+
+            {/* Username */}
+            <View style={[styles.modalInput, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: 8 }]}>
+              <Text style={{ color: colors.tint, fontSize: 16, fontFamily: "Inter_600SemiBold" }}>@</Text>
+              <TextInput
+                style={[styles.modalInputField, { color: colors.text }]}
+                value={editUsername}
+                onChangeText={(v) => setEditUsername(v.replace(/\s/g, "").toLowerCase())}
+                placeholder="اسم المستخدم"
+                placeholderTextColor={colors.textSecondary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                textAlign="left"
+              />
+            </View>
+
+            {/* Bio */}
             <View style={[styles.modalInput, { height: 90, backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
               <TextInput
                 style={[styles.modalInputField, { color: colors.text }]}

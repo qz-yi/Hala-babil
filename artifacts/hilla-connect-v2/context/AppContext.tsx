@@ -1251,6 +1251,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     setCurrentUser(null);
     await AsyncStorage.removeItem("currentUser");
+    setIsRoomMinimized(false);
+    setMinimizedRoomId(null);
+    setMinimizedRoomName("");
+    setMinimizedRoomImage(undefined);
   }, []);
 
   const updateProfile = useCallback(
@@ -1339,8 +1343,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async (roomId: string) => {
       try { await fetch(`/api/rooms/${roomId}`, { method: "DELETE" }); } catch {}
       saveRooms(rooms.filter((r) => r.id !== roomId));
+      if (minimizedRoomId === roomId) {
+        setIsRoomMinimized(false);
+        setMinimizedRoomId(null);
+        setMinimizedRoomName("");
+        setMinimizedRoomImage(undefined);
+      }
     },
-    [rooms]
+    [rooms, minimizedRoomId]
   );
 
   const joinRoomSeat = useCallback(

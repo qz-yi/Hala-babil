@@ -4,22 +4,80 @@ import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useRef } from "react";
 import {
-  Animated, Image, StyleSheet, Text, TouchableOpacity, View,
+  Animated,
+  Dimensions,
+  Image,
+  PanResponder,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/context/AppContext";
 
+const { width: SW, height: SH } = Dimensions.get("window");
+const BTN_SIZE = 60;
+const WIDGET_W = 90;
+const WIDGET_H = 110;
+
 export function FloatingRoomWidget() {
   const { isRoomMinimized, minimizedRoomId, minimizedRoomName, minimizedRoomImage, expandRoom } = useApp();
-  const insets = useSafeAreaInsets();
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
 
+  const START_X = SW - WIDGET_W - 12;
+  const START_Y = SH - 220;
+
+  const posX = useRef(new Animated.Value(START_X)).current;
+  const posY = useRef(new Animated.Value(START_Y)).current;
+  const lastPos = useRef({ x: START_X, y: START_Y });
+  const isDragging = useRef(false);
+
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    expandRoom();
+    router.push(`/room/${minimizedRoomId}` as any);
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        isDragging.current = false;
+        posX.setOffset(lastPos.current.x);
+        posY.setOffset(lastPos.current.y);
+        posX.setValue(0);
+        posY.setValue(0);
+      },
+      onPanResponderMove: (_, g) => {
+        if (Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5) isDragging.current = true;
+        posX.setValue(g.dx);
+        posY.setValue(g.dy);
+      },
+      onPanResponderRelease: (_, g) => {
+        posX.flattenOffset();
+        posY.flattenOffset();
+        const rawX = lastPos.current.x + g.dx;
+        const rawY = lastPos.current.y + g.dy;
+        const clampedX = Math.max(8, Math.min(SW - WIDGET_W - 8, rawX));
+        const clampedY = Math.max(60, Math.min(SH - WIDGET_H - 60, rawY));
+        lastPos.current = { x: clampedX, y: clampedY };
+        posX.setValue(clampedX);
+        posY.setValue(clampedY);
+        if (!isDragging.current) handlePress();
+      },
+    })
+  ).current;
+
   useEffect(() => {
     if (isRoomMinimized) {
+      lastPos.current = { x: START_X, y: START_Y };
+      posX.setValue(START_X);
+      posY.setValue(START_Y);
+
       Animated.spring(scaleAnim, {
         toValue: 1,
         useNativeDriver: true,
@@ -58,26 +116,20 @@ export function FloatingRoomWidget() {
 
   if (!isRoomMinimized || !minimizedRoomId) return null;
 
-  const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    expandRoom();
-    router.push(`/room/${minimizedRoomId}` as any);
-  };
-
   const glowOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] });
 
   return (
     <Animated.View
+      {...panResponder.panHandlers}
       style={[
         styles.container,
         {
-          bottom: insets.bottom + 80,
+          left: posX,
+          top: posY,
           transform: [{ scale: scaleAnim }],
         },
       ]}
-      pointerEvents="box-none"
     >
-      {/* Glow ring */}
       <Animated.View
         style={[
           styles.glowRing,
@@ -85,44 +137,37 @@ export function FloatingRoomWidget() {
         ]}
       />
 
-      <TouchableOpacity onPress={handlePress} activeOpacity={0.85} style={styles.btnWrap}>
-        <Animated.View style={[styles.btn, { transform: [{ scale: pulseAnim }] }]}>
-          <LinearGradient
-            colors={["#6366F1", "#4F46E5"]}
-            style={styles.btnGradient}
-          >
-            {minimizedRoomImage ? (
-              <Image source={{ uri: minimizedRoomImage }} style={styles.roomImg} />
-            ) : (
-              <Text style={styles.micIcon}>🎙️</Text>
-            )}
-          </LinearGradient>
+      <Animated.View style={[styles.btn, { transform: [{ scale: pulseAnim }] }]}>
+        <LinearGradient
+          colors={["#6366F1", "#4F46E5"]}
+          style={styles.btnGradient}
+        >
+          {minimizedRoomImage ? (
+            <Image source={{ uri: minimizedRoomImage }} style={styles.roomImg} />
+          ) : (
+            <Text style={styles.micIcon}>🎙️</Text>
+          )}
+        </LinearGradient>
 
-          {/* Live badge */}
-          <View style={styles.liveBadge}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>مباشر</Text>
-          </View>
-        </Animated.View>
-
-        {/* Room name tooltip */}
-        <View style={styles.tooltip}>
-          <Ionicons name="mic" size={10} color="#6366F1" />
-          <Text style={styles.tooltipText} numberOfLines={1}>
-            {minimizedRoomName || "الغرفة"}
-          </Text>
+        <View style={styles.liveBadge}>
+          <View style={styles.liveDot} />
+          <Text style={styles.liveText}>مباشر</Text>
         </View>
-      </TouchableOpacity>
+      </Animated.View>
+
+      <View style={styles.tooltip}>
+        <Ionicons name="mic" size={10} color="#6366F1" />
+        <Text style={styles.tooltipText} numberOfLines={1}>
+          {minimizedRoomName || "الغرفة"}
+        </Text>
+      </View>
     </Animated.View>
   );
 }
 
-const BTN_SIZE = 60;
-
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    right: 16,
     zIndex: 9999,
     elevation: 9999,
     alignItems: "center",
@@ -136,7 +181,6 @@ const styles = StyleSheet.create({
     top: -10,
     left: -10,
   },
-  btnWrap: { alignItems: "center", gap: 6 },
   btn: {
     width: BTN_SIZE,
     height: BTN_SIZE,
@@ -198,6 +242,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     maxWidth: 120,
+    marginTop: 6,
     borderWidth: 1,
     borderColor: "rgba(99,102,241,0.4)",
   },

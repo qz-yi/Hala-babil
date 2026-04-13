@@ -342,18 +342,27 @@ export default function AdminScreen() {
         <View style={{ width: 40 }} />
       </LinearGradient>
 
-      {/* Tab Bar */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar} contentContainerStyle={styles.tabBarContent}>
-        {TABS.map((t) => (
-          <TouchableOpacity key={t.key} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTab(t.key); }}
-            style={[styles.tabItem, tab === t.key && styles.tabItemActive]}>
-            <View style={styles.tabIconWrap}>
-              <Feather name={t.icon as any} size={14} color={tab === t.key ? BG : TEXT2} strokeWidth={tab === t.key ? 2.5 : 1.5} />
-            </View>
-            <Text style={[styles.tabLabel, { color: tab === t.key ? BG : TEXT2 }]}>{t.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {/* Tab Grid — 3 columns */}
+      <View style={styles.adminGrid}>
+        {TABS.map((t) => {
+          const active = tab === t.key;
+          return (
+            <TouchableOpacity
+              key={t.key}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTab(t.key); }}
+              style={[styles.gridTile, active && styles.gridTileActive]}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.gridIconBg, { backgroundColor: active ? "rgba(255,255,255,0.15)" : CARD2 }]}>
+                <Feather name={t.icon as any} size={22} color={active ? "#fff" : TEXT2} strokeWidth={1.5} />
+              </View>
+              <Text style={[styles.gridTileLabel, { color: active ? "#fff" : TEXT2 }]} numberOfLines={1}>
+                {t.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}>
@@ -655,16 +664,39 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: TEXT },
-  tabBar: { borderBottomWidth: 0.5, borderBottomColor: BORDER },
-  tabBarContent: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
-  tabItem: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: CARD, borderWidth: 0.5, borderColor: BORDER,
+  adminGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 4,
+    gap: 0,
+    borderBottomWidth: 0.5,
+    borderBottomColor: BORDER,
   },
-  tabItemActive: { backgroundColor: TEXT, borderColor: TEXT },
-  tabIconWrap: { width: 14, height: 14, aspectRatio: 1, alignItems: "center", justifyContent: "center" },
-  tabLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  gridTile: {
+    width: "33.33%",
+    aspectRatio: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: 8,
+  },
+  gridTileActive: {},
+  gridIconBg: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 0.5,
+    borderColor: BORDER,
+  },
+  gridTileLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    textAlign: "center",
+  },
   govFilter: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   govFilterTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
   emptyState: { alignItems: "center", paddingVertical: 60, gap: 12 },

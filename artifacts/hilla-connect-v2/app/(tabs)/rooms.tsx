@@ -216,11 +216,19 @@ function SearchBar({ value, onChange, placeholder }: { value: string; onChange: 
 }
 
 export default function RoomsScreen() {
-  const { rooms, currentUser, isSuperAdmin, createRoom, deleteRoom, searchUsers, searchRoomByCode, t } = useApp();
+  const {
+    rooms, currentUser, isSuperAdmin, createRoom, deleteRoom,
+    searchUsers, searchRoomByCode, t,
+    isRoomMinimized, minimizedRoomId, expandRoom, leaveRoomSeat, leaveRoomPresence,
+  } = useApp();
   const insets = useSafeAreaInsets();
   const [showCreate, setShowCreate] = useState(false);
   const [showRoomLimitModal, setShowRoomLimitModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showBlockedModal, setShowBlockedModal] = useState(false);
+  const [pendingRoomId, setPendingRoomId] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [pendingDeleteRoomId, setPendingDeleteRoomId] = useState<string | null>(null);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const visibleRooms = rooms.filter((r) => !r.isHidden || r.ownerId === currentUser?.id);
@@ -231,12 +239,35 @@ export default function RoomsScreen() {
   const searchResults = isNumericSearch ? [] : searchUsers(searchQuery);
   const roomByCode = isNumericSearch ? searchRoomByCode(searchQuery.trim()) : null;
 
+  const tryJoinRoom = (roomId: string) => {
+    if (isRoomMinimized && minimizedRoomId !== roomId) {
+      setPendingRoomId(roomId);
+      setShowBlockedModal(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } else {
+      router.push(`/room/${roomId}` as any);
+    }
+  };
+
+  const handleLeaveAndJoin = () => {
+    if (minimizedRoomId) {
+      leaveRoomSeat(minimizedRoomId);
+      leaveRoomPresence(minimizedRoomId);
+      expandRoom();
+    }
+    setShowBlockedModal(false);
+    if (pendingRoomId) {
+      router.push(`/room/${pendingRoomId}` as any);
+      setPendingRoomId(null);
+    }
+  };
+
   const handleSearchSubmit = () => {
     if (isNumericSearch) {
       const found = searchRoomByCode(searchQuery.trim());
       if (found) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.push(`/room/${found.id}`);
+        tryJoinRoom(found.id);
       } else {
         Alert.alert(t("error"), t("roomCodeNotFound"));
       }
@@ -253,17 +284,18 @@ export default function RoomsScreen() {
   };
 
   const handleDeleteRoom = (roomId: string) => {
-    Alert.alert(t("deleteRoom"), "هل أنت متأكد؟", [
-      { text: t("cancel"), style: "cancel" },
-      {
-        text: t("deleteRoom"),
-        style: "destructive",
-        onPress: () => {
-          deleteRoom(roomId);
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        },
-      },
-    ]);
+    setPendingDeleteRoomId(roomId);
+    setShowDeleteModal(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
+  const confirmDeleteRoom = () => {
+    if (pendingDeleteRoomId) {
+      deleteRoom(pendingDeleteRoomId);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setPendingDeleteRoomId(null);
+    }
+    setShowDeleteModal(false);
   };
 
   return (
@@ -369,7 +401,7 @@ export default function RoomsScreen() {
           renderItem={({ item }) => (
             <RoomCard
               room={item}
-              onPress={() => router.push(`/room/${item.id}`)}
+              onPress={() => tryJoinRoom(item.id)}
               onDelete={handleDeleteRoom}
               isOwner={item.ownerId === currentUser?.id}
               isSuperAdmin={isSuperAdmin}
@@ -386,6 +418,76 @@ export default function RoomsScreen() {
           t={t}
         />
       )}
+
+      {/* Blocked — already in a room modal */}
+      <Modal visible={showBlockedModal} transparent animationType="fade" onRequestClose={() => setShowBlockedModal(false)}>
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.82)", justifyContent: "center", alignItems: "center", padding: 28 }}
+          onPress={() => setShowBlockedModal(false)}
+        >
+          <Pressable
+            style={{ backgroundColor: "#111111", borderRadius: 24, borderWidth: 1, borderColor: "#1E3A5F", padding: 28, width: "100%", alignItems: "center", gap: 14 }}
+            onPress={() => {}}
+          >
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#1E3A5F", alignItems: "center", justifyContent: "center" }}>
+              <Feather name="alert-circle" size={30} color="#3D91F4" strokeWidth={1.5} />
+            </View>
+            <Text style={{ color: "#FFFFFF", fontFamily: "Inter_700Bold", fontSize: 17, textAlign: "center" }}>تنبيه</Text>
+            <Text style={{ color: "#8E8E93", fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center", lineHeight: 22 }}>
+              لا يمكنك دخول غرفة جديدة، يجب مغادرة الغرفة الحالية أولاً. هل تريد المغادرة؟
+            </Text>
+            <View style={{ flexDirection: "row", gap: 12, width: "100%", marginTop: 4 }}>
+              <TouchableOpacity
+                onPress={() => { setShowBlockedModal(false); setPendingRoomId(null); }}
+                style={{ flex: 1, height: 50, borderRadius: 14, borderWidth: 1, borderColor: "#222222", alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: "#8E8E93", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>لا</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleLeaveAndJoin}
+                style={{ flex: 1, height: 50, borderRadius: 14, backgroundColor: "#3D91F4", alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 }}>نعم</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Custom Delete Room Modal */}
+      <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.82)", justifyContent: "center", alignItems: "center", padding: 28 }}
+          onPress={() => setShowDeleteModal(false)}
+        >
+          <Pressable
+            style={{ backgroundColor: "#111111", borderRadius: 24, borderWidth: 1, borderColor: "#2C1A1A", padding: 28, width: "100%", alignItems: "center", gap: 14 }}
+            onPress={() => {}}
+          >
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#FF3B5C18", alignItems: "center", justifyContent: "center" }}>
+              <Feather name="trash-2" size={28} color="#FF3B5C" strokeWidth={1.5} />
+            </View>
+            <Text style={{ color: "#FFFFFF", fontFamily: "Inter_700Bold", fontSize: 17 }}>حذف الغرفة</Text>
+            <Text style={{ color: "#8E8E93", fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }}>
+              هل أنت متأكد من حذف هذه الغرفة؟ لا يمكن التراجع عن هذا الإجراء.
+            </Text>
+            <View style={{ flexDirection: "row", gap: 12, width: "100%", marginTop: 4 }}>
+              <TouchableOpacity
+                onPress={() => setShowDeleteModal(false)}
+                style={{ flex: 1, height: 50, borderRadius: 14, borderWidth: 1, borderColor: "#222222", alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: "#8E8E93", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>إلغاء</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={confirmDeleteRoom}
+                style={{ flex: 1, height: 50, borderRadius: 14, backgroundColor: "#FF3B5C", alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 }}>حذف</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Room Creation Limit Modal */}
       <Modal

@@ -1672,23 +1672,6 @@ export default function RoomScreen() {
             </TouchableOpacity>
           )}
 
-          {/* تصغير الغرفة */}
-          <TouchableOpacity
-            style={[styles.optionsItem, { borderBottomColor: colors.border }]}
-            onPress={() => {
-              setShowOptionsMenu(false);
-              minimizeRoom(room.id, room.name, room.image);
-              router.back();
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            }}
-          >
-            <View style={[styles.optionsIconWrap, { backgroundColor: "#6366F118" }]}>
-              <Ionicons name="remove-circle-outline" size={20} color="#6366F1" />
-            </View>
-            <Text style={[styles.optionsLabel, { color: colors.text }]}>تصغير الغرفة</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
-          </TouchableOpacity>
-
           {/* مغادرة الغرفة */}
           <TouchableOpacity
             style={[styles.optionsItem, { borderBottomColor: (isOwner || isSuperAdmin) ? colors.border : "transparent" }]}
@@ -1911,7 +1894,7 @@ export default function RoomScreen() {
   );
 }
 
-const SEAT_SIZE = 58;
+const SEAT_SIZE = 50;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -1951,13 +1934,16 @@ const styles = StyleSheet.create({
   },
 
   // Seats — simplified: circular avatar only + mic badge
-  seatsSection: { paddingHorizontal: 8, paddingBottom: 4, marginTop: 14 },
+  seatsSection: { paddingHorizontal: 4, paddingBottom: 8, marginTop: 20 },
   seatsGrid: {
-    flexDirection: "row", flexWrap: "wrap",
-    justifyContent: "space-evenly", gap: 10,
+    flexDirection: "row",
+    flexWrap: "wrap",
   },
   seatWrapper: {
-    width: SEAT_SIZE, alignItems: "center", gap: 4,
+    width: "25%",
+    alignItems: "center",
+    paddingVertical: 10,
+    gap: 4,
   },
   seatCircle: {
     width: SEAT_SIZE, height: SEAT_SIZE, borderRadius: SEAT_SIZE / 2,

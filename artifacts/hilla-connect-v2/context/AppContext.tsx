@@ -303,6 +303,7 @@ interface AppContextValue {
   leaveRoomSeat: (roomId: string) => void;
   joinRoomPresence: (roomId: string) => void;
   leaveRoomPresence: (roomId: string) => void;
+  leaveRoomFull: (roomId: string) => void;
   sendRoomMessage: (roomId: string, content: string, type?: "text" | "image" | "video" | "gif" | "system", mediaUrl?: string, replyToId?: string, replyToContent?: string, replyToSender?: string) => void;
   deleteRoomMessage: (roomId: string, msgId: string) => void;
   pinRoomMessage: (roomId: string, msgId: string) => void;
@@ -1418,6 +1419,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const updated = rooms.map((r) => {
         if (r.id !== roomId) return r;
         const presentUserIds = (r.presentUserIds ?? []).filter((id) => id !== currentUser.id);
+        return { ...r, presentUserIds };
+      });
+      saveRooms(updated);
+    },
+    [currentUser, rooms]
+  );
+
+  const leaveRoomFull = useCallback(
+    (roomId: string) => {
+      if (!currentUser) return;
+      const updated = rooms.map((r) => {
+        if (r.id !== roomId) return r;
+        const presentUserIds = (r.presentUserIds ?? []).filter((uid) => uid !== currentUser.id);
         const seats = [...r.seats];
         const seatUsers = [...r.seatUsers];
         const idx = seats.indexOf(currentUser.id);

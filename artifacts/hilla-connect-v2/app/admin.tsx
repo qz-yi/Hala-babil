@@ -347,7 +347,9 @@ export default function AdminScreen() {
         {TABS.map((t) => (
           <TouchableOpacity key={t.key} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTab(t.key); }}
             style={[styles.tabItem, tab === t.key && styles.tabItemActive]}>
-            <Feather name={t.icon as any} size={14} color={tab === t.key ? BG : TEXT2} strokeWidth={tab === t.key ? 2.5 : 1.5} />
+            <View style={styles.tabIconWrap}>
+              <Feather name={t.icon as any} size={14} color={tab === t.key ? BG : TEXT2} strokeWidth={tab === t.key ? 2.5 : 1.5} />
+            </View>
             <Text style={[styles.tabLabel, { color: tab === t.key ? BG : TEXT2 }]}>{t.label}</Text>
           </TouchableOpacity>
         ))}
@@ -661,6 +663,7 @@ const styles = StyleSheet.create({
     backgroundColor: CARD, borderWidth: 0.5, borderColor: BORDER,
   },
   tabItemActive: { backgroundColor: TEXT, borderColor: TEXT },
+  tabIconWrap: { width: 14, height: 14, aspectRatio: 1, alignItems: "center", justifyContent: "center" },
   tabLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   govFilter: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   govFilterTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },

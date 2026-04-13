@@ -962,7 +962,11 @@ export default function RoomScreen() {
       >
         <View style={styles.headerRow}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => {
+              minimizeRoom(room.id, room.name, room.image);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.back();
+            }}
             style={[styles.headerBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
             <Ionicons name="chevron-down" size={22} color={colors.text} />
@@ -1907,7 +1911,7 @@ export default function RoomScreen() {
   );
 }
 
-const SEAT_SIZE = 66;
+const SEAT_SIZE = 58;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -1947,7 +1951,7 @@ const styles = StyleSheet.create({
   },
 
   // Seats — simplified: circular avatar only + mic badge
-  seatsSection: { paddingHorizontal: 8, paddingBottom: 4, marginTop: 8 },
+  seatsSection: { paddingHorizontal: 8, paddingBottom: 4, marginTop: 14 },
   seatsGrid: {
     flexDirection: "row", flexWrap: "wrap",
     justifyContent: "space-evenly", gap: 10,

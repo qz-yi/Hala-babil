@@ -951,7 +951,7 @@ const styles = StyleSheet.create({
   commentMoreBtn: { padding: 4 },
   commentInputBar: {
     flexDirection: "row", alignItems: "flex-end",
-    gap: 10, paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1,
+    gap: 10, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8, borderTopWidth: 1,
   },
   commentInputWrap: {
     flex: 1, borderRadius: 18, borderWidth: 1,

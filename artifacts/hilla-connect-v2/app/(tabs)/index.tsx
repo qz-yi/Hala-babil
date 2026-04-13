@@ -252,6 +252,8 @@ function CommentSheet({
     likePostComment, isPostCommentLiked, pinPostComment, getPostCommentLikers,
     banUser, t,
   } = useApp();
+  const insets = useSafeAreaInsets();
+  const botPad = Platform.OS === "web" ? 16 : insets.bottom;
   const [text, setText] = useState("");
   const [likersCommentId, setLikersCommentId] = useState<string | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
@@ -397,7 +399,7 @@ function CommentSheet({
             );
           }}
         />
-        <View style={[styles.commentInputRow, { backgroundColor: colors.inputBackground ?? colors.backgroundSecondary, borderColor: colors.border }]}>
+        <View style={[styles.commentInputRow, { backgroundColor: colors.inputBackground ?? colors.backgroundSecondary, borderColor: colors.border, marginBottom: botPad > 0 ? botPad : 12 }]}>
           <MentionInput
             value={text}
             onChangeText={setText}
@@ -409,8 +411,8 @@ function CommentSheet({
             containerStyle={{ flex: 1 }}
             style={{ borderWidth: 0, backgroundColor: "transparent", paddingHorizontal: 0, paddingVertical: 0 }}
           />
-          <TouchableOpacity onPress={handleSend} style={styles.sendBtn}>
-            <Feather name="send" size={18} color="#3D91F4" strokeWidth={1.5} />
+          <TouchableOpacity onPress={handleSend} style={[styles.sendBtn, { backgroundColor: text.trim() ? "#3D91F422" : "transparent" }]}>
+            <Feather name="send" size={18} color={text.trim() ? "#3D91F4" : colors.textSecondary} strokeWidth={1.5} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -1118,12 +1120,12 @@ const styles = StyleSheet.create({
   // Comment Sheet
   sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
   commentSheet: {
-    height: "65%",
+    height: "70%",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 0.5,
-    padding: 16,
-    paddingBottom: 20,
+    paddingTop: 12,
+    paddingHorizontal: 16,
     gap: 10,
   },
   sheetHandle: { width: 36, height: 3, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
@@ -1152,12 +1154,12 @@ const styles = StyleSheet.create({
     gap: 10,
     borderRadius: 24,
     borderWidth: 0.5,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     marginTop: 4,
   },
   commentInputField: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 14, maxHeight: 80 },
-  sendBtn: { padding: 4 },
+  sendBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   shareUser: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
 
   // Comment Options Modal (themed, replaces Alert.alert)

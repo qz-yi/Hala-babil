@@ -22,8 +22,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
-import { useApp } from "@/context/AppContext";
+import { useApp, isUserVerified } from "@/context/AppContext";
 import type { Post, PostComment } from "@/context/AppContext";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 import MentionInput from "@/components/MentionInput";
 import MentionText from "@/components/MentionText";
 
@@ -233,10 +234,11 @@ function CommentSheet({
                   )}
                 </TouchableOpacity>
                 <View style={styles.commentBody}>
-                  <TouchableOpacity onPress={() => { onClose(); router.push(`/profile/${item.userId}` as any); }} activeOpacity={0.8}>
+                  <TouchableOpacity onPress={() => { onClose(); router.push(`/profile/${item.userId}` as any); }} activeOpacity={0.8} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                     <Text style={[styles.commentUser, { color: "#3D91F4" }]}>
                       {commenter?.username || item.userName}
                     </Text>
+                    {isUserVerified(commenter) && <VerifiedBadge size={13} />}
                   </TouchableOpacity>
                   <MentionText
                     text={item.content}

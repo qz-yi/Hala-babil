@@ -1,0 +1,35 @@
+URGENT: Advanced Stories System Implementation (Phase 3)
+​Objective: Implement a fully functional, Instagram-style Stories system with "Close Friends" logic, sharing capabilities, and specific Admin-priority rules. You must maintain the Professional Dark Theme and use Global Context for real-time updates.
+​1️⃣ "Close Friends" & Purple Rotating Frame
+​Logic: When posting a story, show a toggle: [Public Story / Close Friends].
+​Close Friends Selection:
+​The first time, open a searchable list of Followers only.
+​After selection, save this list. For future posts, show "Post to Close Friends" directly with a small "Edit List" button.
+​UI/Animation:
+​Public Stories: Standard Blue/Gradient border.
+​Close Friends Stories: Purple Gradient Frame.
+​Animation: This frame MUST have a Continuous Rotation Animation (exactly like the Premium Verified Badge frame we built).
+​Indicator: Users viewing the story should see a "Close Friends" label in the corner.
+​2️⃣ Duration & Ordering Fixes
+​Story Ordering: Fix the current bug. Stories must appear in Chronological Order (Oldest to Newest). When one ends, the next one starts automatically.
+​Photo Duration: Increase static image display time to 25 seconds.
+​Video Duration: Allow video uploads up to 60 seconds (1:00 min).
+​3️⃣ Sharing Ecosystem (Posts/Reels to Stories)
+​Share Button: Add "Add to my Story" in the sharing menu of Posts, Reels, and Videos.
+​Functionality: * The content should appear in the Story editor as a clickable sticker.
+​Deep Linking: Tapping the shared content in the story must redirect the viewer to the Original Post/Reel.
+​Notifications: When a user shares someone's content, trigger a notification: "قام [اسم المستخدم] بمشاركة [منشورك/مقطعك] في قصته".
+​4️⃣ Mention System (@Mentions)
+​Mentions Logic: Add an "@" sticker or text tool in the story editor to mention friends.
+​The Mention Chain:
+​Mentioned users receive a notification: "ذكرك [User] في قصته".
+​In the story view, the mentioned user sees a "Add this to your story" (مشاركة إلى قصتك) button.
+​This allows them to re-post it, creating a chain of engagement.
+​5️⃣ Visibility & Admin "God-Mode" Logic
+​Follower Filter: Users should ONLY see stories from people they follow.
+​Admin/Manager Bypass: * CRITICAL RULE: All content (Stories, Posts, Reels) from the Admin (Manager) account must be FORCED to appear for ALL users, regardless of following status.
+​This applies to everyone unless the user has manually blocked the Admin.
+​6️⃣ Technical & UI Cleanup
+​UI: Stories tray on the home screen must look clean. Ensure no overlap.
+​Transitions: Use Framer Motion for smooth slide transitions between story segments.
+​Cleanup: When a user logs out, clear the story cache and active intervals.

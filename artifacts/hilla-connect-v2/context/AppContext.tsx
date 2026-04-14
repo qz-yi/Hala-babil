@@ -224,6 +224,15 @@ export interface PostComment {
   createdAt: number;
 }
 
+export interface StorySharedPost {
+  id: string;
+  type: "post" | "reel";
+  mediaUrl?: string;
+  caption?: string;
+  creatorName?: string;
+  creatorId?: string;
+}
+
 export interface Story {
   id: string;
   creatorId: string;
@@ -234,6 +243,9 @@ export interface Story {
   viewerIds: string[];
   expiresAt: number;
   createdAt: number;
+  isCloseFriends?: boolean;
+  mentions?: string[];
+  sharedPost?: StorySharedPost;
 }
 
 export interface Follow {
@@ -389,7 +401,7 @@ interface AppContextValue {
   pinPostComment: (commentId: string) => void;
   getPostComments: (postId: string) => PostComment[];
   // Stories
-  addStory: (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter?: string) => void;
+  addStory: (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter?: string, isCloseFriends?: boolean, mentions?: string[], sharedPost?: StorySharedPost) => void;
   deleteStory: (storyId: string) => void;
   viewStory: (storyId: string) => void;
   likeStory: (storyId: string) => void;
@@ -397,6 +409,9 @@ interface AppContextValue {
   getActiveStories: () => Story[];
   getUserStories: (userId: string) => Story[];
   hasUnseenStory: (userId: string) => boolean;
+  closeFriendsList: string[];
+  updateCloseFriendsList: (ids: string[]) => void;
+  shareContentToStory: (type: "post" | "reel", id: string, mediaUrl?: string, caption?: string, creatorName?: string, creatorId?: string) => void;
   // Follows
   followUser: (userId: string) => void;
   unfollowUser: (userId: string) => void;
@@ -961,6 +976,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [postLikes, setPostLikes] = useState<PostLike[]>([]);
   const [postComments, setPostComments] = useState<PostComment[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
+  const [closeFriendsLists, setCloseFriendsLists] = useState<Record<string, string[]>>({});
   const [follows, setFollows] = useState<Follow[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [savedPosts, setSavedPostsState] = useState<string[]>([]);
@@ -995,7 +1011,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         "language", "theme", "currentUser", "users", "rooms", "conversations",
         "restaurants", "passwords", "blockedUsers", "reels", "reelLikes",
         "reelComments", "posts", "postLikes", "postComments", "stories",
-        "follows", "notifications", "savedPosts", "governorateImages",
+        "closeFriendsLists", "follows", "notifications", "savedPosts", "governorateImages",
       ];
       const values = await AsyncStorage.multiGet(keys);
       const data = Object.fromEntries(values.map(([k, v]) => [k, v]));
@@ -1036,6 +1052,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setPostComments(migrated);
       }
       if (data.stories) setStories(JSON.parse(data.stories));
+      if (data.closeFriendsLists) setCloseFriendsLists(JSON.parse(data.closeFriendsLists));
       if (data.follows) setFollows(JSON.parse(data.follows));
       if (data.notifications) setNotifications(JSON.parse(data.notifications));
       if (data.savedPosts) setSavedPostsState(JSON.parse(data.savedPosts));
@@ -1054,6 +1071,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const savePostLikes = (l: PostLike[]) => { setPostLikes(l); AsyncStorage.setItem("postLikes", JSON.stringify(l)); };
   const savePostComments = (c: PostComment[]) => { setPostComments(c); AsyncStorage.setItem("postComments", JSON.stringify(c)); };
   const saveStories = (s: Story[]) => { setStories(s); AsyncStorage.setItem("stories", JSON.stringify(s)); };
+  const saveCloseFriendsLists = (m: Record<string, string[]>) => { setCloseFriendsLists(m); AsyncStorage.setItem("closeFriendsLists", JSON.stringify(m)); };
   const saveFollows = (f: Follow[]) => { setFollows(f); AsyncStorage.setItem("follows", JSON.stringify(f)); };
   const saveNotifications = (n: AppNotification[]) => { setNotifications(n); AsyncStorage.setItem("notifications", JSON.stringify(n)); };
   const saveSavedPostsData = (s: string[]) => { setSavedPostsState(s); AsyncStorage.setItem("savedPosts", JSON.stringify(s)); };
@@ -1251,7 +1269,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     setCurrentUser(null);
-    await AsyncStorage.removeItem("currentUser");
+    setStories([]);
+    await AsyncStorage.multiRemove(["currentUser", "stories"]);
     setIsRoomMinimized(false);
     setMinimizedRoomId(null);
     setMinimizedRoomName("");
@@ -2719,7 +2738,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // STORIES
   // ============================
   const addStory = useCallback(
-    (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter = "none") => {
+    (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter = "none", isCloseFriends = false, mentions: string[] = [], sharedPost?: StorySharedPost) => {
       if (!currentUser) return;
       const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
       const story: Story = {
@@ -2732,10 +2751,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         viewerIds: [],
         expiresAt,
         createdAt: Date.now(),
+        isCloseFriends,
+        mentions: mentions.length > 0 ? mentions : undefined,
+        sharedPost,
       };
       saveStories([story, ...stories]);
+      // Notify mentioned users
+      mentions.forEach((mentionedId) => {
+        const mentionedUser = users.find((u) => u.id === mentionedId);
+        if (!mentionedUser || mentionedId === currentUser.id) return;
+        const notif: AppNotification = {
+          id: generateId(),
+          recipientId: mentionedId,
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          senderAvatar: currentUser.avatar,
+          type: "mention",
+          referenceId: story.id,
+          message: `ذكرك ${currentUser.name} في قصته`,
+          isRead: false,
+          createdAt: Date.now(),
+        };
+        saveNotifications([notif, ...notifications]);
+      });
+      // Notify content creator when sharing their post/reel to story
+      if (sharedPost && sharedPost.creatorId && sharedPost.creatorId !== currentUser.id) {
+        const contentLabel = sharedPost.type === "reel" ? "مقطعك" : "منشورك";
+        const notif: AppNotification = {
+          id: generateId(),
+          recipientId: sharedPost.creatorId,
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          senderAvatar: currentUser.avatar,
+          type: "story",
+          referenceId: sharedPost.id,
+          message: `قام ${currentUser.name} بمشاركة ${contentLabel} في قصته`,
+          isRead: false,
+          createdAt: Date.now(),
+        };
+        saveNotifications([notif, ...notifications]);
+      }
     },
-    [currentUser, stories]
+    [currentUser, stories, users, notifications]
   );
 
   const deleteStory = useCallback(
@@ -2861,24 +2918,132 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [currentUser, stories, conversations, users, notifications]
   );
 
+  const _adminId = useMemo(() => {
+    return users.find((u) => u.phone === SUPER_ADMIN_PHONE || u.role === "MANAGER")?.id;
+  }, [users]);
+
   const getActiveStories = useCallback(
-    () => stories.filter((s) => s.expiresAt > Date.now()),
-    [stories]
+    () => {
+      if (!currentUser) return [];
+      const now = Date.now();
+      const followingIds = new Set(
+        follows.filter((f) => f.followerId === currentUser.id && f.status === "accepted").map((f) => f.followingId)
+      );
+      return stories.filter((s) => {
+        if (s.expiresAt <= now) return false;
+        if (s.creatorId === currentUser.id) return true;
+        if (s.creatorId === _adminId && !blockedUsers.includes(s.creatorId)) return true;
+        if (!followingIds.has(s.creatorId)) return false;
+        if (s.isCloseFriends) {
+          const creatorCFList = closeFriendsLists[s.creatorId] || [];
+          return creatorCFList.includes(currentUser.id);
+        }
+        return true;
+      });
+    },
+    [currentUser, stories, follows, blockedUsers, closeFriendsLists, _adminId]
   );
 
   const getUserStories = useCallback(
-    (userId: string) => stories.filter((s) => s.creatorId === userId && s.expiresAt > Date.now()),
-    [stories]
+    (userId: string) => {
+      if (!currentUser) return [];
+      const now = Date.now();
+      const isOwnStories = userId === currentUser.id;
+      const isAdminUser = userId === _adminId;
+      const isFollowingUser = follows.some(
+        (f) => f.followerId === currentUser.id && f.followingId === userId && f.status === "accepted"
+      );
+      return stories
+        .filter((s) => {
+          if (s.creatorId !== userId || s.expiresAt <= now) return false;
+          if (isOwnStories) return true;
+          if (isAdminUser && !blockedUsers.includes(userId)) return true;
+          if (!isFollowingUser) return false;
+          if (s.isCloseFriends) {
+            const creatorCFList = closeFriendsLists[userId] || [];
+            return creatorCFList.includes(currentUser.id);
+          }
+          return true;
+        })
+        .sort((a, b) => a.createdAt - b.createdAt);
+    },
+    [currentUser, stories, follows, blockedUsers, closeFriendsLists, _adminId]
   );
 
   const hasUnseenStory = useCallback(
     (userId: string) => {
       if (!currentUser) return false;
-      return stories.some(
-        (s) => s.creatorId === userId && s.expiresAt > Date.now() && !s.viewerIds.includes(currentUser.id)
+      const now = Date.now();
+      const isAdminUser = userId === _adminId;
+      const isOwn = userId === currentUser.id;
+      const isFollowingUser = follows.some(
+        (f) => f.followerId === currentUser.id && f.followingId === userId && f.status === "accepted"
       );
+      return stories.some((s) => {
+        if (s.creatorId !== userId || s.expiresAt <= now) return false;
+        if (s.viewerIds.includes(currentUser.id)) return false;
+        if (isOwn) return true;
+        if (isAdminUser && !blockedUsers.includes(userId)) return true;
+        if (!isFollowingUser) return false;
+        if (s.isCloseFriends) {
+          const creatorCFList = closeFriendsLists[userId] || [];
+          return creatorCFList.includes(currentUser.id);
+        }
+        return true;
+      });
     },
-    [currentUser, stories]
+    [currentUser, stories, follows, blockedUsers, closeFriendsLists, _adminId]
+  );
+
+  const updateCloseFriendsList = useCallback(
+    (ids: string[]) => {
+      if (!currentUser) return;
+      const updated = { ...closeFriendsLists, [currentUser.id]: ids };
+      saveCloseFriendsLists(updated);
+    },
+    [currentUser, closeFriendsLists]
+  );
+
+  const closeFriendsList = useMemo(
+    () => (currentUser ? closeFriendsLists[currentUser.id] || [] : []),
+    [currentUser, closeFriendsLists]
+  );
+
+  const shareContentToStory = useCallback(
+    (type: "post" | "reel", id: string, mediaUrl?: string, caption?: string, creatorName?: string, creatorId?: string) => {
+      if (!currentUser) return;
+      const sharedPost: StorySharedPost = { id, type, mediaUrl, caption, creatorName, creatorId };
+      const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+      const story: Story = {
+        id: generateId(),
+        creatorId: currentUser.id,
+        mediaUrl: mediaUrl || "",
+        mediaType: "image",
+        filter: "none",
+        viewerIds: [],
+        expiresAt,
+        createdAt: Date.now(),
+        sharedPost,
+      };
+      saveStories([story, ...stories]);
+      if (creatorId && creatorId !== currentUser.id) {
+        const contentLabel = type === "reel" ? "مقطعك" : "منشورك";
+        const notif: AppNotification = {
+          id: generateId(),
+          recipientId: creatorId,
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          senderAvatar: currentUser.avatar,
+          type: "story",
+          referenceId: id,
+          message: `قام ${currentUser.name} بمشاركة ${contentLabel} في قصته`,
+          isRead: false,
+          createdAt: Date.now(),
+        };
+        saveNotifications([notif, ...notifications]);
+      }
+    },
+    [currentUser, stories, notifications]
   );
 
   // ============================
@@ -3169,6 +3334,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addPost, deletePost, hidePost, likePost, isPostLiked, getPostLikesCount,
       addPostComment, deletePostComment, likePostComment, isPostCommentLiked, pinPostComment, getPostComments,
       addStory, deleteStory, viewStory, likeStory, replyToStory, getActiveStories, getUserStories, hasUnseenStory,
+      closeFriendsList, updateCloseFriendsList, shareContentToStory,
       followUser, unfollowUser, acceptFollowRequest, rejectFollowRequest, isFollowing, isFollowedBy,
       getFollowStatus, getFollowers, getFollowing, getFollowersCount, getFollowingCount, getFollowRequests,
       markNotificationRead, markAllNotificationsRead, getUnreadNotificationsCount,
@@ -3204,6 +3370,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addPost, deletePost, hidePost, likePost, isPostLiked, getPostLikesCount,
       addPostComment, deletePostComment, likePostComment, isPostCommentLiked, pinPostComment, getPostComments,
       addStory, deleteStory, viewStory, likeStory, replyToStory, getActiveStories, getUserStories, hasUnseenStory,
+      closeFriendsList, updateCloseFriendsList, shareContentToStory,
       followUser, unfollowUser, acceptFollowRequest, rejectFollowRequest, isFollowing, isFollowedBy,
       getFollowStatus, getFollowers, getFollowing, getFollowersCount, getFollowingCount, getFollowRequests,
       markNotificationRead, markAllNotificationsRead, getUnreadNotificationsCount,

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
@@ -497,9 +497,10 @@ function ShareSheet({
   visible: boolean;
   onClose: () => void;
 }) {
-  const { users, currentUser, shareReelToConversation } = useApp();
+  const { users, currentUser, shareReelToConversation, reels, shareContentToStory } = useApp();
   const { showToast } = useToast();
   const others = users.filter((u) => u.id !== currentUser?.id);
+  const [addedToStory, setAddedToStory] = useState(false);
 
   const handleShare = (userId: string) => {
     shareReelToConversation(reelId, userId);
@@ -507,16 +508,40 @@ function ShareSheet({
     onClose();
   };
 
+  const handleAddToStory = () => {
+    const reel = reels.find((r) => r.id === reelId);
+    if (!reel) return;
+    const creator = users.find((u) => u.id === reel.creatorId);
+    shareContentToStory("reel", reelId, reel.videoUrl, reel.title, creator?.name, reel.creatorId);
+    setAddedToStory(true);
+    showToast("تمت إضافة المقطع لقصتك!", "success");
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
       <View style={[styles.commentSheet, { backgroundColor: CARD, borderColor: BORDER }]}>
         <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
-        <Text style={[styles.sheetTitle, { color: TEXT }]}>مشاركة مع</Text>
+        <Text style={[styles.sheetTitle, { color: TEXT }]}>مشاركة</Text>
+
+        {/* Add to Story */}
+        <TouchableOpacity
+          style={[styles.addToStoryReelBtn, { borderColor: addedToStory ? "#10B981" : "#8B5CF6", backgroundColor: addedToStory ? "#10B98122" : "#8B5CF622" }]}
+          onPress={!addedToStory ? handleAddToStory : undefined}
+          activeOpacity={0.85}
+        >
+          <Ionicons name={addedToStory ? "checkmark-circle" : "add-circle-outline"} size={20} color={addedToStory ? "#10B981" : "#8B5CF6"} />
+          <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: addedToStory ? "#10B981" : "#8B5CF6" }}>
+            {addedToStory ? "تمت الإضافة للقصة" : "إضافة إلى قصتي"}
+          </Text>
+        </TouchableOpacity>
+
+        <Text style={[{ fontFamily: "Inter_600SemiBold", fontSize: 12, color: TEXT2, letterSpacing: 0.5, marginTop: 4, marginBottom: 4 }]}>إرسال لشخص</Text>
+
         <FlatList
           data={others}
           keyExtractor={(u) => u.id}
-          style={{ maxHeight: 320 }}
+          style={{ maxHeight: 260 }}
           ListEmptyComponent={
             <Text style={[styles.emptyComments, { color: TEXT2 }]}>
               لا يوجد مستخدمون لمشاركتهم
@@ -1016,6 +1041,10 @@ const styles = StyleSheet.create({
   commentInputField: { flex: 1, fontSize: 15, maxHeight: 80 },
   sendCommentBtn: { padding: 4 },
   shareUser: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
+  addToStoryReelBtn: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    borderRadius: 14, borderWidth: 1.5, padding: 12, marginBottom: 8,
+  },
   optionsSheet: {
     position: "absolute", bottom: 0, left: 0, right: 0,
     borderTopLeftRadius: 28, borderTopRightRadius: 28,

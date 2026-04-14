@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
+  Easing,
   FlatList,
   Image,
   Keyboard,
@@ -17,16 +18,54 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { Story } from "@/context/AppContext";
 
-const STORY_DURATION = 5000;
+const IMAGE_STORY_DURATION = 25000;
 
-// ─── مكوّن مشاركة القصة ───
+// ─── Purple rotating frame ───
+function CloseFriendsFrame({ size = 68, children }: { size: number; children: React.ReactNode }) {
+  const rotAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.timing(rotAnim, { toValue: 1, duration: 2800, easing: Easing.linear, useNativeDriver: true })
+    );
+    anim.start();
+    return () => { anim.stop(); };
+  }, []);
+
+  const rotate = rotAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Animated.View
+        style={{
+          position: "absolute",
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          transform: [{ rotate }],
+        }}
+      >
+        <LinearGradient
+          colors={["#8B5CF6", "#EC4899", "#6D28D9", "#8B5CF6"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{ width: size, height: size, borderRadius: size / 2 }}
+        />
+      </Animated.View>
+      <View style={{ width: size - 6, height: size - 6, borderRadius: (size - 6) / 2, overflow: "hidden", backgroundColor: "#000" }}>
+        {children}
+      </View>
+    </View>
+  );
+}
+
+// ─── Share Story Modal ───
 function ShareStoryModal({
   visible,
   onClose,
@@ -99,6 +138,7 @@ export default function StoryViewerScreen() {
   const {
     users, getUserStories, viewStory, currentUser, theme,
     likeStory, replyToStory, deleteStory, stories: allStories,
+    shareContentToStory,
   } = useApp();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
@@ -116,35 +156,26 @@ export default function StoryViewerScreen() {
   const [replyText, setReplyText] = useState("");
   const [replySent, setReplySent] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [addedToStory, setAddedToStory] = useState(false);
 
-  // Track keyboard height for absolutely-positioned bottom bar
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const showSub = Keyboard.addListener(showEvent, (e) => {
-      setKeyboardHeight(e.endCoordinates.height);
-    });
-    const hideSub = Keyboard.addListener(hideEvent, () => {
-      setKeyboardHeight(0);
-    });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
+    const showSub = Keyboard.addListener(showEvent, (e) => { setKeyboardHeight(e.endCoordinates.height); });
+    const hideSub = Keyboard.addListener(hideEvent, () => { setKeyboardHeight(0); });
+    return () => { showSub.remove(); hideSub.remove(); };
   }, []);
 
-  // Progress animation — properly handles pause/resume
   const progressAnim = useRef(new Animated.Value(0)).current;
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
   const heartScale = useRef(new Animated.Value(1)).current;
-
-  // Track elapsed ms for proper resume-without-reset
   const elapsedRef = useRef(0);
   const pauseStartRef = useRef(0);
 
   const currentStory: Story | undefined = stories[currentIndex];
   const accentColor = ACCENT_COLORS[(user?.name?.length ?? 0) % ACCENT_COLORS.length];
   const isMyStory = currentUser?.id === userId;
+  const isCloseFriends = !!currentStory?.isCloseFriends;
 
   // Users with active stories for auto-advance
   const usersWithStories = users.filter((u) => {
@@ -153,31 +184,23 @@ export default function StoryViewerScreen() {
   });
   const currentUserIndex = usersWithStories.findIndex((u) => u.id === userId);
 
-  // Reset elapsed when story changes
-  useEffect(() => {
-    elapsedRef.current = 0;
-  }, [currentIndex, currentStory?.id]);
+  const storyDuration = currentStory?.mediaType === "video" ? 60000 : IMAGE_STORY_DURATION;
+
+  useEffect(() => { elapsedRef.current = 0; }, [currentIndex, currentStory?.id]);
 
   useEffect(() => {
     if (!currentStory) return;
 
     if (paused) {
-      // Pause: stop the animation, record when we paused
       animRef.current?.stop();
       pauseStartRef.current = Date.now();
       return;
     }
 
-    // If we're resuming after a pause, don't add extra elapsed
-    // (elapsedRef was already updated in stop cleanup)
-    const remaining = STORY_DURATION - elapsedRef.current;
-    if (remaining <= 0) {
-      handleNext();
-      return;
-    }
+    const remaining = storyDuration - elapsedRef.current;
+    if (remaining <= 0) { handleNext(); return; }
 
-    // Set progress bar to current position
-    const startFraction = elapsedRef.current / STORY_DURATION;
+    const startFraction = elapsedRef.current / storyDuration;
     progressAnim.setValue(startFraction);
 
     const startTime = Date.now();
@@ -189,18 +212,13 @@ export default function StoryViewerScreen() {
     });
 
     animRef.current.start(({ finished }) => {
-      if (finished) {
-        elapsedRef.current = STORY_DURATION;
-        handleNext();
-      }
+      if (finished) { elapsedRef.current = storyDuration; handleNext(); }
     });
 
     return () => {
       animRef.current?.stop();
-      // Update elapsed with how much time passed since we started this segment
-      const timeNow = Date.now();
-      const segmentElapsed = timeNow - startTime;
-      elapsedRef.current = Math.min(STORY_DURATION, elapsedRef.current + segmentElapsed);
+      const segmentElapsed = Date.now() - startTime;
+      elapsedRef.current = Math.min(storyDuration, elapsedRef.current + segmentElapsed);
     };
   }, [currentIndex, currentStory?.id, paused]);
 
@@ -208,6 +226,7 @@ export default function StoryViewerScreen() {
     setReplySent(false);
     setReplyText("");
     setLiked(false);
+    setAddedToStory(false);
   }, [currentIndex]);
 
   useEffect(() => {
@@ -220,8 +239,7 @@ export default function StoryViewerScreen() {
     } else {
       const nextUserIndex = currentUserIndex + 1;
       if (nextUserIndex < usersWithStories.length) {
-        const nextUser = usersWithStories[nextUserIndex];
-        router.replace(`/story/${nextUser.id}` as any);
+        router.replace(`/story/${usersWithStories[nextUserIndex].id}` as any);
       } else {
         router.back();
       }
@@ -253,22 +271,36 @@ export default function StoryViewerScreen() {
     setPaused(false);
   };
 
-  // Long press = pause, release = resume
-  const handlePressIn = () => {
+  const handleAddToMyStory = () => {
+    if (!currentStory) return;
     setPaused(true);
+    shareContentToStory(
+      "post",
+      currentStory.id,
+      currentStory.mediaUrl,
+      currentStory.caption,
+      user?.name,
+      userId,
+    );
+    setAddedToStory(true);
+    setPaused(false);
   };
 
-  const handlePressOut = () => {
-    setPaused(false);
+  const handleSharedPostPress = () => {
+    if (!currentStory?.sharedPost) return;
+    const sp = currentStory.sharedPost;
+    if (sp.type === "reel") {
+      router.push("/(tabs)/reels" as any);
+    } else {
+      router.push(`/post/${sp.id}` as any);
+    }
   };
 
   if (!user || stories.length === 0) {
     return (
       <View style={[styles.container, { backgroundColor: "#000", justifyContent: "center", alignItems: "center" }]}>
         <Ionicons name="images-outline" size={48} color="rgba(255,255,255,0.4)" />
-        <Text style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Inter_400Regular", marginTop: 12 }}>
-          لا توجد قصص لعرضها
-        </Text>
+        <Text style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Inter_400Regular", marginTop: 12 }}>لا توجد قصص لعرضها</Text>
         <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20, padding: 14 }}>
           <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold" }}>عودة</Text>
         </TouchableOpacity>
@@ -285,12 +317,17 @@ export default function StoryViewerScreen() {
     return `منذ ${hrs} ساعة`;
   };
 
+  const mentionedUsers = (currentStory.mentions || [])
+    .map((id) => users.find((u) => u.id === id))
+    .filter(Boolean);
+
+  const iAmMentioned = currentStory.mentions?.includes(currentUser?.id || "");
+
   return (
     <View style={styles.container}>
       {currentStory.mediaUrl ? (
         <View style={styles.storyMedia}>
           <Image source={{ uri: currentStory.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          {/* Filter overlay */}
           {currentStory.filter && currentStory.filter !== "none" && (() => {
             const filterOverlays: Record<string, string> = {
               warm: "rgba(255,140,0,0.25)",
@@ -300,17 +337,7 @@ export default function StoryViewerScreen() {
             };
             const overlay = filterOverlays[currentStory.filter];
             return overlay ? (
-              <View
-                style={[
-                  StyleSheet.absoluteFill,
-                  {
-                    backgroundColor: overlay,
-                    ...(currentStory.filter === "grayscale" && Platform.OS === "web"
-                      ? ({ filter: "grayscale(100%)" } as any)
-                      : {}),
-                  },
-                ]}
-              />
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: overlay, ...(currentStory.filter === "grayscale" && Platform.OS === "web" ? ({ filter: "grayscale(100%)" } as any) : {}) }]} />
             ) : null;
           })()}
         </View>
@@ -322,15 +349,23 @@ export default function StoryViewerScreen() {
       <LinearGradient colors={["rgba(0,0,0,0.7)", "transparent"]} style={styles.topGrad} />
       <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={styles.bottomGrad} />
 
+      {/* Close Friends badge */}
+      {isCloseFriends && (
+        <View style={[styles.cfBadge, { top: topPad + 12 }]}>
+          <Ionicons name="star" size={11} color="#8B5CF6" />
+          <Text style={styles.cfBadgeText}>أصدقاء مقربون</Text>
+        </View>
+      )}
+
       {/* Progress bars */}
-      <View style={[styles.progressRow, { top: topPad + 12 }]}>
+      <View style={[styles.progressRow, { top: topPad + (isCloseFriends ? 34 : 12) }]}>
         {stories.map((_, i) => (
           <View key={i} style={[styles.progressBar, { backgroundColor: "rgba(255,255,255,0.3)" }]}>
             <Animated.View
               style={[
                 styles.progressFill,
                 {
-                  backgroundColor: "#fff",
+                  backgroundColor: isCloseFriends ? "#8B5CF6" : "#fff",
                   width: i < currentIndex
                     ? "100%"
                     : i === currentIndex
@@ -351,21 +386,27 @@ export default function StoryViewerScreen() {
       )}
 
       {/* User info row */}
-      <View style={[styles.userRow, { top: topPad + 36 }]}>
+      <View style={[styles.userRow, { top: topPad + (isCloseFriends ? 56 : 36) }]}>
         <TouchableOpacity
-          onPress={() => {
-            if (!isMyStory) router.push(`/profile/${userId}` as any);
-          }}
+          onPress={() => { if (!isMyStory) router.push(`/profile/${userId}` as any); }}
           activeOpacity={isMyStory ? 1 : 0.85}
           style={styles.userInfoTouchable}
         >
-          {user.avatar ? (
+          {isCloseFriends ? (
+            <CloseFriendsFrame size={44}>
+              {user.avatar ? (
+                <Image source={{ uri: user.avatar }} style={{ width: "100%", height: "100%", borderRadius: 20 }} />
+              ) : (
+                <View style={{ flex: 1, backgroundColor: `${accentColor}55`, alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ color: accentColor, fontSize: 16, fontFamily: "Inter_700Bold" }}>{user.name[0]?.toUpperCase()}</Text>
+                </View>
+              )}
+            </CloseFriendsFrame>
+          ) : user.avatar ? (
             <Image source={{ uri: user.avatar }} style={styles.userAvatar} />
           ) : (
             <View style={[styles.userAvatar, { backgroundColor: `${accentColor}55`, alignItems: "center", justifyContent: "center" }]}>
-              <Text style={{ color: accentColor, fontSize: 16, fontFamily: "Inter_700Bold" }}>
-                {user.name[0]?.toUpperCase()}
-              </Text>
+              <Text style={{ color: accentColor, fontSize: 16, fontFamily: "Inter_700Bold" }}>{user.name[0]?.toUpperCase()}</Text>
             </View>
           )}
           <View>
@@ -373,18 +414,79 @@ export default function StoryViewerScreen() {
             <Text style={styles.storyTime}>{formatTime(currentStory.createdAt)}</Text>
           </View>
         </TouchableOpacity>
-
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
           <Ionicons name="close" size={26} color="#fff" />
         </TouchableOpacity>
       </View>
 
+      {/* Shared post sticker */}
+      {currentStory.sharedPost && (
+        <TouchableOpacity style={styles.sharedSticker} onPress={handleSharedPostPress} activeOpacity={0.85}>
+          <View style={styles.sharedStickerInner}>
+            {currentStory.sharedPost.mediaUrl ? (
+              <Image source={{ uri: currentStory.sharedPost.mediaUrl }} style={styles.sharedStickerThumb} resizeMode="cover" />
+            ) : (
+              <View style={[styles.sharedStickerThumb, { backgroundColor: "#8B5CF644", alignItems: "center", justifyContent: "center" }]}>
+                <Ionicons name={currentStory.sharedPost.type === "reel" ? "film-outline" : "image-outline"} size={18} color="#8B5CF6" />
+              </View>
+            )}
+            <View>
+              <Text style={styles.sharedStickerLabel}>
+                {currentStory.sharedPost.type === "reel" ? "مقطع" : "منشور"} • {currentStory.sharedPost.creatorName}
+              </Text>
+              <Text style={styles.sharedStickerTap}>اضغط للعرض</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.7)" />
+          </View>
+        </TouchableOpacity>
+      )}
+
       {/* Caption */}
       {currentStory.caption ? (
-        <View style={[styles.captionWrap, { bottom: isMyStory ? 60 : 130 }]}>
+        <View style={[styles.captionWrap, { bottom: isMyStory ? 60 : (iAmMentioned ? 200 : 130) }]}>
           <Text style={styles.captionText}>{currentStory.caption}</Text>
         </View>
       ) : null}
+
+      {/* Mentions display */}
+      {mentionedUsers.length > 0 && !isMyStory && (
+        <View style={[styles.mentionsRow, { bottom: isMyStory ? 60 : (iAmMentioned ? 155 : 90) }]}>
+          {mentionedUsers.map((u) => u && (
+            <TouchableOpacity
+              key={u.id}
+              style={styles.mentionChip}
+              onPress={() => router.push(`/profile/${u.id}` as any)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="at" size={11} color="#8B5CF6" />
+              <Text style={styles.mentionChipText}>{u.username || u.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* "Add to my Story" for mentioned user */}
+      {iAmMentioned && !isMyStory && (
+        <View style={[styles.addToStoryRow, { bottom: botPad + 130 }]}>
+          <TouchableOpacity
+            style={[styles.addToStoryBtn, addedToStory && styles.addToStoryBtnDone]}
+            onPress={!addedToStory ? handleAddToMyStory : undefined}
+            activeOpacity={0.85}
+          >
+            {addedToStory ? (
+              <>
+                <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                <Text style={[styles.addToStoryText, { color: "#10B981" }]}>تمت الإضافة</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="add-circle-outline" size={16} color="#fff" />
+                <Text style={styles.addToStoryText}>مشاركة إلى قصتك</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Bottom bar for non-owner */}
       {!isMyStory && (
@@ -427,11 +529,7 @@ export default function StoryViewerScreen() {
             <View style={styles.reactionBtns}>
               <TouchableOpacity onPress={handleLike} style={styles.reactionBtn} activeOpacity={0.8}>
                 <Animated.View style={{ transform: [{ scale: heartScale }] }}>
-                  <Ionicons
-                    name={liked ? "heart" : "heart-outline"}
-                    size={26}
-                    color={liked ? "#E1306C" : "#fff"}
-                  />
+                  <Ionicons name={liked ? "heart" : "heart-outline"} size={26} color={liked ? "#E1306C" : "#fff"} />
                 </Animated.View>
               </TouchableOpacity>
               <TouchableOpacity
@@ -446,7 +544,7 @@ export default function StoryViewerScreen() {
         </View>
       )}
 
-      {/* My story: show views + "add more" button + delete */}
+      {/* My story: views + add more + delete */}
       {isMyStory && (
         <View style={[styles.myStoryBottom, { bottom: botPad + 16 }]}>
           <TouchableOpacity
@@ -457,10 +555,7 @@ export default function StoryViewerScreen() {
             <Ionicons name="eye-outline" size={15} color="rgba(255,255,255,0.85)" />
             <Text style={styles.viewsText}>{currentStory.viewerIds.length} مشاهدة</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => router.push("/create-story")}
-            style={styles.addMoreBtn}
-          >
+          <TouchableOpacity onPress={() => router.push("/create-story")} style={styles.addMoreBtn}>
             <Ionicons name="add-circle-outline" size={18} color="#fff" />
             <Text style={styles.addMoreText}>أضف قصة</Text>
           </TouchableOpacity>
@@ -479,8 +574,7 @@ export default function StoryViewerScreen() {
                       (s) => s.creatorId === userId && s.expiresAt > Date.now() && s.id !== currentStory.id
                     );
                     if (remaining.length > 0) {
-                      const nextIdx = currentIndex > 0 ? currentIndex - 1 : 0;
-                      setCurrentIndex(nextIdx);
+                      setCurrentIndex(currentIndex > 0 ? currentIndex - 1 : 0);
                     } else {
                       router.back();
                     }
@@ -494,22 +588,17 @@ export default function StoryViewerScreen() {
         </View>
       )}
 
-      {/* Viewers Modal — visible only for story owner */}
+      {/* Viewers Modal */}
       <Modal
         visible={showViewers}
         transparent
         animationType="slide"
         onRequestClose={() => { setShowViewers(false); setPaused(false); }}
       >
-        <Pressable
-          style={ss.backdrop}
-          onPress={() => { setShowViewers(false); setPaused(false); }}
-        />
+        <Pressable style={ss.backdrop} onPress={() => { setShowViewers(false); setPaused(false); }} />
         <View style={[ss.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[ss.handle, { backgroundColor: colors.border }]} />
-          <Text style={[ss.sheetTitle, { color: colors.text }]}>
-            المشاهدون ({currentStory.viewerIds.length})
-          </Text>
+          <Text style={[ss.sheetTitle, { color: colors.text }]}>المشاهدون ({currentStory.viewerIds.length})</Text>
           {currentStory.viewerIds.length === 0 ? (
             <Text style={[ss.emptyText, { color: colors.textSecondary }]}>لا أحد شاهد هذه القصة بعد</Text>
           ) : (
@@ -524,11 +613,7 @@ export default function StoryViewerScreen() {
                 return (
                   <TouchableOpacity
                     style={ss.userRow}
-                    onPress={() => {
-                      setShowViewers(false);
-                      setPaused(false);
-                      router.push(`/profile/${viewer.id}` as any);
-                    }}
+                    onPress={() => { setShowViewers(false); setPaused(false); router.push(`/profile/${viewer.id}` as any); }}
                     activeOpacity={0.8}
                   >
                     <View style={[ss.miniAvatar, { backgroundColor: `${vColor}33` }]}>
@@ -551,19 +636,19 @@ export default function StoryViewerScreen() {
         </View>
       </Modal>
 
-      {/* Tap areas — long press to pause */}
+      {/* Tap areas */}
       <Pressable
         style={styles.tapLeft}
         onPress={handlePrev}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
+        onPressIn={() => setPaused(true)}
+        onPressOut={() => setPaused(false)}
         delayLongPress={150}
       />
       <Pressable
         style={styles.tapRight}
         onPress={handleNext}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
+        onPressIn={() => setPaused(true)}
+        onPressOut={() => setPaused(false)}
         delayLongPress={150}
       />
 
@@ -582,17 +667,27 @@ const styles = StyleSheet.create({
   storyMedia: { ...StyleSheet.absoluteFillObject },
   topGrad: { position: "absolute", top: 0, left: 0, right: 0, height: 200 },
   bottomGrad: { position: "absolute", bottom: 0, left: 0, right: 0, height: 320 },
+  cfBadge: {
+    position: "absolute",
+    left: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(139,92,246,0.25)",
+    borderWidth: 1,
+    borderColor: "#8B5CF6",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    zIndex: 12,
+  },
+  cfBadgeText: { color: "#8B5CF6", fontFamily: "Inter_600SemiBold", fontSize: 11 },
   progressRow: { position: "absolute", left: 12, right: 12, flexDirection: "row", gap: 4, zIndex: 10 },
   progressBar: { flex: 1, height: 2.5, borderRadius: 2, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 2 },
   pauseIndicator: {
-    position: "absolute",
-    top: "45%",
-    alignSelf: "center",
-    backgroundColor: "rgba(0,0,0,0.4)",
-    borderRadius: 40,
-    padding: 14,
-    zIndex: 20,
+    position: "absolute", top: "45%", alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.4)", borderRadius: 40, padding: 14, zIndex: 20,
   },
   userRow: {
     position: "absolute", left: 16, right: 16, zIndex: 10,
@@ -606,87 +701,106 @@ const styles = StyleSheet.create({
   userName: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 },
   storyTime: { color: "rgba(255,255,255,0.7)", fontFamily: "Inter_400Regular", fontSize: 12 },
   closeBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+
+  sharedSticker: {
+    position: "absolute",
+    bottom: 200,
+    left: 20,
+    right: 20,
+    zIndex: 9,
+  },
+  sharedStickerInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    borderRadius: 18,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#8B5CF655",
+  },
+  sharedStickerThumb: { width: 44, height: 44, borderRadius: 10, overflow: "hidden" },
+  sharedStickerLabel: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 },
+  sharedStickerTap: { color: "rgba(255,255,255,0.6)", fontFamily: "Inter_400Regular", fontSize: 11, marginTop: 2 },
+
   captionWrap: { position: "absolute", left: 20, right: 20 },
   captionText: {
-    color: "#fff", fontFamily: "Inter_500Medium", fontSize: 16,
-    textAlign: "center",
+    color: "#fff", fontFamily: "Inter_500Medium", fontSize: 16, textAlign: "center",
     textShadowColor: "rgba(0,0,0,0.5)", textShadowRadius: 8,
   },
-  tapLeft: { position: "absolute", left: 0, top: 100, bottom: 160, width: "40%", zIndex: 5 },
-  tapRight: { position: "absolute", right: 0, top: 100, bottom: 160, width: "60%", zIndex: 5 },
 
-  // Bottom bar (non-owner)
-  bottomBar: {
-    position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 10,
-    paddingHorizontal: 16, paddingTop: 8, gap: 8,
+  mentionsRow: {
+    position: "absolute", left: 20, right: 20,
+    flexDirection: "row", flexWrap: "wrap", gap: 8, zIndex: 8,
   },
-  replyRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
+  mentionChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "rgba(139,92,246,0.3)", borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderWidth: 1, borderColor: "#8B5CF655",
   },
+  mentionChipText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 },
+
+  addToStoryRow: {
+    position: "absolute", left: 20, right: 20, zIndex: 9, alignItems: "center",
+  },
+  addToStoryBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: "rgba(139,92,246,0.8)", borderRadius: 30,
+    paddingHorizontal: 20, paddingVertical: 12,
+    borderWidth: 1, borderColor: "#8B5CF6",
+  },
+  addToStoryBtnDone: { backgroundColor: "rgba(16,185,129,0.3)", borderColor: "#10B981" },
+  addToStoryText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 14 },
+
+  bottomBar: { position: "absolute", left: 0, right: 0 },
+  replyRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 10 },
+  replySentRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "center", paddingVertical: 12 },
+  replySentText: { color: "#10B981", fontFamily: "Inter_600SemiBold", fontSize: 14 },
   replyInput: {
-    flex: 1,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: 24, paddingHorizontal: 16, paddingVertical: 10,
-    color: "#fff", fontFamily: "Inter_400Regular", fontSize: 15,
+    flex: 1, color: "#fff", fontFamily: "Inter_400Regular", fontSize: 14,
     borderWidth: 1, borderColor: "rgba(255,255,255,0.3)",
-    minHeight: 44,
+    borderRadius: 24, paddingHorizontal: 16, paddingVertical: 10,
   },
   replySendBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: "#7C3AED", alignItems: "center", justifyContent: "center",
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center",
   },
-  replySentRow: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12 },
-  replySentText: { color: "#10B981", fontFamily: "Inter_600SemiBold", fontSize: 14 },
-
   actionsRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 4, paddingVertical: 4,
+    paddingHorizontal: 16, paddingTop: 8,
   },
-  viewsBadge: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 20,
-    paddingHorizontal: 10, paddingVertical: 5,
-  },
-  viewsText: { color: "rgba(255,255,255,0.9)", fontFamily: "Inter_600SemiBold", fontSize: 13 },
-  reactionBtns: { flexDirection: "row", gap: 8 },
-  reactionBtn: {
-    width: 46, height: 46, borderRadius: 23,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    alignItems: "center", justifyContent: "center",
-  },
-
-  // My story bottom
+  viewsBadge: { flexDirection: "row", alignItems: "center", gap: 5 },
+  viewsText: { color: "rgba(255,255,255,0.85)", fontFamily: "Inter_400Regular", fontSize: 13 },
+  reactionBtns: { flexDirection: "row", alignItems: "center", gap: 8 },
+  reactionBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   myStoryBottom: {
-    position: "absolute", left: 16, right: 16, zIndex: 10,
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    position: "absolute", left: 16, right: 16,
+    flexDirection: "row", alignItems: "center", gap: 12, justifyContent: "space-between",
   },
   addMoreBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
+    backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 8,
   },
-  addMoreText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 },
-  deleteStoryBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: "rgba(255,59,92,0.2)",
-    alignItems: "center", justifyContent: "center",
-    borderWidth: 1.5, borderColor: "rgba(255,59,92,0.5)",
-  },
+  addMoreText: { color: "#fff", fontFamily: "Inter_500Medium", fontSize: 13 },
+  deleteStoryBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  tapLeft: { position: "absolute", left: 0, top: 100, bottom: 160, width: "40%", zIndex: 5 },
+  tapRight: { position: "absolute", right: 0, top: 100, bottom: 160, width: "60%", zIndex: 5 },
 });
 
-// Share modal styles
 const ss = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
   sheet: {
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    borderWidth: 1, padding: 20, paddingBottom: 36, gap: 12,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 0.5,
+    padding: 16, paddingBottom: 36, gap: 4,
   },
-  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
-  sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
+  handle: { width: 36, height: 3, borderRadius: 2, alignSelf: "center", marginBottom: 8 },
+  sheetTitle: { fontFamily: "Inter_700Bold", fontSize: 16, textAlign: "center", marginBottom: 8 },
   userRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
-  miniAvatar: { width: 42, height: 42, borderRadius: 13, overflow: "hidden", alignItems: "center", justifyContent: "center" },
-  miniAvatarText: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  userName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  userPhone: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 20 },
+  miniAvatar: { width: 40, height: 40, borderRadius: 20, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  miniAvatarText: { fontFamily: "Inter_700Bold", fontSize: 16 },
+  userName: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  userPhone: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 1 },
+  emptyText: { textAlign: "center", fontFamily: "Inter_400Regular", paddingVertical: 20 },
 });

@@ -4,11 +4,12 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
   Dimensions,
+  Easing,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -37,14 +38,29 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 function GradientStoryRing({
   size = 68,
   hasUnseen,
+  isCloseFriends = false,
   children,
   bgColor,
 }: {
   size?: number;
   hasUnseen: boolean;
+  isCloseFriends?: boolean;
   children: React.ReactNode;
   bgColor: string;
 }) {
+  const rotAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!isCloseFriends || !hasUnseen) return;
+    const anim = Animated.loop(
+      Animated.timing(rotAnim, { toValue: 1, duration: 2800, easing: Easing.linear, useNativeDriver: true })
+    );
+    anim.start();
+    return () => { anim.stop(); rotAnim.setValue(0); };
+  }, [isCloseFriends, hasUnseen]);
+
+  const rotate = rotAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+
   if (!hasUnseen) {
     return (
       <View
@@ -62,6 +78,42 @@ function GradientStoryRing({
       </View>
     );
   }
+
+  if (isCloseFriends) {
+    return (
+      <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+        <Animated.View
+          style={{
+            position: "absolute",
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            transform: [{ rotate }],
+          }}
+        >
+          <LinearGradient
+            colors={["#8B5CF6", "#EC4899", "#6D28D9", "#8B5CF6"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ width: size, height: size, borderRadius: size / 2 }}
+          />
+        </Animated.View>
+        <View
+          style={{
+            width: size - 6,
+            height: size - 6,
+            borderRadius: (size - 6) / 2,
+            overflow: "hidden",
+            backgroundColor: bgColor,
+            padding: 2,
+          }}
+        >
+          {children}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <LinearGradient
       colors={STORY_GRADIENT_COLORS}
@@ -88,6 +140,7 @@ function GradientStoryRing({
 function StoryAvatar({
   user,
   hasUnseen,
+  isCloseFriends = false,
   onPress,
   isMe,
   colors,
@@ -95,6 +148,7 @@ function StoryAvatar({
   user: User;
   stories: Story[];
   hasUnseen: boolean;
+  isCloseFriends?: boolean;
   onPress: () => void;
   colors: any;
   isMe?: boolean;
@@ -110,7 +164,7 @@ function StoryAvatar({
       style={styles.storyItem}
       activeOpacity={0.85}
     >
-      <GradientStoryRing size={68} hasUnseen={hasUnseen} bgColor={colors.background}>
+      <GradientStoryRing size={68} hasUnseen={hasUnseen} isCloseFriends={isCloseFriends} bgColor={colors.background}>
         {user.avatar ? (
           <Image
             source={{ uri: user.avatar }}
@@ -484,13 +538,28 @@ function SharePostSheet({
   onClose: () => void;
   colors: any;
 }) {
-  const { users, currentUser, sharePostToDM } = useApp();
+  const { users, currentUser, sharePostToDM, shareContentToStory } = useApp();
   const others = users.filter((u) => u.id !== currentUser?.id);
   const [sent, setSent] = useState<string[]>([]);
+  const [addedToStory, setAddedToStory] = useState(false);
 
   const handleShare = (userId: string) => {
     sharePostToDM(post.id, userId);
     setSent((p) => [...p, userId]);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleAddToStory = () => {
+    const creator = users.find((u) => u.id === post.creatorId);
+    shareContentToStory(
+      "post",
+      post.id,
+      post.mediaUrl || (post.mediaUrls && post.mediaUrls[0]),
+      post.content,
+      creator?.name,
+      post.creatorId,
+    );
+    setAddedToStory(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
@@ -499,11 +568,34 @@ function SharePostSheet({
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
       <View style={[styles.commentSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-        <Text style={[styles.sheetTitle, { color: colors.text }]}>مشاركة مع</Text>
+        <Text style={[styles.sheetTitle, { color: colors.text }]}>مشاركة</Text>
+
+        {/* Add to Story button */}
+        <TouchableOpacity
+          style={[
+            styles.addToStorySheetBtn,
+            { borderColor: addedToStory ? "#10B981" : "#8B5CF6", backgroundColor: addedToStory ? "#10B98122" : "#8B5CF622" },
+          ]}
+          onPress={!addedToStory ? handleAddToStory : undefined}
+          activeOpacity={0.85}
+        >
+          <Ionicons name={addedToStory ? "checkmark-circle" : "add-circle-outline"} size={22} color={addedToStory ? "#10B981" : "#8B5CF6"} />
+          <View>
+            <Text style={[styles.addToStorySheetTitle, { color: addedToStory ? "#10B981" : "#8B5CF6" }]}>
+              {addedToStory ? "تمت الإضافة للقصة" : "إضافة إلى قصتي"}
+            </Text>
+            {!addedToStory && (
+              <Text style={[styles.addToStorySheetSub, { color: colors.textSecondary }]}>مشاركة المنشور في قصتك</Text>
+            )}
+          </View>
+        </TouchableOpacity>
+
+        <Text style={[styles.shareSectionLabel, { color: colors.textSecondary }]}>إرسال لشخص</Text>
+
         <FlatList
           data={others}
           keyExtractor={(u) => u.id}
-          style={{ maxHeight: 320 }}
+          style={{ maxHeight: 280 }}
           ListEmptyComponent={
             <Text style={[styles.emptyComments, { color: colors.textSecondary }]}>
               لا يوجد أصدقاء للمشاركة معهم
@@ -960,17 +1052,22 @@ export default function HomeScreen() {
                 colors={colors}
               />
             ) : (
-              storyUsers.map((user) => (
-                <StoryAvatar
-                  key={user.id}
-                  user={user}
-                  stories={getUserStories(user.id)}
-                  hasUnseen={hasUnseenStory(user.id)}
-                  onPress={() => handleStoryPress(user)}
-                  isMe={user.id === currentUser?.id}
-                  colors={colors}
-                />
-              ))
+              storyUsers.map((user) => {
+                const userStories = getUserStories(user.id);
+                const hasUnseenCF = userStories.some((s) => s.isCloseFriends && !s.viewerIds.includes(currentUser?.id || ""));
+                return (
+                  <StoryAvatar
+                    key={user.id}
+                    user={user}
+                    stories={userStories}
+                    hasUnseen={hasUnseenStory(user.id)}
+                    isCloseFriends={hasUnseenCF}
+                    onPress={() => handleStoryPress(user)}
+                    isMe={user.id === currentUser?.id}
+                    colors={colors}
+                  />
+                );
+              })
             )}
           </ScrollView>
         }
@@ -1161,6 +1258,13 @@ const styles = StyleSheet.create({
   commentInputField: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 14, maxHeight: 80 },
   sendBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   shareUser: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
+  addToStorySheetBtn: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    borderRadius: 16, borderWidth: 1.5, padding: 12, marginBottom: 4,
+  },
+  addToStorySheetTitle: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  addToStorySheetSub: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 },
+  shareSectionLabel: { fontFamily: "Inter_600SemiBold", fontSize: 12, letterSpacing: 0.5, marginTop: 4 },
 
   // Comment Options Modal (themed, replaces Alert.alert)
   optionsSheet: {

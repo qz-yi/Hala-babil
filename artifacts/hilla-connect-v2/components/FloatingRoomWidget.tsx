@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useRef } from "react";
 import {
@@ -21,30 +21,54 @@ const WIDGET_W = 90;
 const WIDGET_H = 110;
 
 export function FloatingRoomWidget() {
-  const { isRoomMinimized, minimizedRoomId, minimizedRoomName, minimizedRoomImage, expandRoom } = useApp();
+  const {
+    isRoomMinimized,
+    minimizedRoomId,
+    minimizedRoomName,
+    minimizedRoomImage,
+    expandRoom,
+  } = useApp();
+
+  const pathname = usePathname();
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim  = useRef(new Animated.Value(0)).current;
 
   const START_X = SW - WIDGET_W - 12;
   const START_Y = SH - 220;
 
-  const posX = useRef(new Animated.Value(START_X)).current;
-  const posY = useRef(new Animated.Value(START_Y)).current;
-  const lastPos = useRef({ x: START_X, y: START_Y });
+  const posX     = useRef(new Animated.Value(START_X)).current;
+  const posY     = useRef(new Animated.Value(START_Y)).current;
+  const lastPos  = useRef({ x: START_X, y: START_Y });
   const isDragging = useRef(false);
 
-  const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    expandRoom();
-    router.push(`/room/${minimizedRoomId}` as any);
-  };
+  /*
+   * Keep a ref that always holds the latest minimizedRoomId.
+   * The PanResponder is created once (via useRef), so its callbacks would
+   * otherwise capture a stale closure where minimizedRoomId is null.
+   * Reading from this ref inside onPanResponderRelease ensures we always
+   * navigate to the correct room.
+   */
+  const roomIdRef = useRef<string | null>(minimizedRoomId);
+  useEffect(() => {
+    roomIdRef.current = minimizedRoomId;
+  }, [minimizedRoomId]);
+
+  /*
+   * Same pattern for expandRoom — keep a stable ref so the PanResponder
+   * always calls the latest version of the function.
+   */
+  const expandRoomRef = useRef(expandRoom);
+  useEffect(() => {
+    expandRoomRef.current = expandRoom;
+  }, [expandRoom]);
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder:  () => true,
+
       onPanResponderGrant: () => {
         isDragging.current = false;
         posX.setOffset(lastPos.current.x);
@@ -52,22 +76,35 @@ export function FloatingRoomWidget() {
         posX.setValue(0);
         posY.setValue(0);
       },
+
       onPanResponderMove: (_, g) => {
         if (Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5) isDragging.current = true;
         posX.setValue(g.dx);
         posY.setValue(g.dy);
       },
+
       onPanResponderRelease: (_, g) => {
         posX.flattenOffset();
         posY.flattenOffset();
-        const rawX = lastPos.current.x + g.dx;
-        const rawY = lastPos.current.y + g.dy;
+
+        const rawX    = lastPos.current.x + g.dx;
+        const rawY    = lastPos.current.y + g.dy;
         const clampedX = Math.max(8, Math.min(SW - WIDGET_W - 8, rawX));
         const clampedY = Math.max(60, Math.min(SH - WIDGET_H - 60, rawY));
+
         lastPos.current = { x: clampedX, y: clampedY };
         posX.setValue(clampedX);
         posY.setValue(clampedY);
-        if (!isDragging.current) handlePress();
+
+        if (!isDragging.current) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+          const targetRoomId = roomIdRef.current;
+          if (!targetRoomId) return;
+
+          expandRoomRef.current();
+          router.push(`/room/${targetRoomId}` as any);
+        }
       },
     })
   ).current;
@@ -88,7 +125,7 @@ export function FloatingRoomWidget() {
       const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, { toValue: 1.08, duration: 900, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1,    duration: 900, useNativeDriver: true }),
         ])
       );
       pulse.start();
@@ -101,20 +138,23 @@ export function FloatingRoomWidget() {
       );
       glow.start();
 
-      return () => {
-        pulse.stop();
-        glow.stop();
-      };
+      return () => { pulse.stop(); glow.stop(); };
     } else {
-      Animated.timing(scaleAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
+      Animated.timing(scaleAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
     }
   }, [isRoomMinimized]);
 
-  if (!isRoomMinimized || !minimizedRoomId) return null;
+  /*
+   * Visibility rules:
+   *  1. Widget is not minimized  → hide
+   *  2. No room ID stored        → hide
+   *  3. User is already viewing the room screen for this room → hide
+   */
+  const isOnRoomScreen = minimizedRoomId
+    ? pathname === `/room/${minimizedRoomId}`
+    : false;
+
+  if (!isRoomMinimized || !minimizedRoomId || isOnRoomScreen) return null;
 
   const glowOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] });
 
@@ -125,7 +165,7 @@ export function FloatingRoomWidget() {
         styles.container,
         {
           left: posX,
-          top: posY,
+          top:  posY,
           transform: [{ scale: scaleAnim }],
         },
       ]}
@@ -138,10 +178,7 @@ export function FloatingRoomWidget() {
       />
 
       <Animated.View style={[styles.btn, { transform: [{ scale: pulseAnim }] }]}>
-        <LinearGradient
-          colors={["#6366F1", "#4F46E5"]}
-          style={styles.btnGradient}
-        >
+        <LinearGradient colors={["#6366F1", "#4F46E5"]} style={styles.btnGradient}>
           {minimizedRoomImage ? (
             <Image source={{ uri: minimizedRoomImage }} style={styles.roomImg} />
           ) : (

@@ -135,69 +135,77 @@ function SeatCard({
 
   return (
     <View style={[styles.seatWrapper, { overflow: "visible" }]}>
-      {/* Fiery aura for super admin */}
-      {isSuperAdminUser && user && (
-        <View style={{ position: "absolute", top: 0, left: 0, width: SEAT_SIZE, height: SEAT_SIZE }}>
-          <FieryAura size={SEAT_SIZE} />
-        </View>
-      )}
 
-      <TouchableOpacity
-        onPress={() => {
-          if (isLocked && !canAdmin) { Alert.alert("", t("seatLocked")); return; }
-          if (!user) { onPress(index); }
-          else if (!isMe) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onUserPress(user); }
-        }}
-        activeOpacity={user && !isMe ? 0.8 : 0.85}
-        style={[
-          styles.seatCircle,
-          {
-            backgroundColor: user
-              ? isSuperAdminUser ? "#FFD70020" : `${userColor}20`
-              : isLocked ? "#1A0A0A" : colors.backgroundTertiary,
-            borderColor: user
-              ? isSuperAdminUser ? "#FFD700" : (speaking && !effectiveMuted ? userColor : "transparent")
-              : isLocked ? "#FF3B5C44" : colors.border,
-            borderWidth: user ? (isSuperAdminUser ? 2.5 : speaking && !effectiveMuted ? 2.5 : 1) : 1,
-          },
-        ]}
-      >
-        {user ? (
-          <>
-            {!effectiveMuted && !isSuperAdminUser && (
-              <SpeakingRing color={userColor} speaking={speaking} />
-            )}
-            {/* Avatar fills the full circle */}
-            <View style={styles.seatAvatarFill}>
-              {user.avatar ? (
-                <Image source={{ uri: user.avatar }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
-              ) : (
-                <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center", backgroundColor: isSuperAdminUser ? "#FFD700" : `${userColor}55` }]}>
-                  <Text style={[styles.seatAvatarText, { color: isSuperAdminUser ? "#000" : userColor, fontSize: 24 }]}>
-                    {user.name[0]?.toUpperCase()}
-                  </Text>
+      {/*
+        Fixed-size inner container: gives FieryAura and seatCircle the same
+        SEAT_SIZE × SEAT_SIZE origin so the aura rings are centred on the avatar
+        regardless of the parent wrapper's flexible width (25%).
+      */}
+      <View style={{ width: SEAT_SIZE, height: SEAT_SIZE }}>
+        {/* Fiery aura positioned inside the fixed container — perfectly centred */}
+        {isSuperAdminUser && user && (
+          <View style={[StyleSheet.absoluteFill, { zIndex: 0 }]}>
+            <FieryAura size={SEAT_SIZE} />
+          </View>
+        )}
+
+        <TouchableOpacity
+          onPress={() => {
+            if (isLocked && !canAdmin) { Alert.alert("", t("seatLocked")); return; }
+            if (!user) { onPress(index); }
+            else if (!isMe) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onUserPress(user); }
+          }}
+          activeOpacity={user && !isMe ? 0.8 : 0.85}
+          style={[
+            styles.seatCircle,
+            {
+              backgroundColor: user
+                ? isSuperAdminUser ? "#FFD70020" : `${userColor}20`
+                : isLocked ? "#1A0A0A" : colors.backgroundTertiary,
+              borderColor: user
+                ? isSuperAdminUser ? "#FFD700" : (speaking && !effectiveMuted ? userColor : "transparent")
+                : isLocked ? "#FF3B5C44" : colors.border,
+              borderWidth: user ? (isSuperAdminUser ? 2.5 : speaking && !effectiveMuted ? 2.5 : 1) : 1,
+            },
+          ]}
+        >
+          {user ? (
+            <>
+              {!effectiveMuted && !isSuperAdminUser && (
+                <SpeakingRing color={userColor} speaking={speaking} />
+              )}
+              {/* Avatar fills the full circle */}
+              <View style={styles.seatAvatarFill}>
+                {user.avatar ? (
+                  <Image source={{ uri: user.avatar }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                ) : (
+                  <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center", backgroundColor: isSuperAdminUser ? "#FFD700" : `${userColor}55` }]}>
+                    <Text style={[styles.seatAvatarText, { color: isSuperAdminUser ? "#000" : userColor, fontSize: 24 }]}>
+                      {user.name[0]?.toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {/* Crown icon for super admin */}
+              {isSuperAdminUser && (
+                <View style={{ position: "absolute", top: -10, alignSelf: "center", zIndex: 10 }}>
+                  <Text style={{ fontSize: 18 }}>👑</Text>
                 </View>
               )}
-            </View>
-            {/* Crown icon for super admin */}
-            {isSuperAdminUser && (
-              <View style={{ position: "absolute", top: -10, alignSelf: "center", zIndex: 10 }}>
-                <Text style={{ fontSize: 18 }}>👑</Text>
+              {/* Mic badge */}
+              <View style={[styles.seatMicBadge, { backgroundColor: effectiveMuted ? "#FF3B5C" : speaking ? (isSuperAdminUser ? "#FFD700" : userColor) : "#1C1C1E" }]}>
+                <Ionicons name={effectiveMuted ? "mic-off" : "mic"} size={9} color={effectiveMuted ? "#fff" : isSuperAdminUser && !effectiveMuted ? "#000" : "#fff"} />
               </View>
-            )}
-            {/* Mic badge overlay */}
-            <View style={[styles.seatMicBadge, { backgroundColor: effectiveMuted ? "#FF3B5C" : speaking ? (isSuperAdminUser ? "#FFD700" : userColor) : "#1C1C1E" }]}>
-              <Ionicons name={effectiveMuted ? "mic-off" : "mic"} size={9} color={effectiveMuted ? "#fff" : isSuperAdminUser && !effectiveMuted ? "#000" : "#fff"} />
-            </View>
-          </>
-        ) : isLocked ? (
-          <Ionicons name="lock-closed" size={24} color="#FF3B5C66" />
-        ) : (
-          <Ionicons name="add" size={26} color={colors.textSecondary} />
-        )}
-      </TouchableOpacity>
+            </>
+          ) : isLocked ? (
+            <Ionicons name="lock-closed" size={24} color="#FF3B5C66" />
+          ) : (
+            <Ionicons name="add" size={26} color={colors.textSecondary} />
+          )}
+        </TouchableOpacity>
+      </View>
 
-      {/* Label below seat */}
+      {/* Label below seat — outside the fixed container */}
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, maxWidth: 72 }}>
         <Text style={[styles.seatLabelName, { color: user ? colors.text : colors.textSecondary }]} numberOfLines={1}>
           {user
@@ -585,12 +593,12 @@ export default function RoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
     rooms, currentUser, isSuperAdmin, users,
-    joinRoomSeat, leaveRoomSeat, joinRoomPresence, leaveRoomPresence,
+    joinRoomSeat, leaveRoomSeat, joinRoomPresence, leaveRoomPresence, leaveRoomFull,
     kickFromRoom, banFromRoom, deleteRoom,
     sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
     muteUserInRoom, updateRoomBackground, setRoomAnnouncement,
     lockSeat, unlockSeat, lockSeatsInRoom, shareRoomToDM, t, theme,
-    minimizeRoom,
+    minimizeRoom, expandRoom,
   } = useApp();
   const { showToast } = useToast();
   const colors = Colors[theme];
@@ -754,7 +762,8 @@ export default function RoomScreen() {
 
   const handleLeaveRoom = () => {
     setMuted(true);
-    leaveRoomPresence(room.id);
+    leaveRoomFull(room.id);
+    expandRoom();
     showToast("غادرت الغرفة", "info");
     router.back();
   };

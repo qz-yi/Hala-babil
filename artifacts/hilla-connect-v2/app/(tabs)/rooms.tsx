@@ -219,7 +219,7 @@ export default function RoomsScreen() {
   const {
     rooms, currentUser, isSuperAdmin, createRoom, deleteRoom,
     searchUsers, searchRoomByCode, t,
-    isRoomMinimized, minimizedRoomId, expandRoom, leaveRoomSeat, leaveRoomPresence,
+    isRoomMinimized, minimizedRoomId, expandRoom, leaveRoomFull,
   } = useApp();
   const insets = useSafeAreaInsets();
   const [showCreate, setShowCreate] = useState(false);
@@ -251,8 +251,7 @@ export default function RoomsScreen() {
 
   const handleLeaveAndJoin = () => {
     if (minimizedRoomId) {
-      leaveRoomSeat(minimizedRoomId);
-      leaveRoomPresence(minimizedRoomId);
+      leaveRoomFull(minimizedRoomId);
       expandRoom();
     }
     setShowBlockedModal(false);

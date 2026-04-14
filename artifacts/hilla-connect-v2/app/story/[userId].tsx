@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
+import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -62,6 +63,47 @@ function CloseFriendsFrame({ size = 68, children }: { size: number; children: Re
         {children}
       </View>
     </View>
+  );
+}
+
+// ─── Video Player for Stories ───
+function StoryVideoPlayer({
+  uri,
+  paused,
+  onEnd,
+}: {
+  uri: string;
+  paused: boolean;
+  onEnd: () => void;
+}) {
+  const onEndRef = useRef(onEnd);
+  onEndRef.current = onEnd;
+
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = false;
+    p.muted = false;
+    p.play();
+  });
+
+  useEffect(() => {
+    if (paused) player.pause();
+    else player.play();
+  }, [paused, player]);
+
+  useEffect(() => {
+    const sub = player.addListener("playToEnd", () => onEndRef.current());
+    return () => sub.remove();
+  }, [player]);
+
+  return (
+    <VideoView
+      player={player}
+      style={[StyleSheet.absoluteFill, { zIndex: 0 }]}
+      contentFit="cover"
+      nativeControls={false}
+      allowsFullscreen={false}
+      allowsPictureInPicture={false}
+    />
   );
 }
 
@@ -325,22 +367,27 @@ export default function StoryViewerScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Background media */}
       {currentStory.mediaUrl ? (
-        <View style={styles.storyMedia}>
-          <Image source={{ uri: currentStory.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          {currentStory.filter && currentStory.filter !== "none" && (() => {
-            const filterOverlays: Record<string, string> = {
-              warm: "rgba(255,140,0,0.25)",
-              cool: "rgba(0,120,255,0.22)",
-              vintage: "rgba(160,100,40,0.28)",
-              grayscale: "rgba(0,0,0,0)",
-            };
-            const overlay = filterOverlays[currentStory.filter];
-            return overlay ? (
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: overlay, ...(currentStory.filter === "grayscale" && Platform.OS === "web" ? ({ filter: "grayscale(100%)" } as any) : {}) }]} />
-            ) : null;
-          })()}
-        </View>
+        currentStory.mediaType === "video" ? (
+          <StoryVideoPlayer uri={currentStory.mediaUrl} paused={paused} onEnd={handleNext} />
+        ) : (
+          <View style={styles.storyMedia}>
+            <Image source={{ uri: currentStory.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            {currentStory.filter && currentStory.filter !== "none" && (() => {
+              const filterOverlays: Record<string, string> = {
+                warm: "rgba(255,140,0,0.25)",
+                cool: "rgba(0,120,255,0.22)",
+                vintage: "rgba(160,100,40,0.28)",
+                grayscale: "rgba(0,0,0,0)",
+              };
+              const overlay = filterOverlays[currentStory.filter];
+              return overlay ? (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: overlay, ...(currentStory.filter === "grayscale" && Platform.OS === "web" ? ({ filter: "grayscale(100%)" } as any) : {}) }]} />
+              ) : null;
+            })()}
+          </View>
+        )
       ) : (
         <LinearGradient colors={[accentColor, "#0A0A14"]} style={styles.storyMedia} />
       )}
@@ -349,16 +396,16 @@ export default function StoryViewerScreen() {
       <LinearGradient colors={["rgba(0,0,0,0.7)", "transparent"]} style={styles.topGrad} />
       <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={styles.bottomGrad} />
 
-      {/* Close Friends badge */}
+      {/* Close Friends badge — absolutely positioned, never affects layout */}
       {isCloseFriends && (
-        <View style={[styles.cfBadge, { top: topPad + 12 }]}>
+        <View style={[styles.cfBadge, { top: topPad + 10 }]}>
           <Ionicons name="star" size={11} color="#8B5CF6" />
           <Text style={styles.cfBadgeText}>أصدقاء مقربون</Text>
         </View>
       )}
 
-      {/* Progress bars */}
-      <View style={[styles.progressRow, { top: topPad + (isCloseFriends ? 34 : 12) }]}>
+      {/* Progress bars — fixed Y position, never jumps */}
+      <View style={[styles.progressRow, { top: topPad + 42 }]}>
         {stories.map((_, i) => (
           <View key={i} style={[styles.progressBar, { backgroundColor: "rgba(255,255,255,0.3)" }]}>
             <Animated.View
@@ -385,8 +432,8 @@ export default function StoryViewerScreen() {
         </View>
       )}
 
-      {/* User info row */}
-      <View style={[styles.userRow, { top: topPad + (isCloseFriends ? 56 : 36) }]}>
+      {/* User info row — fixed Y position, never jumps */}
+      <View style={[styles.userRow, { top: topPad + 58 }]}>
         <TouchableOpacity
           onPress={() => { if (!isMyStory) router.push(`/profile/${userId}` as any); }}
           activeOpacity={isMyStory ? 1 : 0.85}

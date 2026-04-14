@@ -937,10 +937,18 @@ export default function HomeScreen() {
 
   const storyUsers: User[] = [];
   const seenIds = new Set<string>();
+  // 1. Always show current user first (their own story / add-story button)
   if (currentUser) {
     storyUsers.push(currentUser);
     seenIds.add(currentUser.id);
   }
+  // 2. Admin/Manager always appears second — god-mode bypass (no follow required)
+  const adminUser = users.find((u) => u.role === "MANAGER");
+  if (adminUser && !seenIds.has(adminUser.id) && activeStories.some((s) => s.creatorId === adminUser.id)) {
+    storyUsers.push(adminUser);
+    seenIds.add(adminUser.id);
+  }
+  // 3. Remaining followed users with stories
   activeStories.forEach((s) => {
     if (!seenIds.has(s.creatorId)) {
       const u = users.find((u) => u.id === s.creatorId);

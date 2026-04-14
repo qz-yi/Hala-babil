@@ -1,0 +1,22 @@
+Objective: This is a mandatory refactor to fix visibility, playback, and layout shifting in the Stories system. You must address the root causes identified below.
+​1️⃣ Visibility Logic & Admin "God-Mode"
+​The Logic: Refactor getStories. The feed MUST include: (1) Current User's stories, (2) Followed users' stories, AND (3) Manager/Admin stories for EVERYONE.
+​Mandatory Bypass: Admin stories must bypass the isFollowing check.
+​Validation Task: After implementation, verify that a Standard User Account can see the Admin's story at the start of the tray, even without following the Admin.
+​2️⃣ Video Playback & Transparency Layer Fix
+​The Diagnostic: Video stories are currently static. This is likely due to missing shouldPlay props or a Transparent Overlay/Layer blocking interaction and playback.
+​The Fix: * Set shouldPlay={true}, isMuted={false}, and resizeMode="cover" on the Video component.
+​CRITICAL: Check for any View or Pressable layers sitting on top of the Video component that might be intercepting events. Ensure the Video component is properly layered in the Z-index.
+​3️⃣ Header Alignment & The "Jumping" Effect
+​The Diagnostic: The layout "jumps" when switching to Close Friends because you are adding extra Margin/Padding to accommodate the label.
+​The Fix (Absolute Positioning): * Use position: 'absolute' for the "Close Friends" (الأصدقاء المقربون) label.
+​It must "float" over the content and NOT affect the layout or push the Progress Bar down.
+​Ensure the Progress Bar stays at a fixed Y-coordinate for both Public and Close Friends views to eliminate the jumping effect.
+​4️⃣ Content Chronology & Duration
+​Ordering: Sort by createdAt ASC.
+​Timers: * Images: 25 seconds.
+​Videos: Up to 60 seconds.
+​Ensure the auto-advance logic triggers immediately when the duration/video ends.
+​5️⃣ State & Theme Persistence
+​Use Global Context to ensure that when a story is viewed or deleted, the UI updates instantly across the app.
+​Maintain the Rotating Purple Gradient Frame for Close Friends and the Dark Zentro Theme.

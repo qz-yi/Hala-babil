@@ -1,0 +1,25 @@
+ULTIMATE SYSTEM OVERHAUL: Branding "Zentram", Global UI & Theme Standardization
+​Objective: This is a comprehensive refactor to rename the app to "Zentram", eliminate navigation "White Flashes", fully synchronize the Light/Dark Mode engine, and unify the Localization (English/Arabic) system.
+​1️⃣ Global Branding: Rename to "Zentram" (Priority #1)
+​The Task: Perform a Global Search & Replace for the name "Hala Babil" (هلا بابل).
+​Requirement: * Replace it with "Zentram" in all UI text, headings, login screens, welcome messages, and notifications.
+​Update the app's internal metadata (e.g., Header titles, Splash screen text, and Auth placeholders).
+​2️⃣ Fix: Navigation White Flashes (Root Level Background)
+​The Issue: A white flash appears during screen transitions and when pressing the back button.
+​The Fix: * Set the backgroundColor of the NavigationContainer and the Root View to the app's primary dark color (#000000).
+​In app/_layout.tsx, ensure the ThemeProvider background is explicitly set to dark.
+​Ensure all screen templates have an initial backgroundColor set before rendering content.
+​3️⃣ Global Theme Engine Refactor (Light/Dark Mode)
+​The Task: "Reinstall" the Theme System to be 100% consistent.
+​Instruction: * Use a centralized ThemeContext. DO NOT use hardcoded colors (like white or #000) in any component.
+​Every component MUST use theme variables: colors.background, colors.text, colors.primary.
+​Audit every screen, modal, and message. If a screen doesn't have a specific Light Mode design, it must default to the Zentram Dark Theme.
+​4️⃣ Universal Localization (English/Arabic Overhaul)
+​The Task: Standardize English/Arabic across the entire app.
+​Instruction: * Move all strings (including the new "Zentram" name) into en.json and ar.json.
+​Use a useTranslation hook globally.
+​Audit every feature (Stories, Rooms, Profile, Admin Panel, Restaurants, Floating Widget) and replace hardcoded text with translation keys.
+​Ensure switching the language updates the entire app instantly without needing a restart.
+​5️⃣ Implementation & Persistence Rule
+​Persistence: Use Global State to save the user's selected Theme and Language across sessions.
+​Asset Update: Ensure SVG icons and buttons change colors (fill/stroke) based on the active theme.

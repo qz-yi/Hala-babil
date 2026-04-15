@@ -91,7 +91,7 @@ export default function LoginScreen() {
               </View>
             </LinearGradient>
             <Text style={styles.title}>{t("login")}</Text>
-            <Text style={styles.subtitle}>مرحباً بك في هلا بابل</Text>
+            <Text style={styles.subtitle}>{t("welcomeToApp")}</Text>
           </View>
 
           <View style={styles.form}>

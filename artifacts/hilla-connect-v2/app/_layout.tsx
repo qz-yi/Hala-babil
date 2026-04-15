@@ -107,13 +107,14 @@ function RootLayoutNav() {
   const bg = theme === "dark" ? "#000000" : "#FFFFFF";
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: bg }}>
       <NotificationSetup />
       <Stack
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: bg },
           animation: "fade_from_bottom",
+          animationDuration: 220,
         }}
       >
         <Stack.Screen name="index" />
@@ -236,11 +237,11 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider style={{ backgroundColor: "#000000" }}>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AppProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
+            <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#000000" }}>
               <KeyboardProvider>
                 <ToastProvider>
                   <RootLayoutNav />

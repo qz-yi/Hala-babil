@@ -33,7 +33,7 @@ function NativeTabLayout() {
       {isRestaurantOwner ? (
         <NativeTabs.Trigger name="my-restaurant">
           <Icon sf={{ default: "storefront", selected: "storefront.fill" }} />
-          <Label>مطعمي</Label>
+          <Label>{t("myRestaurant")}</Label>
         </NativeTabs.Trigger>
       ) : (
         <NativeTabs.Trigger name="restaurants">
@@ -200,7 +200,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="my-restaurant"
         options={{
-          title: "مطعمي",
+          title: t("myRestaurant"),
           href: isRestaurantOwner ? undefined : null,
           tabBarIcon: ({ color, focused }) =>
             isIOS ? (

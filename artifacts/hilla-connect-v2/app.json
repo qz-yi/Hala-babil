@@ -1,27 +1,28 @@
 {
   "expo": {
-    "name": "Hala-babil",
-    "slug": "halababil",
+    "name": "Zentram",
+    "slug": "zentram",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "halababil",
-    "userInterfaceStyle": "automatic",
+    "scheme": "zentram",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.halababil.app"
+      "bundleIdentifier": "com.zentram.app"
     },
     "android": {
-      "package": "com.halababil.app"
+      "package": "com.zentram.app"
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "backgroundColor": "#000000"
     },
     "plugins": [
       [

@@ -270,7 +270,7 @@ export default function RegisterScreen() {
               </View>
             </LinearGradient>
             <Text style={styles.title}>{t("register")}</Text>
-            <Text style={styles.subtitle}>انضم إلى هلا بابل</Text>
+            <Text style={styles.subtitle}>{t("joinApp")}</Text>
           </View>
 
           <View style={styles.form}>

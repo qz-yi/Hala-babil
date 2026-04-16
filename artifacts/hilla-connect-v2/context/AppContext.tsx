@@ -2937,16 +2937,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const followingIds = new Set(
         follows.filter((f) => f.followerId === currentUser.id && f.status === "accepted").map((f) => f.followingId)
       );
-      return stories.filter((s) => {
+      const visible = stories.filter((s) => {
         if (s.expiresAt <= now) return false;
+        if (blockedUsers.includes(s.creatorId)) return false;
+        // Own stories always visible
         if (s.creatorId === currentUser.id) return true;
-        if (s.creatorId === _adminId && !blockedUsers.includes(s.creatorId)) return true;
+        // Admin/Manager: god-mode bypass (no follow required)
+        if (s.creatorId === _adminId) return true;
+        // Mention bypass: if mentioned in this story, always grant access
+        if (s.mentions?.includes(currentUser.id)) return true;
+        // Must be following for remaining checks
         if (!followingIds.has(s.creatorId)) return false;
+        // Close Friends: only if in the creator's CF list
         if (s.isCloseFriends) {
           const creatorCFList = closeFriendsLists[s.creatorId] || [];
           return creatorCFList.includes(currentUser.id);
         }
         return true;
+      });
+      // Admin stories sorted to the front, then by createdAt desc
+      return visible.sort((a, b) => {
+        const aIsAdmin = a.creatorId === _adminId ? 1 : 0;
+        const bIsAdmin = b.creatorId === _adminId ? 1 : 0;
+        if (bIsAdmin !== aIsAdmin) return bIsAdmin - aIsAdmin;
+        return b.createdAt - a.createdAt;
       });
     },
     [currentUser, stories, follows, blockedUsers, closeFriendsLists, _adminId]
@@ -2968,14 +2982,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return stories
         .filter((s) => {
           if (s.creatorId !== userId || s.expiresAt <= now) return false;
+          // Own stories: always visible
           if (isOwnStories) return true;
-          if (isAdminUser && !isUserBlocked) return true;
+          // Admin/Manager god-mode: bypass all follow checks
+          if (isAdminUser) return true;
+          // Mention bypass: if currentUser is mentioned, grant temporary view permission
+          if (s.mentions?.includes(currentUser.id)) return true;
+          // Close Friends: require following AND being in the CF list
           if (s.isCloseFriends) {
             if (!isFollowingUser) return false;
             const creatorCFList = closeFriendsLists[userId] || [];
             return creatorCFList.includes(currentUser.id);
           }
+          // Public account: visible without following
           if (isPublicAccount) return true;
+          // Private account: require following
           return isFollowingUser;
         })
         .sort((a, b) => a.createdAt - b.createdAt);
@@ -2999,14 +3020,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return stories.some((s) => {
         if (s.creatorId !== userId || s.expiresAt <= now) return false;
         if (s.viewerIds.includes(currentUser.id)) return false;
+        // Own stories
         if (isOwn) return true;
-        if (isAdminUser && !isUserBlocked) return true;
+        // Admin/Manager: god-mode bypass
+        if (isAdminUser) return true;
+        // Mention bypass: if mentioned, counts as unseen
+        if (s.mentions?.includes(currentUser.id)) return true;
+        // Close Friends: require following + in CF list
         if (s.isCloseFriends) {
           if (!isFollowingUser) return false;
           const creatorCFList = closeFriendsLists[userId] || [];
           return creatorCFList.includes(currentUser.id);
         }
+        // Public account: visible without following
         if (isPublicAccount) return true;
+        // Private account: require following
         return isFollowingUser;
       });
     },
@@ -3251,15 +3279,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .filter((f) => f.followerId === currentUser.id && f.status === "accepted")
         .map((f) => f.followingId);
       const feedIds = new Set([currentUser.id, ...followingIds]);
+      // Admin 10x boost: admin posts always float to front and interleave between own/following posts
       const ADMIN_BOOST = 10;
       const getPostScore = (p: Post) => {
-        if (adminId && p.creatorId === adminId) return p.createdAt * ADMIN_BOOST;
+        if (adminId && p.creatorId === adminId && !isAdminBlocked) {
+          // Multiply createdAt by 10x so admin content always scores higher than any non-admin post
+          return p.createdAt * ADMIN_BOOST;
+        }
         return p.createdAt;
       };
       return posts
         .filter((p) => {
           if (p.isHidden && p.creatorId !== currentUser.id) return false;
+          // Admin content: always inject (unless blocked)
           if (adminId && p.creatorId === adminId && !isAdminBlocked) return true;
+          // Own content + followed content
           return feedIds.has(p.creatorId);
         })
         .sort((a, b) => getPostScore(b) - getPostScore(a));

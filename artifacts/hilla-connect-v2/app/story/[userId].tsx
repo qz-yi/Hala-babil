@@ -179,7 +179,7 @@ export default function StoryViewerScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const {
     users, getUserStories, viewStory, currentUser, theme,
-    likeStory, replyToStory, deleteStory, stories: allStories,
+    likeStory, replyToStory, deleteStory,
     shareContentToStory,
   } = useApp();
   const colors = Colors[theme];
@@ -219,10 +219,10 @@ export default function StoryViewerScreen() {
   const isMyStory = currentUser?.id === userId;
   const isCloseFriends = !!currentStory?.isCloseFriends;
 
-  // Users with active stories for auto-advance
+  // Users with active stories visible to the current user for safe auto-advance
   const usersWithStories = users.filter((u) => {
-    const now = Date.now();
-    return allStories.some((s) => s.creatorId === u.id && s.expiresAt > now);
+    const userStories = getUserStories(u.id);
+    return userStories.length > 0;
   });
   const currentUserIndex = usersWithStories.findIndex((u) => u.id === userId);
 

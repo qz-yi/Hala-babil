@@ -937,24 +937,31 @@ export default function HomeScreen() {
 
   const storyUsers: User[] = [];
   const seenIds = new Set<string>();
-  // 1. Always show current user first (their own story / add-story button)
+  // 1. Always show current user first (own story / add-story button)
   if (currentUser) {
     storyUsers.push(currentUser);
     seenIds.add(currentUser.id);
   }
-  // 2. Admin/Manager always appears second — god-mode bypass (no follow required)
-  const adminUser = users.find((u) => u.role === "MANAGER");
-  if (adminUser && !seenIds.has(adminUser.id) && activeStories.some((s) => s.creatorId === adminUser.id)) {
-    storyUsers.push(adminUser);
-    seenIds.add(adminUser.id);
+  // 2. Admin/Manager second — god-mode: appears even without follow
+  //    activeStories is already sorted admin-first by getActiveStories
+  const adminStory = activeStories.find((s) => {
+    const u = users.find((u2) => u2.id === s.creatorId);
+    return u?.role === "MANAGER" || u?.phone === "07719820537";
+  });
+  if (adminStory) {
+    const adminUser = users.find((u) => u.id === adminStory.creatorId);
+    if (adminUser && !seenIds.has(adminUser.id)) {
+      storyUsers.push(adminUser);
+      seenIds.add(adminUser.id);
+    }
   }
-  // 3. Remaining followed users with stories
+  // 3. Remaining users with visible stories in order returned by getActiveStories
   activeStories.forEach((s) => {
     if (!seenIds.has(s.creatorId)) {
-      const u = users.find((u) => u.id === s.creatorId);
+      const u = users.find((u2) => u2.id === s.creatorId);
       if (u) {
         storyUsers.push(u);
-        seenIds.add(u.id);
+        seenIds.add(s.creatorId);
       }
     }
   });

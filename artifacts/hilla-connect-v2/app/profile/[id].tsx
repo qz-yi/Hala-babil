@@ -112,7 +112,9 @@ export default function UserProfileScreen() {
   const followStatus = getFollowStatus(id);
   const followersCount = getFollowersCount(id);
   const followingCount = getFollowingCount(id);
-  const hasStory = hasUnseenStory(id);
+  const activeUserStories = getUserStories(id);
+  const hasStory = activeUserStories.length > 0;
+  const hasUnseenStoryForRing = hasUnseenStory(id);
 
   const userIsBlocked = isBlocked(id);
 
@@ -181,7 +183,8 @@ export default function UserProfileScreen() {
               {/* Avatar row overlapping cover */}
               <View style={[styles.avatarSectionRow, { marginTop: -48 }]}>
                 <TouchableOpacity
-                  onPress={() => hasStory && router.push(`/story/${user.id}`)}
+                  onPress={() => hasStory ? router.push(`/story/${user.id}` as any) : undefined}
+                  activeOpacity={hasStory ? 0.8 : 1}
                 >
                   {isUserVerified(user) ? (
                     <VerifiedAvatarFrame size={80}>
@@ -194,7 +197,13 @@ export default function UserProfileScreen() {
                       )}
                     </VerifiedAvatarFrame>
                   ) : (
-                    <View style={[styles.avatarRing, { borderColor: hasStory ? "#E1306C" : `${accentColor}66`, borderWidth: hasStory ? 3 : 2 }]}>
+                    <View style={[
+                      styles.avatarRing,
+                      {
+                        borderColor: hasUnseenStoryForRing ? "#E1306C" : hasStory ? `${accentColor}88` : `${accentColor}66`,
+                        borderWidth: hasStory ? 3 : 2,
+                      },
+                    ]}>
                       {user.avatar ? (
                         <Image source={{ uri: user.avatar }} style={styles.avatar} />
                       ) : (

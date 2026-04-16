@@ -262,7 +262,7 @@ export interface AppNotification {
   senderId: string;
   senderName: string;
   senderAvatar?: string;
-  type: "follow_request" | "follow_accept" | "like" | "comment" | "post" | "story" | "message" | "story_like" | "story_reply" | "mention";
+  type: "follow_request" | "follow_accept" | "like" | "comment" | "post" | "story" | "message" | "story_like" | "story_reply" | "mention" | "story_mention";
   referenceId?: string;
   message: string;
   isRead: boolean;
@@ -2774,7 +2774,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           senderId: currentUser.id,
           senderName: currentUser.name,
           senderAvatar: currentUser.avatar,
-          type: "mention",
+          type: "story_mention",
           referenceId: story.id,
           message: `ذكرك ${currentUser.name} في قصته`,
           isRead: false,
@@ -2958,6 +2958,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const now = Date.now();
       const isOwnStories = userId === currentUser.id;
       const isAdminUser = userId === _adminId;
+      const isUserBlocked = blockedUsers.includes(userId);
+      if (isUserBlocked && !isOwnStories) return [];
+      const targetUser = users.find((u) => u.id === userId);
+      const isPublicAccount = !targetUser?.accountType || targetUser.accountType === "public";
       const isFollowingUser = follows.some(
         (f) => f.followerId === currentUser.id && f.followingId === userId && f.status === "accepted"
       );
@@ -2965,17 +2969,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .filter((s) => {
           if (s.creatorId !== userId || s.expiresAt <= now) return false;
           if (isOwnStories) return true;
-          if (isAdminUser && !blockedUsers.includes(userId)) return true;
-          if (!isFollowingUser) return false;
+          if (isAdminUser && !isUserBlocked) return true;
           if (s.isCloseFriends) {
+            if (!isFollowingUser) return false;
             const creatorCFList = closeFriendsLists[userId] || [];
             return creatorCFList.includes(currentUser.id);
           }
-          return true;
+          if (isPublicAccount) return true;
+          return isFollowingUser;
         })
         .sort((a, b) => a.createdAt - b.createdAt);
     },
-    [currentUser, stories, follows, blockedUsers, closeFriendsLists, _adminId]
+    [currentUser, stories, follows, blockedUsers, closeFriendsLists, _adminId, users]
   );
 
   const hasUnseenStory = useCallback(
@@ -2984,6 +2989,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const now = Date.now();
       const isAdminUser = userId === _adminId;
       const isOwn = userId === currentUser.id;
+      const isUserBlocked = blockedUsers.includes(userId);
+      if (isUserBlocked && !isOwn) return false;
+      const targetUser = users.find((u) => u.id === userId);
+      const isPublicAccount = !targetUser?.accountType || targetUser.accountType === "public";
       const isFollowingUser = follows.some(
         (f) => f.followerId === currentUser.id && f.followingId === userId && f.status === "accepted"
       );
@@ -2991,16 +3000,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (s.creatorId !== userId || s.expiresAt <= now) return false;
         if (s.viewerIds.includes(currentUser.id)) return false;
         if (isOwn) return true;
-        if (isAdminUser && !blockedUsers.includes(userId)) return true;
-        if (!isFollowingUser) return false;
+        if (isAdminUser && !isUserBlocked) return true;
         if (s.isCloseFriends) {
+          if (!isFollowingUser) return false;
           const creatorCFList = closeFriendsLists[userId] || [];
           return creatorCFList.includes(currentUser.id);
         }
-        return true;
+        if (isPublicAccount) return true;
+        return isFollowingUser;
       });
     },
-    [currentUser, stories, follows, blockedUsers, closeFriendsLists, _adminId]
+    [currentUser, stories, follows, blockedUsers, closeFriendsLists, _adminId, users]
   );
 
   const updateCloseFriendsList = useCallback(

@@ -1138,7 +1138,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             name: "المدير الأعلى",
             username: "admin",
             phone: SUPER_ADMIN_PHONE,
-            email: "admin@hillaconnect.com",
+            email: "admin@zentram.app",
             primaryGovernorate: "بابل",
             accountType: "public",
             role: "MANAGER" as UserRole,
@@ -3008,25 +3008,70 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     (): Story[] => {
       if (!currentUser) return [];
 
+      const now = Date.now();
       const vid = String(currentUser.id);
 
-      console.log('[getActiveStories] currentUser.id=', vid, 'role=', currentUser.role);
-      console.log('[getActiveStories] total stories in DB:', stories.length);
-      console.log('[getActiveStories] follows count:', follows.length);
-      console.log('[getActiveStories] _adminId=', _adminId);
+      // ── AUDIT LOGS (high-visibility so they stand out in the console) ──
+      console.error("╔══ [Zentram Story Engine] ══════════════════════════════");
+      console.error("║  Current User ID :", vid);
+      console.error("║  Current User Role:", currentUser.role ?? "none");
+      console.error("║  SUPER_ADMIN_PHONE:", SUPER_ADMIN_PHONE);
+      console.error("║  _adminId computed:", String(_adminId ?? "UNDEFINED — admin never logged in"));
+      console.error("║  Total stories DB :", stories.length);
+      console.error("║  Active (≤24h)    :", stories.filter(s => s.expiresAt > now).length);
+      console.error("║  Follows count    :", follows.length);
+      console.error("╚═══════════════════════════════════════════════════════");
 
-      const visible = stories.filter((s) => _canViewStory(s, vid));
+      // Build the four buckets using explicit String() comparisons
+      const followingIds = follows
+        .filter((f) => String(f.followerId) === vid && f.status === "accepted")
+        .map((f) => String(f.followingId));
 
-      console.log('[getActiveStories] visible stories count:', visible.length, 'creators:', visible.map(s => s.creatorId));
+      const active = stories.filter((s) => s.expiresAt > now);
 
-      return visible.sort((a, b) => {
-        const aAdmin = _isAdminCreator(String(a.creatorId)) ? 2 : 0;
-        const bAdmin = _isAdminCreator(String(b.creatorId)) ? 2 : 0;
-        if (aAdmin !== bAdmin) return bAdmin - aAdmin;
+      // ① Admin / Manager stories — god-mode, no follow required
+      const adminStories = active.filter((s) => _isAdminCreator(String(s.creatorId)));
+
+      // ② Own stories
+      const myStories = active.filter((s) => String(s.creatorId) === vid);
+
+      // ③ Followed users' non-close-friends stories
+      const followedStories = active.filter((s) => {
+        const cid = String(s.creatorId);
+        if (!followingIds.includes(cid)) return false;
+        if (s.isCloseFriends) {
+          const cfList = (closeFriendsLists[cid] || []).map(String);
+          return cfList.includes(vid);
+        }
+        return true;
+      });
+
+      // ④ Mention bypass — stories that explicitly mention the current user
+      const mentionedStories = active.filter(
+        (s) => Array.isArray(s.mentions) && s.mentions.map(String).includes(vid)
+      );
+
+      // Merge without duplicates (admin first, then own, then followed, then mentioned)
+      const seen = new Set<string>();
+      const merged: Story[] = [];
+      for (const s of [...adminStories, ...myStories, ...followedStories, ...mentionedStories]) {
+        if (!seen.has(s.id) && !blockedUsers.map(String).includes(String(s.creatorId))) {
+          seen.add(s.id);
+          merged.push(s);
+        }
+      }
+
+      console.error("║  Visible stories  :", merged.length, "| admin:", adminStories.length, "| own:", myStories.length, "| followed:", followedStories.length, "| mentioned:", mentionedStories.length);
+
+      // Sort: admin first → then most recent
+      return merged.sort((a, b) => {
+        const aA = _isAdminCreator(String(a.creatorId)) ? 1 : 0;
+        const bA = _isAdminCreator(String(b.creatorId)) ? 1 : 0;
+        if (aA !== bA) return bA - aA;
         return b.createdAt - a.createdAt;
       });
     },
-    [currentUser, stories, follows, _canViewStory, _isAdminCreator, _adminId]
+    [currentUser, stories, follows, closeFriendsLists, blockedUsers, _isAdminCreator, _adminId]
   );
 
   /**

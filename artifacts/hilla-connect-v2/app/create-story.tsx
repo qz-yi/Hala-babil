@@ -9,6 +9,7 @@ import {
   Animated,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -68,6 +69,75 @@ function FilterPreviewOverlay({ filter }: { filter: string }) {
         },
       ]}
     />
+  );
+}
+
+function AudienceSheet({
+  visible,
+  onClose,
+  isCloseFriends,
+  onSelect,
+  colors,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  isCloseFriends: boolean;
+  onSelect: (cf: boolean) => void;
+  colors: any;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={st.backdrop} onPress={onClose} />
+      <View style={[st.audienceSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[st.handle, { backgroundColor: colors.border }]} />
+        <Text style={[st.audienceTitle, { color: colors.text }]}>اختيار الجمهور</Text>
+        <Text style={[st.audienceSubtitle, { color: colors.textSecondary }]}>من يمكنه رؤية قصتك؟</Text>
+
+        <TouchableOpacity
+          style={[
+            st.audienceOption,
+            { borderColor: !isCloseFriends ? "#3D91F4" : colors.border, backgroundColor: !isCloseFriends ? "#3D91F411" : "transparent" },
+          ]}
+          onPress={() => { onSelect(false); onClose(); }}
+          activeOpacity={0.8}
+        >
+          <View style={[st.audienceIconWrap, { backgroundColor: !isCloseFriends ? "#3D91F422" : colors.backgroundSecondary || colors.background }]}>
+            <Ionicons name="globe-outline" size={22} color={!isCloseFriends ? "#3D91F4" : colors.textSecondary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[st.audienceOptionTitle, { color: !isCloseFriends ? "#3D91F4" : colors.text }]}>قصة عامة</Text>
+            <Text style={[st.audienceOptionDesc, { color: colors.textSecondary }]}>يراها جميع متابعيك</Text>
+          </View>
+          {!isCloseFriends && (
+            <View style={st.audienceCheck}>
+              <Ionicons name="checkmark-circle" size={22} color="#3D91F4" />
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            st.audienceOption,
+            { borderColor: isCloseFriends ? "#8B5CF6" : colors.border, backgroundColor: isCloseFriends ? "#8B5CF611" : "transparent" },
+          ]}
+          onPress={() => { onSelect(true); onClose(); }}
+          activeOpacity={0.8}
+        >
+          <View style={[st.audienceIconWrap, { backgroundColor: isCloseFriends ? "#8B5CF622" : colors.backgroundSecondary || colors.background }]}>
+            <Ionicons name="star" size={22} color={isCloseFriends ? "#8B5CF6" : colors.textSecondary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[st.audienceOptionTitle, { color: isCloseFriends ? "#8B5CF6" : colors.text }]}>أصدقاء مقربون</Text>
+            <Text style={[st.audienceOptionDesc, { color: colors.textSecondary }]}>لقائمتك المختارة فقط</Text>
+          </View>
+          {isCloseFriends && (
+            <View style={st.audienceCheck}>
+              <Ionicons name="checkmark-circle" size={22} color="#8B5CF6" />
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+    </Modal>
   );
 }
 
@@ -193,6 +263,7 @@ export default function CreateStoryScreen() {
   const [isCloseFriends, setIsCloseFriends] = useState(false);
   const [cfList, setCfList] = useState<string[]>(closeFriendsList);
   const [showCFModal, setShowCFModal] = useState(false);
+  const [showAudienceSheet, setShowAudienceSheet] = useState(false);
   const [mentions, setMentions] = useState<string[]>([]);
   const [mentionSearch, setMentionSearch] = useState("");
   const [showMentionPicker, setShowMentionPicker] = useState(false);
@@ -268,6 +339,13 @@ export default function CreateStoryScreen() {
     setShowMentionPicker(false);
   };
 
+  const handleAudienceSelect = (cf: boolean) => {
+    setIsCloseFriends(cf);
+    if (cf && cfList.length === 0) {
+      setTimeout(() => setShowCFModal(true), 350);
+    }
+  };
+
   const mentionResults = users
     .filter((u) => u.id !== currentUser?.id && !mentions.includes(u.id))
     .filter((u) =>
@@ -276,8 +354,16 @@ export default function CreateStoryScreen() {
     )
     .slice(0, 6);
 
+  const audienceColor = isCloseFriends ? "#8B5CF6" : "#3D91F4";
+  const audienceIcon = isCloseFriends ? "star" : "globe-outline";
+  const audienceLabel = isCloseFriends ? "أصدقاء مقربون" : "قصة عامة";
+
   return (
-    <View style={[st.container, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView
+      style={[st.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+    >
       <LinearGradient
         colors={theme === "dark" ? ["rgba(139,92,246,0.15)", "transparent"] : ["rgba(139,92,246,0.06)", "transparent"]}
         style={[st.headerGrad, { paddingTop: topPad + 8 }]}
@@ -303,37 +389,29 @@ export default function CreateStoryScreen() {
         </View>
       </LinearGradient>
 
-      <ScrollView contentContainerStyle={st.body} keyboardShouldPersistTaps="handled">
-
-        {/* ── Public / Close Friends Toggle ── */}
-        <View style={[st.toggleCard, { backgroundColor: colors.card, borderColor: isCloseFriends ? "#8B5CF6" : colors.border }]}>
-          <TouchableOpacity
-            style={[st.toggleOption, !isCloseFriends && st.toggleActive, !isCloseFriends && { borderColor: "#3D91F4", backgroundColor: "#3D91F422" }]}
-            onPress={() => setIsCloseFriends(false)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="globe-outline" size={18} color={!isCloseFriends ? "#3D91F4" : colors.textSecondary} />
-            <Text style={[st.toggleLabel, { color: !isCloseFriends ? "#3D91F4" : colors.textSecondary }]}>قصة عامة</Text>
-          </TouchableOpacity>
-          <View style={[st.toggleDivider, { backgroundColor: colors.border }]} />
-          <TouchableOpacity
-            style={[st.toggleOption, isCloseFriends && st.toggleActive, isCloseFriends && { borderColor: "#8B5CF6", backgroundColor: "#8B5CF622" }]}
-            onPress={() => {
-              setIsCloseFriends(true);
-              if (cfList.length === 0) setShowCFModal(true);
-            }}
-            activeOpacity={0.8}
-          >
+      <ScrollView
+        contentContainerStyle={st.body}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Audience Selection Button ── */}
+        <TouchableOpacity
+          style={[st.audienceBtn, { backgroundColor: colors.card, borderColor: audienceColor }]}
+          onPress={() => setShowAudienceSheet(true)}
+          activeOpacity={0.8}
+        >
+          <View style={[st.audienceBtnIcon, { backgroundColor: `${audienceColor}22` }]}>
             {isCloseFriends ? (
               <Animated.View style={{ transform: [{ rotate }] }}>
-                <Ionicons name="star" size={18} color="#8B5CF6" />
+                <Ionicons name="star" size={18} color={audienceColor} />
               </Animated.View>
             ) : (
-              <Ionicons name="star-outline" size={18} color={colors.textSecondary} />
+              <Ionicons name={audienceIcon} size={18} color={audienceColor} />
             )}
-            <Text style={[st.toggleLabel, { color: isCloseFriends ? "#8B5CF6" : colors.textSecondary }]}>أصدقاء مقربون</Text>
-          </TouchableOpacity>
-        </View>
+          </View>
+          <Text style={[st.audienceBtnLabel, { color: audienceColor }]}>{audienceLabel}</Text>
+          <Ionicons name="chevron-down" size={16} color={audienceColor} style={{ marginStart: "auto" }} />
+        </TouchableOpacity>
 
         {/* Close Friends Edit List button */}
         {isCloseFriends && (
@@ -537,7 +615,17 @@ export default function CreateStoryScreen() {
             القصص تختفي تلقائياً بعد 24 ساعة من نشرها
           </Text>
         </View>
+
+        <View style={{ height: 32 }} />
       </ScrollView>
+
+      <AudienceSheet
+        visible={showAudienceSheet}
+        onClose={() => setShowAudienceSheet(false)}
+        isCloseFriends={isCloseFriends}
+        onSelect={handleAudienceSelect}
+        colors={colors}
+      />
 
       <CloseFriendsModal
         visible={showCFModal}
@@ -548,7 +636,7 @@ export default function CreateStoryScreen() {
         users={users}
         colors={colors}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -562,11 +650,31 @@ const st = StyleSheet.create({
   publishBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 },
   body: { padding: 16, gap: 14 },
 
-  toggleCard: { flexDirection: "row", borderRadius: 16, borderWidth: 1, overflow: "hidden" },
-  toggleOption: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 14, margin: 3 },
-  toggleActive: { borderWidth: 1 },
-  toggleDivider: { width: 1, marginVertical: 8 },
-  toggleLabel: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  audienceBtn: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    borderRadius: 16, borderWidth: 1.5,
+    paddingHorizontal: 14, paddingVertical: 12,
+  },
+  audienceBtnIcon: {
+    width: 34, height: 34, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
+  },
+  audienceBtnLabel: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
+
+  audienceSheet: {
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderTopWidth: 0.5, padding: 20, paddingBottom: 40, gap: 12,
+  },
+  audienceTitle: { fontFamily: "Inter_700Bold", fontSize: 18, textAlign: "center", marginBottom: 2 },
+  audienceSubtitle: { fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center", marginBottom: 4 },
+  audienceOption: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderRadius: 16, borderWidth: 1.5, padding: 14,
+  },
+  audienceIconWrap: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  audienceOptionTitle: { fontFamily: "Inter_700Bold", fontSize: 15, marginBottom: 2 },
+  audienceOptionDesc: { fontFamily: "Inter_400Regular", fontSize: 12 },
+  audienceCheck: { marginLeft: 4 },
 
   editListBtn: {
     flexDirection: "row", alignItems: "center", gap: 8,

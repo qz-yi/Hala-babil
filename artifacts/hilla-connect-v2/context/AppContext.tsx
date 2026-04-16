@@ -3235,35 +3235,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const getFeedPosts = useCallback(
     () => {
       if (!currentUser) return [];
+      const adminId = _adminId;
+      const isAdminBlocked = adminId ? blockedUsers.includes(adminId) : false;
       const followingIds = follows
         .filter((f) => f.followerId === currentUser.id && f.status === "accepted")
         .map((f) => f.followingId);
       const feedIds = new Set([currentUser.id, ...followingIds]);
+      const ADMIN_BOOST = 10;
+      const getPostScore = (p: Post) => {
+        if (adminId && p.creatorId === adminId) return p.createdAt * ADMIN_BOOST;
+        return p.createdAt;
+      };
       return posts
-        .filter((p) => feedIds.has(p.creatorId) && (!p.isHidden || p.creatorId === currentUser.id))
-        .sort((a, b) => b.createdAt - a.createdAt);
+        .filter((p) => {
+          if (p.isHidden && p.creatorId !== currentUser.id) return false;
+          if (adminId && p.creatorId === adminId && !isAdminBlocked) return true;
+          return feedIds.has(p.creatorId);
+        })
+        .sort((a, b) => getPostScore(b) - getPostScore(a));
     },
-    [currentUser, posts, follows]
+    [currentUser, posts, follows, _adminId, blockedUsers]
   );
 
   const getFeedReels = useCallback(
     () => {
       if (!currentUser) return reels;
+      const adminId = _adminId;
+      const isAdminBlocked = adminId ? blockedUsers.includes(adminId) : false;
       const followingIds = follows
         .filter((f) => f.followerId === currentUser.id && f.status === "accepted")
         .map((f) => f.followingId);
       const feedIds = new Set([currentUser.id, ...followingIds]);
-      const followingReels = reels.filter((r) => feedIds.has(r.creatorId));
-      const otherReels = reels.filter((r) => !feedIds.has(r.creatorId));
-      const BOOST = 1.2;
+      const ADMIN_BOOST = 10;
+      const VERIFIED_BOOST = 1.2;
       const getScore = (r: Reel) => {
+        if (adminId && r.creatorId === adminId && !isAdminBlocked) return r.createdAt * ADMIN_BOOST;
         const creator = users.find((u) => u.id === r.creatorId);
-        const boost = isUserVerified(creator) ? BOOST : 1;
+        const boost = isUserVerified(creator) ? VERIFIED_BOOST : 1;
         return r.createdAt * boost;
       };
-      return [...followingReels, ...otherReels].sort((a, b) => getScore(b) - getScore(a));
+      const visibleReels = reels.filter((r) => {
+        if (adminId && r.creatorId === adminId && !isAdminBlocked) return true;
+        return feedIds.has(r.creatorId) || true;
+      });
+      return visibleReels.sort((a, b) => getScore(b) - getScore(a));
     },
-    [currentUser, reels, follows, users]
+    [currentUser, reels, follows, users, _adminId, blockedUsers]
   );
 
   // ============================

@@ -1,0 +1,26 @@
+FINAL WARNING & SYSTEM AUDIT: Stories Visibility Engine FAILURE
+​Objective: You have repeatedly failed to make the stories visible. You must now perform a deep-level debug and rewrite the entire visibility logic from scratch. Do NOT assume your code works; PROVE IT by adding console logs for every step.
+​1️⃣ Phase 1: Data Audit (Debug First)
+​Before rewriting, you must verify the data types. Add console.log to:
+​The Current User's ID and Role.
+​The Admin/Manager's ID (Verify it matches the one used in the God-Mode check).
+​The Following array (Is it an array of Strings? Numbers? Objects? Fix the comparison type).
+​The Stories array (Print the list of all stories in the database and their userId).
+​2️⃣ Phase 2: The "Universal Story Tray" (Complete Rewrite)
+​The getActiveStories (or getStoryTray) function is clearly broken. Replace the current filtering with this Fail-Safe Logic:
+​The God-Mode (Manager): If any story has userId === ADMIN_ID, it MUST be at the start of the list. No exceptions.
+​The Follower Logic: Every story where creatorId is in the user's following list MUST be visible.
+​The Mention Logic: If story.mentions includes currentUserId, it MUST be visible.
+​The Own-Story Logic: User's own stories MUST always be visible.
+​CRITICAL FIX: Ensure you are not using === between a String ID and a Number ID. Use String(id1) === String(id2) for every comparison to prevent type-mismatch failures.
+​3️⃣ Phase 3: The "Story Not Found" Fix (Permissions)
+​When a user opens a story via a mention or profile:
+​Force Access: In getUserStories or StoryView, if the user is the Admin OR is Mentioned, set isAccessGranted = true and bypass the "Following" requirement entirely.
+​Database Check: Ensure isCloseFriends is not accidentally filtering out Public stories.
+​4️⃣ Phase 4: Root UI Layout (Persistence)
+​Verify that the StoryTray component in the HomeScreen is actually receiving the array. If the array has data but the tray is empty, the issue is in the UI Mapping.
+​Fix the White Flash and Zentram branding one last time—ensure the background of the entire navigation stack is #000000.
+​5️⃣ Phase 5: Execution & Restart
+​After applying the fix, RESTART the server.
+​Create a test story from the Admin account.
+​Log in as a Standard User (who doesn't follow anyone) and verify the Admin story appears immediately in the tray.

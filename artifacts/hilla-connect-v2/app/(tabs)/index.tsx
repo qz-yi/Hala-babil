@@ -935,33 +935,25 @@ export default function HomeScreen() {
   const feedPosts = getFeedPosts();
   const activeStories = getActiveStories();
 
+  // Build story tray users list:
+  // activeStories is already sorted: admin first, then by recency (from getActiveStories)
   const storyUsers: User[] = [];
   const seenIds = new Set<string>();
-  // 1. Always show current user first (own story / add-story button)
+
+  // 1. Current user always first (own story / add-story button)
   if (currentUser) {
     storyUsers.push(currentUser);
-    seenIds.add(currentUser.id);
+    seenIds.add(String(currentUser.id));
   }
-  // 2. Admin/Manager second — god-mode: appears even without follow
-  //    activeStories is already sorted admin-first by getActiveStories
-  const adminStory = activeStories.find((s) => {
-    const u = users.find((u2) => u2.id === s.creatorId);
-    return u?.role === "MANAGER" || u?.phone === "07719820537";
-  });
-  if (adminStory) {
-    const adminUser = users.find((u) => u.id === adminStory.creatorId);
-    if (adminUser && !seenIds.has(adminUser.id)) {
-      storyUsers.push(adminUser);
-      seenIds.add(adminUser.id);
-    }
-  }
-  // 3. Remaining users with visible stories in order returned by getActiveStories
+
+  // 2. Iterate activeStories (pre-sorted: admin → recent) and deduplicate by creator
   activeStories.forEach((s) => {
-    if (!seenIds.has(s.creatorId)) {
-      const u = users.find((u2) => u2.id === s.creatorId);
+    const cid = String(s.creatorId);
+    if (!seenIds.has(cid)) {
+      const u = users.find((u2) => String(u2.id) === cid);
       if (u) {
         storyUsers.push(u);
-        seenIds.add(s.creatorId);
+        seenIds.add(cid);
       }
     }
   });

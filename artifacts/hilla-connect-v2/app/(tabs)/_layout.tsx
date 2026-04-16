@@ -98,9 +98,10 @@ function ClassicTabLayout() {
   const borderColor = isDark ? "#262626" : "#E5E5E5";
   const activeColor = isDark ? "#FFFFFF" : "#000000";
   const inactiveColor = isDark ? "#636366" : "#9CA3AF";
+  const bgColor = isDark ? "#000000" : "#FFFFFF";
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
       {/* Left edge swipe zone */}
       <View
         {...leftEdgePan.panHandlers}

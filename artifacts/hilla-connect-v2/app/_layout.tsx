@@ -125,7 +125,10 @@ function RootLayoutNav() {
             animation: "slide_from_bottom",
           }}
         />
-        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="(tabs)"
+          options={{ contentStyle: { backgroundColor: bg } }}
+        />
         <Stack.Screen
           name="room/[id]"
           options={{

@@ -2926,119 +2926,148 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [currentUser, stories, conversations, users, notifications]
   );
 
+  // ──────────────────────────────────────────────
+  // STORY PERMISSION ENGINE
+  // ──────────────────────────────────────────────
+
+  /** Cached admin/manager ID — may be undefined if admin has never logged in */
   const _adminId = useMemo(() => {
     return users.find((u) => u.phone === SUPER_ADMIN_PHONE || u.role === "MANAGER")?.id;
   }, [users]);
 
-  const getActiveStories = useCallback(
-    () => {
-      if (!currentUser) return [];
+  /**
+   * Type-safe admin check: works even when _adminId is undefined.
+   * Uses role + phone fallback to identify admin stories by creator lookup.
+   */
+  const _isAdminCreator = useCallback(
+    (creatorId: string): boolean => {
+      const sid = String(creatorId);
+      if (_adminId && String(_adminId) === sid) return true;
+      const creator = users.find((u) => String(u.id) === sid);
+      return creator?.role === "MANAGER" || creator?.phone === SUPER_ADMIN_PHONE;
+    },
+    [_adminId, users]
+  );
+
+  /**
+   * Shared permission guard for a single story.
+   * Returns true if `viewerId` is allowed to see this story.
+   */
+  const _canViewStory = useCallback(
+    (s: Story, viewerId: string): boolean => {
       const now = Date.now();
-      const followingIds = new Set(
-        follows.filter((f) => f.followerId === currentUser.id && f.status === "accepted").map((f) => f.followingId)
+      if (!s || s.expiresAt <= now) return false;
+
+      const vid = String(viewerId);
+      const cid = String(s.creatorId);
+
+      // AUDIT LOG — remove or guard with __DEV__ in production
+      // console.log('[StoryGuard]', { storyId: s.id, cid, vid, isCloseFriends: s.isCloseFriends, mentions: s.mentions });
+
+      // ① Own story
+      if (cid === vid) return true;
+
+      // ② Blocked creator → never visible
+      if (blockedUsers.map(String).includes(cid)) return false;
+
+      // ③ Admin / Manager god-mode: always visible (no follow required)
+      if (_isAdminCreator(cid)) return true;
+
+      // ④ Mention bypass: if viewer is mentioned, grant temporary view access
+      if (Array.isArray(s.mentions) && s.mentions.map(String).includes(vid)) return true;
+
+      // ⑤ Close Friends: require following + in creator's CF list
+      if (s.isCloseFriends) {
+        const creatorCFList = (closeFriendsLists[cid] || []).map(String);
+        if (!creatorCFList.includes(vid)) return false;
+        // Also must follow
+        const isFollowing = follows.some(
+          (f) => String(f.followerId) === vid && String(f.followingId) === cid && f.status === "accepted"
+        );
+        return isFollowing;
+      }
+
+      // ⑥ Public account: visible to anyone (no follow required)
+      const creator = users.find((u) => String(u.id) === cid);
+      const isPublic = !creator?.accountType || creator.accountType === "public";
+      if (isPublic) return true;
+
+      // ⑦ Private account: require following
+      return follows.some(
+        (f) => String(f.followerId) === vid && String(f.followingId) === cid && f.status === "accepted"
       );
-      const visible = stories.filter((s) => {
-        if (s.expiresAt <= now) return false;
-        if (blockedUsers.includes(s.creatorId)) return false;
-        // Own stories always visible
-        if (s.creatorId === currentUser.id) return true;
-        // Admin/Manager: god-mode bypass (no follow required)
-        if (s.creatorId === _adminId) return true;
-        // Mention bypass: if mentioned in this story, always grant access
-        if (s.mentions?.includes(currentUser.id)) return true;
-        // Must be following for remaining checks
-        if (!followingIds.has(s.creatorId)) return false;
-        // Close Friends: only if in the creator's CF list
-        if (s.isCloseFriends) {
-          const creatorCFList = closeFriendsLists[s.creatorId] || [];
-          return creatorCFList.includes(currentUser.id);
-        }
-        return true;
-      });
-      // Admin stories sorted to the front, then by createdAt desc
+    },
+    [blockedUsers, closeFriendsLists, follows, users, _isAdminCreator]
+  );
+
+  /**
+   * Universal Story Tray — stories visible in the home-screen horizontal tray.
+   * Sorted: admin first → unseen → seen → by createdAt desc.
+   */
+  const getActiveStories = useCallback(
+    (): Story[] => {
+      if (!currentUser) return [];
+
+      const vid = String(currentUser.id);
+
+      console.log('[getActiveStories] currentUser.id=', vid, 'role=', currentUser.role);
+      console.log('[getActiveStories] total stories in DB:', stories.length);
+      console.log('[getActiveStories] follows count:', follows.length);
+      console.log('[getActiveStories] _adminId=', _adminId);
+
+      const visible = stories.filter((s) => _canViewStory(s, vid));
+
+      console.log('[getActiveStories] visible stories count:', visible.length, 'creators:', visible.map(s => s.creatorId));
+
       return visible.sort((a, b) => {
-        const aIsAdmin = a.creatorId === _adminId ? 1 : 0;
-        const bIsAdmin = b.creatorId === _adminId ? 1 : 0;
-        if (bIsAdmin !== aIsAdmin) return bIsAdmin - aIsAdmin;
+        const aAdmin = _isAdminCreator(String(a.creatorId)) ? 2 : 0;
+        const bAdmin = _isAdminCreator(String(b.creatorId)) ? 2 : 0;
+        if (aAdmin !== bAdmin) return bAdmin - aAdmin;
         return b.createdAt - a.createdAt;
       });
     },
-    [currentUser, stories, follows, blockedUsers, closeFriendsLists, _adminId]
+    [currentUser, stories, follows, _canViewStory, _isAdminCreator, _adminId]
   );
 
+  /**
+   * Stories for a specific user's profile — respects same permission rules.
+   * Sorted oldest → newest (story viewer progression order).
+   */
   const getUserStories = useCallback(
-    (userId: string) => {
+    (userId: string): Story[] => {
       if (!currentUser) return [];
-      const now = Date.now();
-      const isOwnStories = userId === currentUser.id;
-      const isAdminUser = userId === _adminId;
-      const isUserBlocked = blockedUsers.includes(userId);
-      if (isUserBlocked && !isOwnStories) return [];
-      const targetUser = users.find((u) => u.id === userId);
-      const isPublicAccount = !targetUser?.accountType || targetUser.accountType === "public";
-      const isFollowingUser = follows.some(
-        (f) => f.followerId === currentUser.id && f.followingId === userId && f.status === "accepted"
-      );
-      return stories
-        .filter((s) => {
-          if (s.creatorId !== userId || s.expiresAt <= now) return false;
-          // Own stories: always visible
-          if (isOwnStories) return true;
-          // Admin/Manager god-mode: bypass all follow checks
-          if (isAdminUser) return true;
-          // Mention bypass: if currentUser is mentioned, grant temporary view permission
-          if (s.mentions?.includes(currentUser.id)) return true;
-          // Close Friends: require following AND being in the CF list
-          if (s.isCloseFriends) {
-            if (!isFollowingUser) return false;
-            const creatorCFList = closeFriendsLists[userId] || [];
-            return creatorCFList.includes(currentUser.id);
-          }
-          // Public account: visible without following
-          if (isPublicAccount) return true;
-          // Private account: require following
-          return isFollowingUser;
-        })
+
+      const vid = String(currentUser.id);
+      const uid = String(userId);
+
+      console.log('[getUserStories] requested userId=', uid, 'viewer=', vid);
+
+      const result = stories
+        .filter((s) => String(s.creatorId) === uid && _canViewStory(s, vid))
         .sort((a, b) => a.createdAt - b.createdAt);
+
+      console.log('[getUserStories] result count for', uid, ':', result.length);
+      return result;
     },
-    [currentUser, stories, follows, blockedUsers, closeFriendsLists, _adminId, users]
+    [currentUser, stories, _canViewStory]
   );
 
+  /**
+   * Whether a user has any story the viewer has NOT yet seen.
+   */
   const hasUnseenStory = useCallback(
-    (userId: string) => {
+    (userId: string): boolean => {
       if (!currentUser) return false;
-      const now = Date.now();
-      const isAdminUser = userId === _adminId;
-      const isOwn = userId === currentUser.id;
-      const isUserBlocked = blockedUsers.includes(userId);
-      if (isUserBlocked && !isOwn) return false;
-      const targetUser = users.find((u) => u.id === userId);
-      const isPublicAccount = !targetUser?.accountType || targetUser.accountType === "public";
-      const isFollowingUser = follows.some(
-        (f) => f.followerId === currentUser.id && f.followingId === userId && f.status === "accepted"
+      const vid = String(currentUser.id);
+      const uid = String(userId);
+      return stories.some(
+        (s) =>
+          String(s.creatorId) === uid &&
+          !s.viewerIds.map(String).includes(vid) &&
+          _canViewStory(s, vid)
       );
-      return stories.some((s) => {
-        if (s.creatorId !== userId || s.expiresAt <= now) return false;
-        if (s.viewerIds.includes(currentUser.id)) return false;
-        // Own stories
-        if (isOwn) return true;
-        // Admin/Manager: god-mode bypass
-        if (isAdminUser) return true;
-        // Mention bypass: if mentioned, counts as unseen
-        if (s.mentions?.includes(currentUser.id)) return true;
-        // Close Friends: require following + in CF list
-        if (s.isCloseFriends) {
-          if (!isFollowingUser) return false;
-          const creatorCFList = closeFriendsLists[userId] || [];
-          return creatorCFList.includes(currentUser.id);
-        }
-        // Public account: visible without following
-        if (isPublicAccount) return true;
-        // Private account: require following
-        return isFollowingUser;
-      });
     },
-    [currentUser, stories, follows, blockedUsers, closeFriendsLists, _adminId, users]
+    [currentUser, stories, _canViewStory]
   );
 
   const updateCloseFriendsList = useCallback(
@@ -3273,58 +3302,67 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const getFeedPosts = useCallback(
     () => {
       if (!currentUser) return [];
-      const adminId = _adminId;
-      const isAdminBlocked = adminId ? blockedUsers.includes(adminId) : false;
-      const followingIds = follows
-        .filter((f) => f.followerId === currentUser.id && f.status === "accepted")
-        .map((f) => f.followingId);
-      const feedIds = new Set([currentUser.id, ...followingIds]);
-      // Admin 10x boost: admin posts always float to front and interleave between own/following posts
+      const vid = String(currentUser.id);
+      const followingIds = new Set(
+        follows
+          .filter((f) => String(f.followerId) === vid && f.status === "accepted")
+          .map((f) => String(f.followingId))
+      );
+      const feedIds = new Set([vid, ...followingIds]);
       const ADMIN_BOOST = 10;
       const getPostScore = (p: Post) => {
-        if (adminId && p.creatorId === adminId && !isAdminBlocked) {
-          // Multiply createdAt by 10x so admin content always scores higher than any non-admin post
-          return p.createdAt * ADMIN_BOOST;
-        }
+        const isAdmin = _isAdminCreator(String(p.creatorId));
+        const isBlocked = blockedUsers.map(String).includes(String(p.creatorId));
+        if (isAdmin && !isBlocked) return p.createdAt * ADMIN_BOOST;
         return p.createdAt;
       };
       return posts
         .filter((p) => {
-          if (p.isHidden && p.creatorId !== currentUser.id) return false;
-          // Admin content: always inject (unless blocked)
-          if (adminId && p.creatorId === adminId && !isAdminBlocked) return true;
-          // Own content + followed content
-          return feedIds.has(p.creatorId);
+          const pid = String(p.creatorId);
+          if (p.isHidden && pid !== vid) return false;
+          const isAdmin = _isAdminCreator(pid);
+          const isBlocked = blockedUsers.map(String).includes(pid);
+          // Admin content: inject into every feed (unless blocked)
+          if (isAdmin && !isBlocked) return true;
+          // Own + followed
+          return feedIds.has(pid);
         })
         .sort((a, b) => getPostScore(b) - getPostScore(a));
     },
-    [currentUser, posts, follows, _adminId, blockedUsers]
+    [currentUser, posts, follows, blockedUsers, _isAdminCreator]
   );
 
   const getFeedReels = useCallback(
     () => {
       if (!currentUser) return reels;
-      const adminId = _adminId;
-      const isAdminBlocked = adminId ? blockedUsers.includes(adminId) : false;
-      const followingIds = follows
-        .filter((f) => f.followerId === currentUser.id && f.status === "accepted")
-        .map((f) => f.followingId);
-      const feedIds = new Set([currentUser.id, ...followingIds]);
+      const vid = String(currentUser.id);
+      const followingIds = new Set(
+        follows
+          .filter((f) => String(f.followerId) === vid && f.status === "accepted")
+          .map((f) => String(f.followingId))
+      );
+      const feedIds = new Set([vid, ...followingIds]);
       const ADMIN_BOOST = 10;
       const VERIFIED_BOOST = 1.2;
       const getScore = (r: Reel) => {
-        if (adminId && r.creatorId === adminId && !isAdminBlocked) return r.createdAt * ADMIN_BOOST;
-        const creator = users.find((u) => u.id === r.creatorId);
-        const boost = isUserVerified(creator) ? VERIFIED_BOOST : 1;
-        return r.createdAt * boost;
+        const rid = String(r.creatorId);
+        const isAdmin = _isAdminCreator(rid);
+        const isBlocked = blockedUsers.map(String).includes(rid);
+        if (isAdmin && !isBlocked) return r.createdAt * ADMIN_BOOST;
+        const creator = users.find((u) => String(u.id) === rid);
+        return r.createdAt * (isUserVerified(creator) ? VERIFIED_BOOST : 1);
       };
-      const visibleReels = reels.filter((r) => {
-        if (adminId && r.creatorId === adminId && !isAdminBlocked) return true;
-        return feedIds.has(r.creatorId) || true;
-      });
-      return visibleReels.sort((a, b) => getScore(b) - getScore(a));
+      return reels
+        .filter((r) => {
+          const rid = String(r.creatorId);
+          const isAdmin = _isAdminCreator(rid);
+          const isBlocked = blockedUsers.map(String).includes(rid);
+          if (isAdmin && !isBlocked) return true;
+          return feedIds.has(rid) || true;
+        })
+        .sort((a, b) => getScore(b) - getScore(a));
     },
-    [currentUser, reels, follows, users, _adminId, blockedUsers]
+    [currentUser, reels, follows, users, blockedUsers, _isAdminCreator]
   );
 
   // ============================

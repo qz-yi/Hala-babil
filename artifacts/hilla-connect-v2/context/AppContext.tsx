@@ -3011,60 +3011,56 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const now = Date.now();
       const vid = String(currentUser.id);
 
-      // ── AUDIT LOGS (high-visibility so they stand out in the console) ──
-      console.error("╔══ [Zentram Story Engine] ══════════════════════════════");
-      console.error("║  Current User ID :", vid);
-      console.error("║  Current User Role:", currentUser.role ?? "none");
-      console.error("║  SUPER_ADMIN_PHONE:", SUPER_ADMIN_PHONE);
-      console.error("║  _adminId computed:", String(_adminId ?? "UNDEFINED — admin never logged in"));
-      console.error("║  Total stories DB :", stories.length);
-      console.error("║  Active (≤24h)    :", stories.filter(s => s.expiresAt > now).length);
-      console.error("║  Follows count    :", follows.length);
-      console.error("╚═══════════════════════════════════════════════════════");
-
-      // Build the four buckets using explicit String() comparisons
+      // IDs that currentUser is accepted-following
       const followingIds = follows
         .filter((f) => String(f.followerId) === vid && f.status === "accepted")
         .map((f) => String(f.followingId));
 
-      const active = stories.filter((s) => s.expiresAt > now);
+      const filteredStories = stories.filter((s) => {
+        // Must not be expired
+        if (s.expiresAt <= now) return false;
 
-      // ① Admin / Manager stories — god-mode, no follow required
-      const adminStories = active.filter((s) => _isAdminCreator(String(s.creatorId)));
-
-      // ② Own stories
-      const myStories = active.filter((s) => String(s.creatorId) === vid);
-
-      // ③ Followed users' non-close-friends stories
-      const followedStories = active.filter((s) => {
         const cid = String(s.creatorId);
-        if (!followingIds.includes(cid)) return false;
-        if (s.isCloseFriends) {
+
+        // ✅ PRIORITY 1 — Admin / Manager god-mode: always visible for everyone
+        if (_isAdminCreator(cid)) return true;
+
+        // ✅ PRIORITY 2 — Own stories: always visible to the creator
+        if (cid === vid) return true;
+
+        // Block filter applied AFTER own/admin so blocked users still see their own content
+        if (blockedUsers.map(String).includes(cid)) return false;
+
+        // ✅ PRIORITY 3 — Followed users' public (non-close-friends) stories
+        if (followingIds.includes(cid) && !s.isCloseFriends) return true;
+
+        // ✅ PRIORITY 3b — Followed users' close-friends stories: viewer must be in CF list
+        if (followingIds.includes(cid) && s.isCloseFriends) {
           const cfList = (closeFriendsLists[cid] || []).map(String);
           return cfList.includes(vid);
         }
-        return true;
+
+        // ✅ PRIORITY 4 — Mention bypass: story mentions current user → grant access
+        if (Array.isArray(s.mentions) && s.mentions.map(String).includes(vid)) return true;
+
+        return false;
       });
 
-      // ④ Mention bypass — stories that explicitly mention the current user
-      const mentionedStories = active.filter(
-        (s) => Array.isArray(s.mentions) && s.mentions.map(String).includes(vid)
-      );
+      // Required debug log
+      console.log("Found Stories:", filteredStories.length);
+      console.log("[Zentram Story Engine]", {
+        currentUserId: vid,
+        role: currentUser.role ?? "none",
+        adminId: String(_adminId ?? "NOT_FOUND — admin has never logged in on this device"),
+        totalStoriesInDB: stories.length,
+        activeStories: stories.filter((s) => s.expiresAt > now).length,
+        followingCount: followingIds.length,
+        visibleStories: filteredStories.length,
+        storyCreators: filteredStories.map((s) => String(s.creatorId)),
+      });
 
-      // Merge without duplicates (admin first, then own, then followed, then mentioned)
-      const seen = new Set<string>();
-      const merged: Story[] = [];
-      for (const s of [...adminStories, ...myStories, ...followedStories, ...mentionedStories]) {
-        if (!seen.has(s.id) && !blockedUsers.map(String).includes(String(s.creatorId))) {
-          seen.add(s.id);
-          merged.push(s);
-        }
-      }
-
-      console.error("║  Visible stories  :", merged.length, "| admin:", adminStories.length, "| own:", myStories.length, "| followed:", followedStories.length, "| mentioned:", mentionedStories.length);
-
-      // Sort: admin first → then most recent
-      return merged.sort((a, b) => {
+      // Sort: admin stories first → then most recent
+      return filteredStories.sort((a, b) => {
         const aA = _isAdminCreator(String(a.creatorId)) ? 1 : 0;
         const bA = _isAdminCreator(String(b.creatorId)) ? 1 : 0;
         if (aA !== bA) return bA - aA;

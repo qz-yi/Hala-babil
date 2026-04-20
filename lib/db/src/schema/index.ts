@@ -1,4 +1,5 @@
-import { pgTable, text, serial, timestamp, integer, boolean, decimal } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { pgTable, text, serial, timestamp, integer, boolean, decimal, jsonb } from "drizzle-orm/pg-core";
 
 // 0. جدول رموز OTP لإعادة تعيين كلمة المرور
 export const otps = pgTable("otps", {
@@ -143,13 +144,19 @@ export const postComments = pgTable("post_comments", {
 // 13. جدول القصص (Stories) - تختفي بعد 24 ساعة
 export const stories = pgTable("stories", {
   id: serial("id").primaryKey(),
-  creatorId: integer("creator_id").references(() => users.id),
-  mediaUrl: text("media_url").notNull(),
-  mediaType: text("media_type").default("image"), // image | video
+  creatorId: text("creator_id").notNull(),
+  imageUrl: text("image_url"),
+  content: text("content"),
+  isCloseFriends: boolean("is_close_friends").notNull().default(false),
+  mentions: jsonb("mentions").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  mediaUrl: text("media_url"),
+  mediaType: text("media_type").notNull().default("image"), // image | video
   caption: text("caption"),
-  filter: text("filter").default("none"),
-  expiresAt: timestamp("expires_at").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
+  filter: text("filter").notNull().default("none"),
+  sharedPost: jsonb("shared_post").$type<Record<string, unknown> | null>(),
+  viewerIds: jsonb("viewer_ids").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
 });
 
 // 14. مشاهدات القصص

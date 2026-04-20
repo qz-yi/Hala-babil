@@ -173,7 +173,9 @@ Arabic-first social communication platform built with Expo React Native.
 - `lib/db/src/schema/index.ts` — Full DB schema: posts, postLikes, postComments, stories, storyViews, follows, notifications
 
 ### Data Persistence
-All data stored in AsyncStorage (no live backend DB from mobile). The API server handles Agora token generation only.
+Stories are persisted in PostgreSQL through `/api/stories` and re-hydrated by the mobile AppContext when a saved user profile is loaded or a user logs in. Story `creatorId` is stored as text so it matches the app's locally generated user IDs used by follow filters. Stories expire exactly 24 hours after database insertion (`expires_at = created_at + 24 hours`) and `GET /api/stories` returns only unexpired stories.
+
+Most other mobile data is still stored in AsyncStorage. The API server also handles Agora token generation and OTP email endpoints.
 
 ### Super Admin
 - Phone: `07719820537`, Password: `1w2q3r4eSATHA2026$`

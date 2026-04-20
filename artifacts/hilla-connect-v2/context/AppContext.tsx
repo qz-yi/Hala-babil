@@ -401,7 +401,7 @@ interface AppContextValue {
   pinPostComment: (commentId: string) => void;
   getPostComments: (postId: string) => PostComment[];
   // Stories
-  addStory: (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter?: string, isCloseFriends?: boolean, mentions?: string[], sharedPost?: StorySharedPost) => void;
+  addStory: (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter?: string, isCloseFriends?: boolean, mentions?: string[], sharedPost?: StorySharedPost) => Promise<void>;
   deleteStory: (storyId: string) => void;
   viewStory: (storyId: string) => void;
   likeStory: (storyId: string) => void;
@@ -1231,6 +1231,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
     ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
     : "http://localhost:3000";
+
+  const loadStoriesFromServer = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/stories`);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || "stories_fetch_failed");
+      }
+
+      const serverStories: Story[] = (data.stories || [])
+        .map((raw: any) => ({
+          id: String(raw.id),
+          creatorId: String(raw.creatorId),
+          mediaUrl: raw.mediaUrl || raw.imageUrl || "",
+          mediaType: raw.mediaType === "video" ? "video" : "image",
+          caption: raw.caption ?? raw.content ?? undefined,
+          filter: raw.filter || "none",
+          viewerIds: Array.isArray(raw.viewerIds) ? raw.viewerIds.map(String) : [],
+          expiresAt: typeof raw.expiresAt === "number" ? raw.expiresAt : new Date(raw.expiresAt).getTime(),
+          createdAt: typeof raw.createdAt === "number" ? raw.createdAt : new Date(raw.createdAt).getTime(),
+          isCloseFriends: Boolean(raw.isCloseFriends),
+          mentions: Array.isArray(raw.mentions) ? raw.mentions.map(String) : undefined,
+          sharedPost: raw.sharedPost ?? undefined,
+        }))
+        .filter((story: Story) => story.expiresAt > Date.now());
+
+      setStories(serverStories);
+      await AsyncStorage.setItem("stories", JSON.stringify(serverStories));
+      console.log("[stories] Loaded active stories from database", { count: serverStories.length });
+    } catch (err) {
+      console.error("[stories] Failed to load stories from database", err);
+    }
+  }, [API_BASE]);
+
+  useEffect(() => {
+    if (currentUser) {
+      void loadStoriesFromServer();
+    }
+  }, [currentUser?.id, loadStoriesFromServer]);
 
   const sendEmailOTP = useCallback(
     async (email: string): Promise<{ success: boolean; error?: string }> => {
@@ -2746,24 +2785,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // STORIES
   // ============================
   const addStory = useCallback(
-    (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter = "none", isCloseFriends = false, mentions: string[] = [], sharedPost?: StorySharedPost) => {
+    async (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter = "none", isCloseFriends = false, mentions: string[] = [], sharedPost?: StorySharedPost) => {
       if (!currentUser) return;
-      const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
-      const story: Story = {
-        id: generateId(),
-        creatorId: currentUser.id,
-        mediaUrl,
-        mediaType,
-        caption,
-        filter,
-        viewerIds: [],
-        expiresAt,
-        createdAt: Date.now(),
-        isCloseFriends,
-        mentions: mentions.length > 0 ? mentions : undefined,
-        sharedPost,
-      };
-      saveStories([story, ...stories]);
+      let story: Story;
+      try {
+        const res = await fetch(`${API_BASE}/api/stories`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            creatorId: currentUser.id,
+            imageUrl: mediaUrl,
+            content: caption,
+            mediaType,
+            filter,
+            isCloseFriends,
+            mentions,
+            sharedPost,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || "story_insert_failed");
+        }
+        console.log("[stories] Database insertion result", data.story);
+        const raw = data.story;
+        story = {
+          id: String(raw.id),
+          creatorId: String(raw.creatorId),
+          mediaUrl: raw.mediaUrl || raw.imageUrl || mediaUrl,
+          mediaType: raw.mediaType === "video" ? "video" : "image",
+          caption: raw.caption ?? raw.content ?? caption,
+          filter: raw.filter || filter,
+          viewerIds: Array.isArray(raw.viewerIds) ? raw.viewerIds.map(String) : [],
+          expiresAt: typeof raw.expiresAt === "number" ? raw.expiresAt : new Date(raw.expiresAt).getTime(),
+          createdAt: typeof raw.createdAt === "number" ? raw.createdAt : new Date(raw.createdAt).getTime(),
+          isCloseFriends: Boolean(raw.isCloseFriends),
+          mentions: Array.isArray(raw.mentions) && raw.mentions.length > 0 ? raw.mentions.map(String) : undefined,
+          sharedPost: raw.sharedPost ?? sharedPost,
+        };
+        if (story.expiresAt <= Date.now()) {
+          throw new Error("story_expiration_invalid");
+        }
+        saveStories([story, ...stories.filter((s) => s.id !== story.id)]);
+      } catch (err) {
+        console.error("[stories] Failed to insert story into database", err);
+        throw err;
+      }
       // Notify mentioned users
       mentions.forEach((mentionedId) => {
         const mentionedUser = users.find((u) => u.id === mentionedId);
@@ -2800,7 +2867,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         saveNotifications([notif, ...notifications]);
       }
     },
-    [currentUser, stories, users, notifications]
+    [API_BASE, currentUser, stories, users, notifications]
   );
 
   const deleteStory = useCallback(

@@ -156,6 +156,7 @@ export const stories = pgTable("stories", {
   caption: text("caption"),
   filter: text("filter").notNull().default("none"),
   sharedPost: jsonb("shared_post").$type<Record<string, unknown> | null>(),
+  overlays: jsonb("overlays").$type<{ text: string }[]>().notNull().default(sql`'[]'::jsonb`),
   viewerIds: jsonb("viewer_ids").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
 });
 

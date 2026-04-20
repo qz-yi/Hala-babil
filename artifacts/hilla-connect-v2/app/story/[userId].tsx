@@ -107,6 +107,34 @@ function StoryVideoPlayer({
   );
 }
 
+function MentionCaption({ text, users }: { text: string; users: any[] }) {
+  const parts: React.ReactNode[] = [];
+  const regex = /@([\w\u0600-\u06FF]+)/g;
+  let lastIndex = 0;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+    const handle = match[1].toLowerCase();
+    const mentioned = users.find((u) =>
+      u.username?.toLowerCase() === handle ||
+      u.name?.toLowerCase().replace(/\s+/g, "_") === handle ||
+      u.email?.toLowerCase() === handle
+    );
+    parts.push(
+      <Text
+        key={`${match.index}-${match[0]}`}
+        style={styles.captionMention}
+        onPress={() => mentioned && router.push(`/profile/${mentioned.id}` as any)}
+      >
+        {match[0]}
+      </Text>
+    );
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return <Text style={styles.captionText}>{parts}</Text>;
+}
+
 // ─── Share Story Modal ───
 function ShareStoryModal({
   visible,
@@ -316,25 +344,33 @@ export default function StoryViewerScreen() {
   const handleAddToMyStory = () => {
     if (!currentStory) return;
     setPaused(true);
-    shareContentToStory(
-      "post",
-      currentStory.id,
-      currentStory.mediaUrl,
-      currentStory.caption,
-      user?.name,
-      userId,
-    );
-    setAddedToStory(true);
-    setPaused(false);
+    router.push({
+      pathname: "/create-story",
+      params: {
+        sharedType: "story",
+        sharedId: currentStory.id,
+        originalStoryId: currentStory.id,
+        sharedMediaUrl: currentStory.mediaUrl,
+        sharedCaption: currentStory.caption || "",
+        sharedCreatorName: user?.username || user?.name || "",
+        sharedCreatorId: userId,
+        sharedCreatorAvatar: user?.avatar || "",
+      },
+    } as any);
   };
 
   const handleSharedPostPress = () => {
     if (!currentStory?.sharedPost) return;
     const sp = currentStory.sharedPost;
+    const targetId = sp.originalStoryId || sp.id;
+    if (sp.type === "story") {
+      router.push(`/story/${sp.creatorId || userId}?storyId=${targetId}` as any);
+      return;
+    }
     if (sp.type === "reel") {
       router.push("/(tabs)/reels" as any);
     } else {
-      router.push(`/post/${sp.id}` as any);
+      router.push(`/post/${targetId}` as any);
     }
   };
 
@@ -479,7 +515,7 @@ export default function StoryViewerScreen() {
             )}
             <View>
               <Text style={styles.sharedStickerLabel}>
-                {currentStory.sharedPost.type === "reel" ? "مقطع" : "منشور"} • {currentStory.sharedPost.creatorName}
+                {currentStory.sharedPost.type === "story" ? "قصة" : currentStory.sharedPost.type === "reel" ? "مقطع" : "منشور"} • {currentStory.sharedPost.creatorName}
               </Text>
               <Text style={styles.sharedStickerTap}>اضغط للعرض</Text>
             </View>
@@ -488,10 +524,16 @@ export default function StoryViewerScreen() {
         </TouchableOpacity>
       )}
 
+      {currentStory.overlays?.map((overlay, index) => (
+        <View key={`${overlay.text}-${index}`} style={[styles.viewerOverlayLabel, { top: `${34 + index * 9}%` as any }]}>
+          <Text style={styles.viewerOverlayText}>{overlay.text}</Text>
+        </View>
+      ))}
+
       {/* Caption */}
       {currentStory.caption ? (
         <View style={[styles.captionWrap, { bottom: isMyStory ? 60 : (iAmMentioned ? 200 : 130) }]}>
-          <Text style={styles.captionText}>{currentStory.caption}</Text>
+          <MentionCaption text={currentStory.caption} users={users} />
         </View>
       ) : null}
 
@@ -775,6 +817,9 @@ const styles = StyleSheet.create({
     color: "#fff", fontFamily: "Inter_500Medium", fontSize: 16, textAlign: "center",
     textShadowColor: "rgba(0,0,0,0.5)", textShadowRadius: 8,
   },
+  captionMention: { color: "#3D91F4", fontFamily: "Inter_700Bold" },
+  viewerOverlayLabel: { position: "absolute", alignSelf: "center", backgroundColor: "rgba(0,0,0,0.42)", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: "rgba(61,145,244,0.55)" },
+  viewerOverlayText: { color: "#fff", fontFamily: "Inter_800ExtraBold", fontSize: 22, textAlign: "center", textShadowColor: "rgba(0,0,0,0.75)", textShadowRadius: 8 },
 
   mentionsRow: {
     position: "absolute", left: 20, right: 20,

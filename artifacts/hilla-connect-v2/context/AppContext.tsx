@@ -7,6 +7,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { router } from "expo-router";
 
 export type Language = "ar" | "en";
 export type Theme = "light" | "dark";
@@ -226,11 +227,13 @@ export interface PostComment {
 
 export interface StorySharedPost {
   id: string;
-  type: "post" | "reel";
+  type: "post" | "reel" | "story";
   mediaUrl?: string;
   caption?: string;
   creatorName?: string;
   creatorId?: string;
+  creatorAvatar?: string;
+  originalStoryId?: string;
 }
 
 export interface Story {
@@ -246,6 +249,7 @@ export interface Story {
   isCloseFriends?: boolean;
   mentions?: string[];
   sharedPost?: StorySharedPost;
+  overlays?: { text: string }[];
 }
 
 export interface Follow {
@@ -401,7 +405,7 @@ interface AppContextValue {
   pinPostComment: (commentId: string) => void;
   getPostComments: (postId: string) => PostComment[];
   // Stories
-  addStory: (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter?: string, isCloseFriends?: boolean, mentions?: string[], sharedPost?: StorySharedPost) => Promise<void>;
+  addStory: (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter?: string, isCloseFriends?: boolean, mentions?: string[], sharedPost?: StorySharedPost, overlays?: { text: string }[]) => Promise<void>;
   deleteStory: (storyId: string) => void;
   viewStory: (storyId: string) => void;
   likeStory: (storyId: string) => void;
@@ -2785,7 +2789,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // STORIES
   // ============================
   const addStory = useCallback(
-    async (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter = "none", isCloseFriends = false, mentions: string[] = [], sharedPost?: StorySharedPost) => {
+    async (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter = "none", isCloseFriends = false, mentions: string[] = [], sharedPost?: StorySharedPost, overlays: { text: string }[] = []) => {
       if (!currentUser) return;
       let story: Story;
       try {
@@ -2801,6 +2805,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             isCloseFriends,
             mentions,
             sharedPost,
+            overlays,
           }),
         });
         const data = await res.json();
@@ -2822,6 +2827,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           isCloseFriends: Boolean(raw.isCloseFriends),
           mentions: Array.isArray(raw.mentions) && raw.mentions.length > 0 ? raw.mentions.map(String) : undefined,
           sharedPost: raw.sharedPost ?? sharedPost,
+          overlays: Array.isArray(raw.overlays) ? raw.overlays : overlays,
         };
         if (story.expiresAt <= Date.now()) {
           throw new Error("story_expiration_invalid");
@@ -2831,11 +2837,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.error("[stories] Failed to insert story into database", err);
         throw err;
       }
-      // Notify mentioned users
+      const storyNotifications: AppNotification[] = [];
+      // Notify mentioned users parsed from the story caption
       mentions.forEach((mentionedId) => {
         const mentionedUser = users.find((u) => u.id === mentionedId);
         if (!mentionedUser || mentionedId === currentUser.id) return;
-        const notif: AppNotification = {
+        storyNotifications.push({
           id: generateId(),
           recipientId: mentionedId,
           senderId: currentUser.id,
@@ -2846,13 +2853,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           message: `ذكرك ${currentUser.name} في قصته`,
           isRead: false,
           createdAt: Date.now(),
-        };
-        saveNotifications([notif, ...notifications]);
+        });
       });
       // Notify content creator when sharing their post/reel to story
       if (sharedPost && sharedPost.creatorId && sharedPost.creatorId !== currentUser.id) {
-        const contentLabel = sharedPost.type === "reel" ? "مقطعك" : "منشورك";
-        const notif: AppNotification = {
+        const contentLabel = sharedPost.type === "story" ? "قصتك" : sharedPost.type === "reel" ? "مقطعك" : "منشورك";
+        storyNotifications.push({
           id: generateId(),
           recipientId: sharedPost.creatorId,
           senderId: currentUser.id,
@@ -2863,9 +2869,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           message: `قام ${currentUser.name} بمشاركة ${contentLabel} في قصته`,
           isRead: false,
           createdAt: Date.now(),
-        };
-        saveNotifications([notif, ...notifications]);
+        });
       }
+      if (storyNotifications.length > 0) saveNotifications([...storyNotifications, ...notifications]);
     },
     [API_BASE, currentUser, stories, users, notifications]
   );
@@ -3040,29 +3046,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // ③ Admin / Manager god-mode: always visible (no follow required)
       if (_isAdminCreator(cid)) return true;
 
-      // ④ Mention bypass: if viewer is mentioned, grant temporary view access
-      if (Array.isArray(s.mentions) && s.mentions.map(String).includes(vid)) return true;
+      // ④ Strict follower gate: regular stories are visible only to followers.
+      const isFollowingCreator = follows.some(
+        (f) => String(f.followerId) === vid && String(f.followingId) === cid && f.status === "accepted"
+      );
+      if (!isFollowingCreator) return false;
 
       // ⑤ Close Friends: require following + in creator's CF list
       if (s.isCloseFriends) {
         const creatorCFList = (closeFriendsLists[cid] || []).map(String);
         if (!creatorCFList.includes(vid)) return false;
-        // Also must follow
-        const isFollowing = follows.some(
-          (f) => String(f.followerId) === vid && String(f.followingId) === cid && f.status === "accepted"
-        );
-        return isFollowing;
+        return true;
       }
 
-      // ⑥ Public account: visible to anyone (no follow required)
-      const creator = users.find((u) => String(u.id) === cid);
-      const isPublic = !creator?.accountType || creator.accountType === "public";
-      if (isPublic) return true;
-
-      // ⑦ Private account: require following
-      return follows.some(
-        (f) => String(f.followerId) === vid && String(f.followingId) === cid && f.status === "accepted"
-      );
+      return true;
     },
     [blockedUsers, closeFriendsLists, follows, users, _isAdminCreator]
   );
@@ -3106,9 +3103,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const cfList = (closeFriendsLists[cid] || []).map(String);
           return cfList.includes(vid);
         }
-
-        // ✅ PRIORITY 4 — Mention bypass: story mentions current user → grant access
-        if (Array.isArray(s.mentions) && s.mentions.map(String).includes(vid)) return true;
 
         return false;
       });
@@ -3195,38 +3189,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const shareContentToStory = useCallback(
     (type: "post" | "reel", id: string, mediaUrl?: string, caption?: string, creatorName?: string, creatorId?: string) => {
       if (!currentUser) return;
-      const sharedPost: StorySharedPost = { id, type, mediaUrl, caption, creatorName, creatorId };
-      const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
-      const story: Story = {
-        id: generateId(),
-        creatorId: currentUser.id,
-        mediaUrl: mediaUrl || "",
-        mediaType: "image",
-        filter: "none",
-        viewerIds: [],
-        expiresAt,
-        createdAt: Date.now(),
-        sharedPost,
-      };
-      saveStories([story, ...stories]);
-      if (creatorId && creatorId !== currentUser.id) {
-        const contentLabel = type === "reel" ? "مقطعك" : "منشورك";
-        const notif: AppNotification = {
-          id: generateId(),
-          recipientId: creatorId,
-          senderId: currentUser.id,
-          senderName: currentUser.name,
-          senderAvatar: currentUser.avatar,
-          type: "story",
-          referenceId: id,
-          message: `قام ${currentUser.name} بمشاركة ${contentLabel} في قصته`,
-          isRead: false,
-          createdAt: Date.now(),
-        };
-        saveNotifications([notif, ...notifications]);
-      }
+      router.push({
+        pathname: "/create-story",
+        params: {
+          sharedType: type,
+          sharedId: id,
+          sharedMediaUrl: mediaUrl || "",
+          sharedCaption: caption || "",
+          sharedCreatorName: creatorName || "",
+          sharedCreatorId: creatorId || "",
+        },
+      } as any);
     },
-    [currentUser, stories, notifications]
+    [currentUser]
   );
 
   // ============================

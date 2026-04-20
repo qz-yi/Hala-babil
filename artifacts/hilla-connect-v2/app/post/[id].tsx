@@ -48,6 +48,44 @@ function PostVideo({ uri, style }: { uri: string; style?: any }) {
   );
 }
 
+function CommentStoryAvatar({
+  user,
+  fallbackName,
+  color,
+  hasStory,
+  hasUnseen,
+  onPress,
+}: {
+  user?: { avatar?: string };
+  fallbackName: string;
+  color: string;
+  hasStory: boolean;
+  hasUnseen: boolean;
+  onPress: () => void;
+}) {
+  const avatar = (
+    <View style={[styles.miniAvatar, { backgroundColor: `${color}33` }]}>
+      {user?.avatar ? (
+        <Image source={{ uri: user.avatar }} style={StyleSheet.absoluteFill as any} />
+      ) : (
+        <Text style={[styles.miniAvatarText, { color }]}>{fallbackName[0]?.toUpperCase()}</Text>
+      )}
+    </View>
+  );
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
+      {hasStory ? (
+        <LinearGradient
+          colors={hasUnseen ? ["#00C853", "#3D91F4", "#D6249F"] : ["#555", "#333"]}
+          style={styles.commentStoryRing}
+        >
+          {avatar}
+        </LinearGradient>
+      ) : avatar}
+    </TouchableOpacity>
+  );
+}
+
 // ─── Filter overlay ───
 const FILTER_OVERLAY: Record<string, string> = {
   none: "transparent",
@@ -159,6 +197,7 @@ function CommentsSheet({
   const {
     users, currentUser, getPostComments, addPostComment,
     deletePostComment, likePostComment, isPostCommentLiked, pinPostComment, banUser, getPostCommentLikers, t,
+    getUserStories, hasUnseenStory,
   } = useApp();
   const [commentText, setCommentText] = useState("");
   const [likersCommentId, setLikersCommentId] = useState<string | null>(null);
@@ -266,6 +305,8 @@ function CommentsSheet({
             const liked = isPostCommentLiked(item.id);
             const likesCount = item.likedBy.length;
             const canOptions = currentUser?.id === item.userId || isPostOwner;
+            const commenterStories = commenter ? getUserStories(commenter.id) : [];
+            const commenterHasStory = commenterStories.length > 0;
 
             return (
               <View
@@ -283,17 +324,14 @@ function CommentsSheet({
                     <Text style={[styles.pinnedText, { color: colors.tint }]}>مثبّت</Text>
                   </View>
                 )}
-                <TouchableOpacity
-                  onPress={() => commenter && router.push(`/profile/${commenter.id}`)}
-                  style={[styles.miniAvatar, { backgroundColor: `${color}33` }]}
-                  activeOpacity={0.8}
-                >
-                  {commenter?.avatar ? (
-                    <Image source={{ uri: commenter.avatar }} style={StyleSheet.absoluteFill as any} />
-                  ) : (
-                    <Text style={[styles.miniAvatarText, { color }]}>{item.userName[0]?.toUpperCase()}</Text>
-                  )}
-                </TouchableOpacity>
+                <CommentStoryAvatar
+                  user={commenter}
+                  fallbackName={item.userName}
+                  color={color}
+                  hasStory={commenterHasStory}
+                  hasUnseen={commenter ? hasUnseenStory(commenter.id) : false}
+                  onPress={() => commenter && router.push(commenterHasStory ? `/story/${commenter.id}` as any : `/profile/${commenter.id}` as any)}
+                />
                 <View style={{ flex: 1 }}>
                   <TouchableOpacity onPress={() => commenter && router.push(`/profile/${commenter.id}`)} activeOpacity={0.8} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                     <Text style={[styles.commentUser, { color: colors.tint }]}>{item.userName}</Text>
@@ -941,6 +979,7 @@ const styles = StyleSheet.create({
     overflow: "hidden", alignItems: "center", justifyContent: "center",
     flexShrink: 0,
   },
+  commentStoryRing: { width: 44, height: 44, borderRadius: 15, padding: 3, alignItems: "center", justifyContent: "center" },
   miniAvatarText: { fontSize: 15, fontFamily: "Inter_700Bold" },
   commentUser: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginBottom: 2 },
   commentContent: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },

@@ -53,6 +53,44 @@ function getFilterOverlay(filter: ReelFilter): string {
   return FILTERS.find((f) => f.key === filter)?.overlay ?? "transparent";
 }
 
+function CommentStoryAvatar({
+  avatar,
+  fallbackName,
+  color,
+  hasStory,
+  hasUnseen,
+  onPress,
+}: {
+  avatar?: string;
+  fallbackName: string;
+  color: string;
+  hasStory: boolean;
+  hasUnseen: boolean;
+  onPress: () => void;
+}) {
+  const inner = (
+    <View style={[styles.commentAvatar, { backgroundColor: color }]}>
+      {avatar ? (
+        <Image source={{ uri: avatar }} style={styles.commentAvatarImg} />
+      ) : (
+        <Text style={styles.commentAvatarText}>{fallbackName[0]?.toUpperCase()}</Text>
+      )}
+    </View>
+  );
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
+      {hasStory ? (
+        <LinearGradient
+          colors={hasUnseen ? ["#00C853", "#3D91F4", "#D6249F"] : ["#555", "#333"]}
+          style={styles.commentStoryRing}
+        >
+          {inner}
+        </LinearGradient>
+      ) : inner}
+    </TouchableOpacity>
+  );
+}
+
 // ───── Reel Player ─────
 function ReelPlayerItem({
   reel,
@@ -274,6 +312,7 @@ function CommentSheet({
     getReelComments, addReelComment, deleteReelComment, users, currentUser,
     likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers,
     banUser, t,
+    getUserStories, hasUnseenStory,
   } = useApp();
   const [text, setText] = useState("");
   const [likersCommentId, setLikersCommentId] = useState<string | null>(null);
@@ -292,6 +331,11 @@ function CommentSheet({
   const handleNavigateToProfile = (userId: string) => {
     onClose();
     router.push(`/profile/${userId}` as any);
+  };
+
+  const handleNavigateToStoryOrProfile = (userId: string, hasStory: boolean) => {
+    onClose();
+    router.push(hasStory ? `/story/${userId}` as any : `/profile/${userId}` as any);
   };
 
   const handleLongPressComment = (item: any) => {
@@ -353,6 +397,8 @@ function CommentSheet({
             const accentColor = ACCENT_COLORS[item.userId.length % ACCENT_COLORS.length];
             const liked = isReelCommentLiked(item.id);
             const likesCount = item.likedBy?.length ?? 0;
+            const commenterStories = commenter ? getUserStories(commenter.id) : [];
+            const commenterHasStory = commenterStories.length > 0;
 
             return (
               <TouchableOpacity
@@ -369,17 +415,14 @@ function CommentSheet({
                     <Text style={styles.pinnedText}>مثبّت</Text>
                   </View>
                 )}
-                <TouchableOpacity
-                  onPress={() => handleNavigateToProfile(item.userId)}
-                  activeOpacity={0.8}
-                  style={[styles.commentAvatar, { backgroundColor: accentColor }]}
-                >
-                  {item.userAvatar ? (
-                    <Image source={{ uri: item.userAvatar }} style={styles.commentAvatarImg} />
-                  ) : (
-                    <Text style={styles.commentAvatarText}>{item.userName[0]?.toUpperCase()}</Text>
-                  )}
-                </TouchableOpacity>
+                <CommentStoryAvatar
+                  avatar={item.userAvatar}
+                  fallbackName={item.userName}
+                  color={accentColor}
+                  hasStory={commenterHasStory}
+                  hasUnseen={commenter ? hasUnseenStory(commenter.id) : false}
+                  onPress={() => handleNavigateToStoryOrProfile(item.userId, commenterHasStory)}
+                />
                 <View style={styles.commentBody}>
                   <TouchableOpacity onPress={() => handleNavigateToProfile(item.userId)} activeOpacity={0.8} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                     <Text style={[styles.commentUser, { color: "#3D91F4" }]}>
@@ -1028,6 +1071,7 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 12,
     alignItems: "center", justifyContent: "center", overflow: "hidden",
   },
+  commentStoryRing: { width: 42, height: 42, borderRadius: 15, padding: 3, alignItems: "center", justifyContent: "center" },
   commentAvatarImg: { width: "100%", height: "100%" },
   commentAvatarText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 14 },
   commentBody: { flex: 1 },

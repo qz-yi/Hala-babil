@@ -188,6 +188,11 @@ Most other mobile data is still stored in AsyncStorage. The API server also hand
 - **Auto-advance to next user**: When a user's last story ends, automatically navigates to the next user's stories (using `router.replace`) instead of going back to home
 - **Filter real application**: Story filters now apply via `expo-image-manipulator` before publishing (not just visual overlay)
 - **Filter preview overlay**: Shows live overlay on image while selecting filter, with active filter badge
+- **Phase 4 story visibility**: Story visibility is strict follower-only, plus own stories and admin/manager global stories; public accounts no longer bypass follow requirements for stories.
+- **Unified story mentions**: The separate story mention picker was removed from the UI. `@username` typed in the story caption is parsed, notifies mentioned users, and renders as tappable mention text in story view.
+- **Mention repost editor flow**: "Add to my story" from a story mention opens `/create-story` with the original story as a sticker instead of publishing immediately. Reposted story stickers preserve `originalStoryId`.
+- **Comment story rings**: Post and reel comment avatars show a green/blue/pink story ring when that commenter has an active visible story; tapping the avatar opens their story directly.
+- **Story editor tools**: Image stories support rotate, horizontal/vertical flip, center crop, and draggable text/sticker overlays using the dark Zentram theme.
 
 #### Post Creation
 - **Image/Video tabs**: Separate tabs at top of create post screen — image tab uses `ImagePicker.MediaTypeOptions.Images`, video tab uses `Videos`

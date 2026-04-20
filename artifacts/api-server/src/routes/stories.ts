@@ -22,6 +22,7 @@ function normalizeStory(row: Record<string, unknown>) {
     mediaType: row["media_type"] === "video" ? "video" : "image",
     filter: (row["filter"] as string | null) ?? "none",
     sharedPost: row["shared_post"] ?? undefined,
+    overlays: Array.isArray(row["overlays"]) ? row["overlays"] : [],
     viewerIds: Array.isArray(row["viewer_ids"]) ? row["viewer_ids"] : [],
   };
 }
@@ -29,7 +30,7 @@ function normalizeStory(row: Record<string, unknown>) {
 router.get("/stories", async (_req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, creator_id, image_url, content, is_close_friends, mentions, expires_at, created_at, media_type, filter, shared_post, viewer_ids, media_url, caption
+      `SELECT id, creator_id, image_url, content, is_close_friends, mentions, expires_at, created_at, media_type, filter, shared_post, overlays, viewer_ids, media_url, caption
        FROM stories
        WHERE expires_at > NOW()
        ORDER BY created_at DESC`,
@@ -54,6 +55,7 @@ router.post("/stories", async (req, res) => {
     isCloseFriends = false,
     mentions = [],
     sharedPost = null,
+    overlays = [],
   } = req.body as {
     creatorId?: string;
     imageUrl?: string;
@@ -65,6 +67,7 @@ router.post("/stories", async (req, res) => {
     isCloseFriends?: boolean;
     mentions?: string[];
     sharedPost?: Record<string, unknown> | null;
+    overlays?: { text: string }[];
   };
 
   const finalImageUrl = imageUrl ?? mediaUrl;
@@ -84,10 +87,10 @@ router.post("/stories", async (req, res) => {
   try {
     const result = await pool.query(
       `INSERT INTO stories
-        (creator_id, image_url, content, is_close_friends, mentions, expires_at, created_at, media_type, filter, shared_post, viewer_ids, media_url, caption)
+        (creator_id, image_url, content, is_close_friends, mentions, expires_at, created_at, media_type, filter, shared_post, overlays, viewer_ids, media_url, caption)
        VALUES
-        ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10::jsonb, '[]'::jsonb, $2, $3)
-       RETURNING id, creator_id, image_url, content, is_close_friends, mentions, expires_at, created_at, media_type, filter, shared_post, viewer_ids, media_url, caption`,
+        ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10::jsonb, $11::jsonb, '[]'::jsonb, $2, $3)
+       RETURNING id, creator_id, image_url, content, is_close_friends, mentions, expires_at, created_at, media_type, filter, shared_post, overlays, viewer_ids, media_url, caption`,
       [
         creatorId,
         finalImageUrl,
@@ -99,6 +102,7 @@ router.post("/stories", async (req, res) => {
         mediaType === "video" ? "video" : "image",
         filter,
         JSON.stringify(sharedPost),
+        JSON.stringify(Array.isArray(overlays) ? overlays : []),
       ],
     );
 

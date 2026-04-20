@@ -1,0 +1,56 @@
+URGENT: Zentram Stories Evolution (Phase 4 - Professional Features & UI)
+
+​Objective: Upgrade the Stories system to a professional standard (Instagram-style). Fix visibility bugs, enhance the editor, and unify the mention system.
+
+​1️⃣ Visibility & Social Circle Logic
+
+​Follower Filter (Strict): Update getActiveStories. A user should ONLY see stories from: 
+
+​People they Follow (check following array).
+
+​Their Own stories.
+
+​Admin/Manager stories (Global Bypass).
+
+​Comment Avatar Rings: In the Comments section (Posts/Reels), if a user has an active story, their profile picture MUST have the Animated Gradient Ring. 
+
+​Action: Clicking the avatar in comments should navigate directly to their StoryView.
+
+​2️⃣ Unified Story Editor & Mentions
+
+​Integrated Mentions: REMOVE the separate "@" input field.
+
+​Logic: The Story Description/Caption field must now support Dynamic Mentions. If a user types @username in the description, the system should: 
+
+​Parse the mention.
+
+​Notify the mentioned user.
+
+​Make the text interactive in the story view.
+
+​Pro-Editor Tools: When selecting a photo/video for a story, open an Intermediate Editor Screen with: 
+
+​Image Manipulation: Tools to Crop, Flip (Horizontal/Vertical), and Rotate.
+
+​Overlay Engine: Ability to add Multiple Text Labels or Stickers.
+
+​Draggable Components: Use PanResponder or react-native-gesture-handler to allow the user to move, scale, and rotate text/mentions anywhere on the screen before posting.
+
+​3️⃣ The Reposting Workflow (Mention Chain)
+
+​Mention Reposting UI: When a user clicks "Add to my story" from a mention: 
+
+​DO NOT post immediately.
+
+​ACTION: Open the Editor with the original story as a "Sticker" in the center.
+
+​Styling: Add the original creator's username and avatar at the top of the sticker (Instagram-style).
+
+​Fix "Post Unavailable" Bug: When a user taps on a reposted story, ensure the navigation.navigate uses the correct originalStoryId and bypasses private account restrictions for that specific link.
+
+​4️⃣ Technical Refinements
+
+​Zentram Theme: Ensure all new UI elements (Buttons, Sliders, Borders) follow the Professional Dark Theme (#000000 background, Vibrant Green/Blue accents).
+
+​Performance: Use FlashList for the stories tray if it becomes heavy.
+

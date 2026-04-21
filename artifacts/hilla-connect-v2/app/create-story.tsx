@@ -11,6 +11,7 @@ import {
   Dimensions,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   PanResponder,
@@ -23,6 +24,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ACCENT_COLORS } from "@/constants/colors";
@@ -226,7 +228,14 @@ function VideoPreview({ uri, filter }: { uri: string; filter: string }) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// DRAGGABLE TEXT OVERLAY (move + continuous scale + rotate)
+// DRAGGABLE TEXT OVERLAY
+// Gestures:
+//  - Single-tap        → activate
+//  - Double-tap        → edit
+//  - Pan (1 finger)    → move
+//  - Pinch (2 fingers) → linear scale via event.scale
+//  - Scale handle drag → linear scale: NewScale = StartScale * (CurrentDist / StartDist)
+//  - Rotate handle drag→ continuous angular rotation
 // ────────────────────────────────────────────────────────────────────────────
 function DraggableText({
   overlay,
@@ -251,6 +260,7 @@ function DraggableText({
   const wrapRef = useRef<View>(null);
   const wrapCenter = useRef({ x: 0, y: 0 });
 
+  // Sync external changes to refs
   useEffect(() => {
     pan.setValue({ x: overlay.x, y: overlay.y });
     lastPos.current = { x: overlay.x, y: overlay.y };
@@ -260,98 +270,162 @@ function DraggableText({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overlay.id]);
 
-  const measureCenter = () => {
-    return new Promise<void>((resolve) => {
-      if (!wrapRef.current) return resolve();
-      wrapRef.current.measureInWindow((x, y, w, h) => {
+  // Continuously cache wrap center in window coords (re-measured on layout/active changes)
+  const remeasure = () => {
+    setTimeout(() => {
+      wrapRef.current?.measureInWindow((x, y, w, h) => {
         wrapCenter.current = { x: x + w / 2, y: y + h / 2 };
-        resolve();
       });
-    });
+    }, 0);
   };
+  useEffect(() => {
+    remeasure();
+  }, [overlay.id, active, overlay.x, overlay.y]);
 
-  // ── Move responder ──
-  const moveResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2,
-      onPanResponderGrant: () => {
-        onActivate();
-        pan.setOffset({ x: lastPos.current.x, y: lastPos.current.y });
-        pan.setValue({ x: 0, y: 0 });
-      },
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
-      onPanResponderRelease: (_, g) => {
-        const nx = lastPos.current.x + g.dx;
-        const ny = lastPos.current.y + g.dy;
-        lastPos.current = { x: nx, y: ny };
-        pan.flattenOffset();
-        onChange({ x: nx, y: ny });
-      },
-    }),
-  ).current;
+  // ── PAN (move text) ──
+  const panStart = useRef({ x: 0, y: 0 });
+  const panGesture = Gesture.Pan()
+    .runOnJS(true)
+    .maxPointers(1)
+    .minDistance(2)
+    .onBegin(() => {
+      onActivate();
+      panStart.current = { x: lastPos.current.x, y: lastPos.current.y };
+      pan.setOffset(panStart.current);
+      pan.setValue({ x: 0, y: 0 });
+    })
+    .onUpdate((e) => {
+      pan.setValue({ x: e.translationX, y: e.translationY });
+    })
+    .onEnd((e) => {
+      const nx = panStart.current.x + e.translationX;
+      const ny = panStart.current.y + e.translationY;
+      lastPos.current = { x: nx, y: ny };
+      pan.flattenOffset();
+      onChange({ x: nx, y: ny });
+      remeasure();
+    });
 
-  // ── Scale handle (continuous drag) ──
-  const scaleStartDist = useRef(1);
+  // ── PINCH (two-finger zoom) ──
+  const pinchStart = useRef(1);
+  const pinchGesture = Gesture.Pinch()
+    .runOnJS(true)
+    .onBegin(() => {
+      pinchStart.current = scaleRef.current;
+      onActivate();
+    })
+    .onUpdate((e) => {
+      const next = Math.max(0.4, Math.min(6, pinchStart.current * e.scale));
+      scaleRef.current = next;
+      force((n) => n + 1);
+    })
+    .onEnd(() => {
+      onChange({ scale: scaleRef.current });
+    });
+
+  // ── DOUBLE TAP (edit) ──
+  const doubleTap = Gesture.Tap()
+    .runOnJS(true)
+    .numberOfTaps(2)
+    .maxDuration(280)
+    .onEnd((_e, success) => {
+      if (success) onEdit();
+    });
+
+  // ── SINGLE TAP (activate, only if not consumed by double-tap) ──
+  const singleTap = Gesture.Tap()
+    .runOnJS(true)
+    .numberOfTaps(1)
+    .maxDuration(220)
+    .onEnd((_e, success) => {
+      if (success) onActivate();
+    });
+
+  const tapGesture = Gesture.Exclusive(doubleTap, singleTap);
+  const bodyGesture = Gesture.Race(tapGesture, Gesture.Simultaneous(panGesture, pinchGesture));
+
+  // ── SCALE HANDLE (drag) — proper linear: NewScale = StartScale * (Dist / StartDist) ──
+  const scaleStartDist = useRef(0);
   const scaleStartScale = useRef(1);
-  const scaleResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: async (e) => {
-        onActivate();
-        await measureCenter();
-        const tx = e.nativeEvent.pageX;
-        const ty = e.nativeEvent.pageY;
+  const scaleHandleGesture = Gesture.Pan()
+    .runOnJS(true)
+    .minDistance(0)
+    .onBegin((e) => {
+      onActivate();
+      scaleStartScale.current = scaleRef.current;
+      scaleStartDist.current = 0;
+      wrapRef.current?.measureInWindow((x, y, w, h) => {
+        wrapCenter.current = { x: x + w / 2, y: y + h / 2 };
         scaleStartDist.current = Math.max(
-          20,
-          Math.hypot(tx - wrapCenter.current.x, ty - wrapCenter.current.y),
+          24,
+          Math.hypot(e.absoluteX - wrapCenter.current.x, e.absoluteY - wrapCenter.current.y),
         );
-        scaleStartScale.current = scaleRef.current;
-      },
-      onPanResponderMove: (e) => {
-        const tx = e.nativeEvent.pageX;
-        const ty = e.nativeEvent.pageY;
-        const d = Math.max(
-          20,
-          Math.hypot(tx - wrapCenter.current.x, ty - wrapCenter.current.y),
+      });
+    })
+    .onUpdate((e) => {
+      // If measure not yet ready, capture on the fly
+      if (scaleStartDist.current === 0) {
+        scaleStartDist.current = Math.max(
+          24,
+          Math.hypot(e.absoluteX - wrapCenter.current.x, e.absoluteY - wrapCenter.current.y),
         );
-        const next = Math.max(0.4, Math.min(5, scaleStartScale.current * (d / scaleStartDist.current)));
-        scaleRef.current = next;
-        force((n) => n + 1);
-      },
-      onPanResponderRelease: () => {
-        onChange({ scale: scaleRef.current });
-      },
-    }),
-  ).current;
+        return;
+      }
+      const d = Math.max(
+        4,
+        Math.hypot(e.absoluteX - wrapCenter.current.x, e.absoluteY - wrapCenter.current.y),
+      );
+      const ratio = d / scaleStartDist.current;
+      const next = Math.max(0.4, Math.min(6, scaleStartScale.current * ratio));
+      scaleRef.current = next;
+      force((n) => n + 1);
+    })
+    .onEnd(() => {
+      onChange({ scale: scaleRef.current });
+      remeasure();
+    });
 
-  // ── Rotate handle (circular drag) ──
+  // ── ROTATE HANDLE (drag in arc) — continuous transform: rotate(Xdeg) ──
   const rotStartAngle = useRef(0);
   const rotStartRot = useRef(0);
-  const rotResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: async (e) => {
-        onActivate();
-        await measureCenter();
-        const tx = e.nativeEvent.pageX;
-        const ty = e.nativeEvent.pageY;
-        rotStartAngle.current = Math.atan2(ty - wrapCenter.current.y, tx - wrapCenter.current.x);
-        rotStartRot.current = rotRef.current;
-      },
-      onPanResponderMove: (e) => {
-        const tx = e.nativeEvent.pageX;
-        const ty = e.nativeEvent.pageY;
-        const a = Math.atan2(ty - wrapCenter.current.y, tx - wrapCenter.current.x);
-        const delta = a - rotStartAngle.current;
-        rotRef.current = rotStartRot.current + (delta * 180) / Math.PI;
-        force((n) => n + 1);
-      },
-      onPanResponderRelease: () => {
-        onChange({ rotation: rotRef.current });
-      },
-    }),
-  ).current;
+  const rotReady = useRef(false);
+  const rotateHandleGesture = Gesture.Pan()
+    .runOnJS(true)
+    .minDistance(0)
+    .onBegin((e) => {
+      onActivate();
+      rotStartRot.current = rotRef.current;
+      rotReady.current = false;
+      wrapRef.current?.measureInWindow((x, y, w, h) => {
+        wrapCenter.current = { x: x + w / 2, y: y + h / 2 };
+        rotStartAngle.current = Math.atan2(
+          e.absoluteY - wrapCenter.current.y,
+          e.absoluteX - wrapCenter.current.x,
+        );
+        rotReady.current = true;
+      });
+    })
+    .onUpdate((e) => {
+      if (!rotReady.current) {
+        rotStartAngle.current = Math.atan2(
+          e.absoluteY - wrapCenter.current.y,
+          e.absoluteX - wrapCenter.current.x,
+        );
+        rotReady.current = true;
+        return;
+      }
+      const a = Math.atan2(
+        e.absoluteY - wrapCenter.current.y,
+        e.absoluteX - wrapCenter.current.x,
+      );
+      const delta = a - rotStartAngle.current;
+      rotRef.current = rotStartRot.current + (delta * 180) / Math.PI;
+      force((n) => n + 1);
+    })
+    .onEnd(() => {
+      onChange({ rotation: rotRef.current });
+      remeasure();
+    });
 
   const hs = highlightStyle(overlay.highlight);
   const fontSize = 26 * scaleRef.current;
@@ -359,6 +433,7 @@ function DraggableText({
   return (
     <Animated.View
       ref={wrapRef as any}
+      onLayout={remeasure}
       style={[
         st.draggableBox,
         {
@@ -370,51 +445,53 @@ function DraggableText({
         },
       ]}
     >
-      <View {...moveResponder.panHandlers}>
-        <Pressable onPress={onActivate} onLongPress={onEdit}>
-          <View
+      <GestureDetector gesture={bodyGesture}>
+        <View
+          style={[
+            hs.wrap,
+            active && {
+              borderWidth: 1,
+              borderStyle: "dashed",
+              borderColor: Z_BLUE,
+            },
+          ]}
+        >
+          <Text
             style={[
-              hs.wrap,
-              active && {
-                borderWidth: 1,
-                borderStyle: "dashed",
-                borderColor: Z_BLUE,
+              hs.text,
+              {
+                fontSize,
+                fontFamily: "Inter_700Bold",
+                textAlign: overlay.align,
+                maxWidth: SCREEN.width - 80,
               },
             ]}
           >
-            <Text
-              style={[
-                hs.text,
-                {
-                  fontSize,
-                  fontFamily: "Inter_700Bold",
-                  textAlign: overlay.align,
-                  maxWidth: SCREEN.width - 80,
-                },
-              ]}
-            >
-              {overlay.text}
-            </Text>
-          </View>
-        </Pressable>
-      </View>
+            {overlay.text}
+          </Text>
+        </View>
+      </GestureDetector>
 
       {active && (
         <>
           {/* X delete handle (top-left) */}
-          <View style={st.handleDelete} {...{ }}>
+          <View style={st.handleDelete}>
             <TouchableOpacity onPress={onDelete} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
               <Ionicons name="close" size={14} color="#fff" />
             </TouchableOpacity>
           </View>
-          {/* Rotate handle (top-right) - circular drag */}
-          <View {...rotResponder.panHandlers} style={st.handleRotate}>
-            <Ionicons name="sync-outline" size={14} color="#fff" />
-          </View>
-          {/* Scale handle (bottom-right) - drag away/toward center */}
-          <View {...scaleResponder.panHandlers} style={st.handleScale}>
-            <Ionicons name="resize-outline" size={14} color="#fff" />
-          </View>
+          {/* Rotate handle (top-right) — circular drag */}
+          <GestureDetector gesture={rotateHandleGesture}>
+            <View style={st.handleRotate}>
+              <Ionicons name="sync-outline" size={14} color="#fff" />
+            </View>
+          </GestureDetector>
+          {/* Scale handle (bottom-right) — linear distance scaling */}
+          <GestureDetector gesture={scaleHandleGesture}>
+            <View style={st.handleScale}>
+              <Ionicons name="resize-outline" size={14} color="#fff" />
+            </View>
+          </GestureDetector>
         </>
       )}
     </Animated.View>
@@ -806,6 +883,18 @@ export default function CreateStoryScreen() {
   const [showMentionPicker, setShowMentionPicker] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [composerOpen, setComposerOpen] = useState(false);
+  const [kbHeight, setKbHeight] = useState(0);
+
+  // Instagram-style keyboard tracking — toolbar sticks above keyboard
+  useEffect(() => {
+    const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvt = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvt as any, (e) => {
+      setKbHeight(e.endCoordinates?.height ?? 0);
+    });
+    const hideSub = Keyboard.addListener(hideEvt as any, () => setKbHeight(0));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   // ─ Shared post (repost) — full-screen sticker
   const sharedPost = params.sharedId
@@ -1304,7 +1393,13 @@ export default function CreateStoryScreen() {
       {composerOpen && (
         <View style={st.composerWrap}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => closeComposer(true)} />
-          <View style={st.composerCenter} pointerEvents="box-none">
+          <View
+            style={[
+              st.composerCenter,
+              kbHeight > 0 && { paddingBottom: kbHeight + 80 },
+            ]}
+            pointerEvents="box-none"
+          >
             <View style={[st.composerBubble, highlightStyle(draftHighlight).wrap]}>
               <TextInput
                 value={draftText}
@@ -1355,7 +1450,14 @@ export default function CreateStoryScreen() {
             )}
           </View>
 
-          <View style={[st.styleBar, { paddingBottom: insets.bottom + 14 }]}>
+          <View
+            style={[
+              st.styleBar,
+              kbHeight > 0
+                ? { bottom: kbHeight, paddingBottom: 10 }
+                : { bottom: 0, paddingBottom: insets.bottom + 14 },
+            ]}
+          >
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, alignItems: "center" }}>
               <TouchableOpacity
                 style={st.alignBtn}

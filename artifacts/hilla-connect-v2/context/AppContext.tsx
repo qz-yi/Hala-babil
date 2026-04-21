@@ -2808,9 +2808,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             overlays,
           }),
         });
-        const data = await res.json();
+        const rawText = await res.text();
+        let data: any = {};
+        try { data = JSON.parse(rawText); } catch { /* non-json */ }
         if (!res.ok) {
-          throw new Error(data?.error || "story_insert_failed");
+          console.error("[stories] HTTP error", res.status, rawText);
+          const msg = data?.message || data?.detail || data?.error || `status_${res.status}`;
+          throw new Error(msg);
         }
         console.log("[stories] Database insertion result", data.story);
         const raw = data.story;

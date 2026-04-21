@@ -119,8 +119,17 @@ router.post("/stories", async (req, res) => {
 
     return res.status(201).json({ story });
   } catch (err) {
-    logger.error({ err, creatorId }, "[stories] Failed to insert story into database");
-    return res.status(500).json({ error: "story_insert_failed" });
+    const e = err as { code?: string; detail?: string; message?: string };
+    logger.error(
+      { err, code: e?.code, detail: e?.detail, message: e?.message, creatorId },
+      "[stories] Failed to insert story into database",
+    );
+    return res.status(500).json({
+      error: "story_insert_failed",
+      message: e?.message || String(err),
+      code: e?.code,
+      detail: e?.detail,
+    });
   }
 });
 

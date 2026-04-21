@@ -1,0 +1,32 @@
+ZENTRAM PRO-EDITOR: Clean UI & Interactive Story Engine
+​Objective: Completely overhaul the story creation UI. Remove clutter, transition to an icon-based vertical menu, and implement a high-end interactive text and background engine.
+​1️⃣ The "Clean Canvas" UI (Minimalist Approach)
+​Remove Clutter: DELETE the caption input field, unnecessary descriptive texts, and the "Checkmark" button from the main preview.
+​The "Magic Edit" Button: * After selecting an image/video, show only ONE elegant "Edit" icon at the top.
+​Tapping this icon opens a Vertical Sidebar on the right with beautiful, distinct icons (no text labels).
+​Sidebar Tools:
+​Crop (Manual): Open a manual cropping modal (DO NOT auto-crop). Use a 9:16 aspect ratio guide.
+​Rotate/Flip: Instant transformation buttons.
+​Filters: A horizontal swipe-menu that only appears when the Filter icon is selected.
+​Text Tool (The Universal Input): Tapping this opens the Pro-Text Engine.
+​2️⃣ The Pro-Text & Mention Engine
+​Universal Input: Replace the bottom caption field with a floating text input that appears over the image.
+​Dynamic Mentions: If the user types @, show a searchable list of followed users.
+​Styling Bar (During Typing):
+​Highlights: Multiple background styles for text (Classic, Neon, Block, Transparent).
+​Alignment: A toggle icon to switch between Left, Center, and Right alignment.
+​Post-Typing Interaction (Draggable):
+​Once "Done" is pressed, the text becomes a Draggable Component.
+​Gestures: Use PanResponder to move the text anywhere.
+​Active State: Tapping the text again shows small "Resize/Scale" handles and an "X" icon to delete it.
+​3️⃣ Reposting & Mention Workflow (Full-Screen Mode)
+​Standardize UI: When adding a story from a mention, REMOVE the "Background Selection" screen.
+​Full-Screen Canvas: The mentioned story should appear in full-screen (as a sticker) with the EXACT SAME Edit Button and Sidebar described above.
+​Integration: Allow the user to add their own text or mentions over the reposted content using the same Pro-Text engine.
+​4️⃣ Text-Only Story Mode (Creative Backgrounds)
+​Entry Point: Tapping "Create Text Story" opens the Pro-Text engine immediately on a blank canvas.
+​Background Palette: * Show a row of beautiful Color Circles at the bottom.
+​Custom Gallery Background: Add a "+" Icon next to the colors. Tapping it allows the user to pick an image from their gallery to use as the background for their text.
+​5️⃣ Technical Implementation & Theme
+​Theme: Strict Zentram Dark Mode (#000000). All icons should be Electric Blue or Vibrant Green for a premium feel.
+​Bug Fix (Navigation): Fix the "Post Unavailable" issue by ensuring the originalStoryId is correctly passed during the reposting process.

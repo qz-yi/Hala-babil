@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
@@ -7,6 +7,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Dimensions,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -23,33 +24,64 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { User } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 
+// ── Theme constants (Strict Zentram Dark) ──────────────────────────────────
+const Z_BG = "#000000";
+const Z_PANEL = "#0A0A0A";
+const Z_BORDER = "rgba(255,255,255,0.08)";
+const Z_BLUE = "#3D91F4";   // Electric Blue
+const Z_GREEN = "#00E676";  // Vibrant Green
+const Z_TEXT = "#FFFFFF";
+const Z_MUTED = "rgba(255,255,255,0.55)";
+
+// ── Filters & Backgrounds ──────────────────────────────────────────────────
 const STORY_FILTERS = [
-  { key: "none", label: "بدون" },
-  { key: "warm", label: "دافئ" },
-  { key: "cool", label: "بارد" },
-  { key: "vintage", label: "كلاسيكي" },
-  { key: "grayscale", label: "أبيض وأسود" },
+  { key: "none", label: "Original" },
+  { key: "warm", label: "Warm" },
+  { key: "cool", label: "Cool" },
+  { key: "vintage", label: "Vintage" },
+  { key: "grayscale", label: "B&W" },
 ];
 
-async function applyStoryFilter(uri: string, filter: string): Promise<string> {
-  if (Platform.OS === "web" || filter === "none") return uri;
-  try {
-    const actions: ImageManipulator.Action[] = [{ resize: { width: 1080 } }];
-    const result = await ImageManipulator.manipulateAsync(uri, actions, {
-      compress: 0.85,
-      format: ImageManipulator.SaveFormat.JPEG,
-    });
-    return result.uri;
-  } catch {
-    return uri;
-  }
-}
+const TEXT_BACKGROUNDS: { id: string; colors: [string, string] }[] = [
+  { id: "midnight", colors: ["#000000", "#1A1A2E"] },
+  { id: "sunset", colors: ["#FF512F", "#DD2476"] },
+  { id: "ocean", colors: ["#0072FF", "#00C6FF"] },
+  { id: "forest", colors: ["#11998E", "#38EF7D"] },
+  { id: "violet", colors: ["#8E2DE2", "#4A00E0"] },
+  { id: "fire", colors: ["#F12711", "#F5AF19"] },
+  { id: "rose", colors: ["#FF0844", "#FFB199"] },
+  { id: "gold", colors: ["#B79891", "#94716B"] },
+  { id: "neon", colors: ["#00F260", "#0575E6"] },
+];
 
+const HIGHLIGHT_STYLES = [
+  { id: "classic", label: "Classic" },
+  { id: "neon", label: "Neon" },
+  { id: "block", label: "Block" },
+  { id: "transparent", label: "Plain" },
+] as const;
+
+type HighlightId = (typeof HIGHLIGHT_STYLES)[number]["id"];
+type AlignId = "left" | "center" | "right";
+
+type TextOverlay = {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  scale: number;
+  highlight: HighlightId;
+  align: AlignId;
+};
+
+const SCREEN = Dimensions.get("window");
+
+// ── Filter overlay (preview only, baked at publish) ────────────────────────
 function FilterPreviewOverlay({ filter }: { filter: string }) {
   if (filter === "none") return null;
   const overlays: Record<string, string> = {
@@ -66,204 +98,352 @@ function FilterPreviewOverlay({ filter }: { filter: string }) {
         StyleSheet.absoluteFill,
         {
           backgroundColor: overlay,
-          ...(filter === "grayscale" && Platform.OS === "web" ? ({ filter: "grayscale(100%)" } as any) : {}),
+          ...(filter === "grayscale" && Platform.OS === "web"
+            ? ({ filter: "grayscale(100%)" } as any)
+            : {}),
         },
       ]}
     />
   );
 }
 
-function DraggableOverlayLabel({ text }: { text: string }) {
-  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+async function bakeFilter(uri: string, filter: string): Promise<string> {
+  if (Platform.OS === "web" || filter === "none") return uri;
+  try {
+    const result = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: 1080 } }],
+      { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG },
+    );
+    return result.uri;
+  } catch {
+    return uri;
+  }
+}
+
+// ── Highlight visual styles ────────────────────────────────────────────────
+function highlightStyle(h: HighlightId): { wrap: any; text: any } {
+  switch (h) {
+    case "neon":
+      return {
+        wrap: { backgroundColor: "transparent" },
+        text: {
+          color: Z_GREEN,
+          textShadowColor: Z_GREEN,
+          textShadowRadius: 12,
+        },
+      };
+    case "block":
+      return {
+        wrap: {
+          backgroundColor: "#FFFFFF",
+          paddingHorizontal: 10,
+          paddingVertical: 4,
+          borderRadius: 4,
+        },
+        text: { color: "#000000" },
+      };
+    case "transparent":
+      return {
+        wrap: { backgroundColor: "transparent" },
+        text: {
+          color: "#FFFFFF",
+          textShadowColor: "rgba(0,0,0,0.65)",
+          textShadowRadius: 8,
+        },
+      };
+    case "classic":
+    default:
+      return {
+        wrap: {
+          backgroundColor: "rgba(0,0,0,0.55)",
+          paddingHorizontal: 12,
+          paddingVertical: 6,
+          borderRadius: 12,
+        },
+        text: { color: "#FFFFFF" },
+      };
+  }
+}
+
+// ── Draggable text overlay ─────────────────────────────────────────────────
+function DraggableText({
+  overlay,
+  active,
+  onActivate,
+  onDelete,
+  onChange,
+  onEdit,
+}: {
+  overlay: TextOverlay;
+  active: boolean;
+  onActivate: () => void;
+  onDelete: () => void;
+  onChange: (next: Partial<TextOverlay>) => void;
+  onEdit: () => void;
+}) {
+  const pan = useRef(new Animated.ValueXY({ x: overlay.x, y: overlay.y })).current;
+  const lastPos = useRef({ x: overlay.x, y: overlay.y });
+
   const responder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2,
       onPanResponderGrant: () => {
-        pan.extractOffset();
+        onActivate();
+        pan.setOffset({ x: lastPos.current.x, y: lastPos.current.y });
+        pan.setValue({ x: 0, y: 0 });
       },
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
-      onPanResponderRelease: () => {
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: (_, g) => {
+        const nx = lastPos.current.x + g.dx;
+        const ny = lastPos.current.y + g.dy;
+        lastPos.current = { x: nx, y: ny };
         pan.flattenOffset();
+        onChange({ x: nx, y: ny });
       },
-    })
+    }),
   ).current;
+
+  const hs = highlightStyle(overlay.highlight);
+  const fontSize = 26 * overlay.scale;
 
   return (
     <Animated.View
       {...responder.panHandlers}
-      style={[st.draggableOverlayLabel, { transform: pan.getTranslateTransform() }]}
+      style={[
+        st.draggableBox,
+        { transform: [{ translateX: pan.x }, { translateY: pan.y }] },
+      ]}
     >
-      <Text style={st.draggableOverlayText}>{text}</Text>
+      <Pressable onPress={onActivate} onLongPress={onEdit}>
+        <View
+          style={[
+            hs.wrap,
+            active && {
+              borderWidth: 1,
+              borderStyle: "dashed",
+              borderColor: Z_BLUE,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              hs.text,
+              {
+                fontSize,
+                fontFamily: "Inter_700Bold",
+                textAlign: overlay.align,
+                maxWidth: SCREEN.width - 60,
+              },
+            ]}
+          >
+            {overlay.text}
+          </Text>
+        </View>
+      </Pressable>
+
+      {active && (
+        <>
+          <TouchableOpacity
+            style={st.deleteHandle}
+            onPress={onDelete}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="close" size={14} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={st.scaleHandle}
+            onPress={() => onChange({ scale: overlay.scale >= 2 ? 0.7 : overlay.scale + 0.25 })}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="resize-outline" size={14} color="#fff" />
+          </TouchableOpacity>
+        </>
+      )}
     </Animated.View>
   );
 }
 
+// ── Manual Crop Modal (9:16 guide) ─────────────────────────────────────────
+function CropModal({
+  visible,
+  uri,
+  onClose,
+  onApply,
+}: {
+  visible: boolean;
+  uri: string | null;
+  onClose: () => void;
+  onApply: (newUri: string) => void;
+}) {
+  const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const last = useRef({ x: 0, y: 0 });
+
+  const frameW = SCREEN.width - 40;
+  const frameH = (frameW * 16) / 9;
+
+  useEffect(() => {
+    if (!visible || !uri) return;
+    pan.setValue({ x: 0, y: 0 });
+    last.current = { x: 0, y: 0 };
+    Image.getSize(
+      uri,
+      (w, h) => setImgSize({ w, h }),
+      () => setImgSize(null),
+    );
+  }, [visible, uri]);
+
+  const responder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        pan.setOffset({ x: last.current.x, y: last.current.y });
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: (_, g) => {
+        last.current = {
+          x: last.current.x + g.dx,
+          y: last.current.y + g.dy,
+        };
+        pan.flattenOffset();
+      },
+    }),
+  ).current;
+
+  // Display: image fills frame (cover), user pans to reposition
+  const displayScale = imgSize
+    ? Math.max(frameW / imgSize.w, frameH / imgSize.h)
+    : 1;
+  const dispW = imgSize ? imgSize.w * displayScale : frameW;
+  const dispH = imgSize ? imgSize.h * displayScale : frameH;
+
+  const apply = async () => {
+    if (!uri || !imgSize) return onClose();
+    setBusy(true);
+    try {
+      // image is centered with offset (last.current)
+      // visible region in display coords = [frameLeft, frameTop, frameW, frameH]
+      // image left in display coords = (frameW - dispW)/2 + last.current.x
+      const imgLeftDisp = (frameW - dispW) / 2 + last.current.x;
+      const imgTopDisp = (frameH - dispH) / 2 + last.current.y;
+      const visLeftDisp = -imgLeftDisp;
+      const visTopDisp = -imgTopDisp;
+      // Convert to source pixels
+      const sx = Math.max(0, visLeftDisp / displayScale);
+      const sy = Math.max(0, visTopDisp / displayScale);
+      const sw = Math.min(imgSize.w - sx, frameW / displayScale);
+      const sh = Math.min(imgSize.h - sy, frameH / displayScale);
+      const result = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ crop: { originX: sx, originY: sy, width: sw, height: sh } }],
+        { compress: 0.92, format: ImageManipulator.SaveFormat.JPEG },
+      );
+      onApply(result.uri);
+    } catch {
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <View style={st.cropBackdrop}>
+        <View style={st.cropHeader}>
+          <TouchableOpacity onPress={onClose} style={st.cropHeaderBtn}>
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={st.cropTitle}>Manual Crop · 9:16</Text>
+          <TouchableOpacity onPress={apply} disabled={busy} style={st.cropHeaderBtn}>
+            {busy ? (
+              <ActivityIndicator size="small" color={Z_GREEN} />
+            ) : (
+              <Ionicons name="checkmark" size={26} color={Z_GREEN} />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <View style={[st.cropFrame, { width: frameW, height: frameH }]}>
+          <View style={st.cropImageClip}>
+            <Animated.View
+              {...responder.panHandlers}
+              style={{
+                width: dispW,
+                height: dispH,
+                position: "absolute",
+                left: (frameW - dispW) / 2,
+                top: (frameH - dispH) / 2,
+                transform: [{ translateX: pan.x }, { translateY: pan.y }],
+              }}
+            >
+              {uri && (
+                <Image source={{ uri }} style={{ width: "100%", height: "100%" }} />
+              )}
+            </Animated.View>
+          </View>
+          <View pointerEvents="none" style={st.cropGridOverlay}>
+            <View style={st.cropGridLineV1} />
+            <View style={st.cropGridLineV2} />
+            <View style={st.cropGridLineH1} />
+            <View style={st.cropGridLineH2} />
+          </View>
+        </View>
+
+        <Text style={st.cropHint}>Drag the image to reposition · Tap ✓ to apply</Text>
+      </View>
+    </Modal>
+  );
+}
+
+// ── Audience Sheet (kept simple for new minimal UI) ────────────────────────
 function AudienceSheet({
   visible,
   onClose,
   isCloseFriends,
   onSelect,
-  colors,
 }: {
   visible: boolean;
   onClose: () => void;
   isCloseFriends: boolean;
   onSelect: (cf: boolean) => void;
-  colors: any;
 }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={st.backdrop} onPress={onClose} />
-      <View style={[st.audienceSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[st.handle, { backgroundColor: colors.border }]} />
-        <Text style={[st.audienceTitle, { color: colors.text }]}>اختيار الجمهور</Text>
-        <Text style={[st.audienceSubtitle, { color: colors.textSecondary }]}>من يمكنه رؤية قصتك؟</Text>
+      <View style={[st.sheet, { backgroundColor: Z_PANEL, borderColor: Z_BORDER }]}>
+        <View style={st.handle} />
+        <Text style={st.sheetTitle}>Audience</Text>
 
         <TouchableOpacity
-          style={[
-            st.audienceOption,
-            { borderColor: !isCloseFriends ? "#3D91F4" : colors.border, backgroundColor: !isCloseFriends ? "#3D91F411" : "transparent" },
-          ]}
+          style={[st.audOpt, { borderColor: !isCloseFriends ? Z_BLUE : Z_BORDER }]}
           onPress={() => { onSelect(false); onClose(); }}
-          activeOpacity={0.8}
         >
-          <View style={[st.audienceIconWrap, { backgroundColor: !isCloseFriends ? "#3D91F422" : colors.backgroundSecondary || colors.background }]}>
-            <Ionicons name="globe-outline" size={22} color={!isCloseFriends ? "#3D91F4" : colors.textSecondary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[st.audienceOptionTitle, { color: !isCloseFriends ? "#3D91F4" : colors.text }]}>قصة عامة</Text>
-            <Text style={[st.audienceOptionDesc, { color: colors.textSecondary }]}>يراها جميع متابعيك</Text>
-          </View>
-          {!isCloseFriends && (
-            <View style={st.audienceCheck}>
-              <Ionicons name="checkmark-circle" size={22} color="#3D91F4" />
-            </View>
-          )}
+          <Ionicons name="globe-outline" size={20} color={!isCloseFriends ? Z_BLUE : Z_MUTED} />
+          <Text style={[st.audOptText, { color: !isCloseFriends ? Z_BLUE : Z_TEXT }]}>Public</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            st.audienceOption,
-            { borderColor: isCloseFriends ? "#8B5CF6" : colors.border, backgroundColor: isCloseFriends ? "#8B5CF611" : "transparent" },
-          ]}
+          style={[st.audOpt, { borderColor: isCloseFriends ? Z_GREEN : Z_BORDER }]}
           onPress={() => { onSelect(true); onClose(); }}
-          activeOpacity={0.8}
         >
-          <View style={[st.audienceIconWrap, { backgroundColor: isCloseFriends ? "#8B5CF622" : colors.backgroundSecondary || colors.background }]}>
-            <Ionicons name="star" size={22} color={isCloseFriends ? "#8B5CF6" : colors.textSecondary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[st.audienceOptionTitle, { color: isCloseFriends ? "#8B5CF6" : colors.text }]}>أصدقاء مقربون</Text>
-            <Text style={[st.audienceOptionDesc, { color: colors.textSecondary }]}>لقائمتك المختارة فقط</Text>
-          </View>
-          {isCloseFriends && (
-            <View style={st.audienceCheck}>
-              <Ionicons name="checkmark-circle" size={22} color="#8B5CF6" />
-            </View>
-          )}
+          <Ionicons name="star" size={20} color={isCloseFriends ? Z_GREEN : Z_MUTED} />
+          <Text style={[st.audOptText, { color: isCloseFriends ? Z_GREEN : Z_TEXT }]}>Close Friends</Text>
         </TouchableOpacity>
       </View>
     </Modal>
   );
 }
 
-function CloseFriendsModal({
-  visible,
-  onClose,
-  selectedIds,
-  onSave,
-  followers,
-  users,
-  colors,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  selectedIds: string[];
-  onSave: (ids: string[]) => void;
-  followers: string[];
-  users: User[];
-  colors: any;
-}) {
-  const [selected, setSelected] = useState<string[]>(selectedIds);
-  const [search, setSearch] = useState("");
-
-  useEffect(() => {
-    if (visible) { setSelected(selectedIds); setSearch(""); }
-  }, [visible, selectedIds]);
-
-  const followerUsers = users.filter((u) => followers.includes(u.id));
-  const filtered = followerUsers.filter((u) =>
-    u.name.toLowerCase().includes(search.toLowerCase()) ||
-    (u.username || "").toLowerCase().includes(search.toLowerCase())
-  );
-
-  const toggle = (id: string) => {
-    setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={st.backdrop} onPress={onClose} />
-      <View style={[st.cfSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[st.handle, { backgroundColor: colors.border }]} />
-        <Text style={[st.cfTitle, { color: colors.text }]}>اختر الأصدقاء المقربين</Text>
-        <View style={[st.searchBox, { backgroundColor: colors.backgroundSecondary || colors.background, borderColor: colors.border }]}>
-          <Ionicons name="search" size={16} color={colors.textSecondary} />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="ابحث..."
-            placeholderTextColor={colors.textSecondary}
-            style={[st.searchInput, { color: colors.text }]}
-          />
-        </View>
-        <FlatList
-          data={filtered}
-          keyExtractor={(u) => u.id}
-          style={{ maxHeight: 360 }}
-          ListEmptyComponent={
-            <Text style={[st.emptyText, { color: colors.textSecondary }]}>لا يوجد متابعون</Text>
-          }
-          renderItem={({ item }) => {
-            const color = ACCENT_COLORS[(item.name?.length ?? 0) % ACCENT_COLORS.length];
-            const isSelected = selected.includes(item.id);
-            return (
-              <TouchableOpacity style={st.cfRow} onPress={() => toggle(item.id)} activeOpacity={0.8}>
-                <View style={[st.miniAvatar, { backgroundColor: `${color}33` }]}>
-                  {item.avatar ? (
-                    <Image source={{ uri: item.avatar }} style={StyleSheet.absoluteFill as any} />
-                  ) : (
-                    <Text style={[st.miniAvatarText, { color }]}>{item.name[0]?.toUpperCase()}</Text>
-                  )}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[st.cfUserName, { color: colors.text }]}>{item.name}</Text>
-                  {item.username && (
-                    <Text style={[st.cfUserHandle, { color: colors.textSecondary }]}>@{item.username}</Text>
-                  )}
-                </View>
-                <View style={[st.checkbox, { borderColor: isSelected ? "#8B5CF6" : colors.border, backgroundColor: isSelected ? "#8B5CF6" : "transparent" }]}>
-                  {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
-                </View>
-              </TouchableOpacity>
-            );
-          }}
-        />
-        <TouchableOpacity
-          style={st.cfSaveBtn}
-          onPress={() => { onSave(selected); onClose(); }}
-          activeOpacity={0.85}
-        >
-          <LinearGradient colors={["#8B5CF6", "#6D28D9"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={st.cfSaveBtnGrad}>
-            <Text style={st.cfSaveBtnText}>حفظ ({selected.length})</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-    </Modal>
-  );
-}
-
+// ── MAIN: Create Story Screen ──────────────────────────────────────────────
 export default function CreateStoryScreen() {
   const params = useLocalSearchParams<{
     sharedType?: string;
@@ -274,31 +454,37 @@ export default function CreateStoryScreen() {
     sharedCreatorName?: string;
     sharedCreatorId?: string;
     sharedCreatorAvatar?: string;
+    mode?: string;
   }>();
 
-  const { addStory, theme, users, currentUser, getFollowers, closeFriendsList, updateCloseFriendsList } = useApp();
-  const colors = Colors[theme];
+  const { addStory, users, currentUser, closeFriendsList, updateCloseFriendsList } = useApp();
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
-  const topPad = Platform.OS === "web" ? 20 : insets.top;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const topPad = Platform.OS === "web" ? 16 : insets.top;
 
+  // ─ State
   const [mediaUri, setMediaUri] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<"image" | "video">("image");
-  const [caption, setCaption] = useState("");
+  const [textBgIdx, setTextBgIdx] = useState(0);
+  const [textBgImage, setTextBgImage] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState("none");
+  const [overlays, setOverlays] = useState<TextOverlay[]>([]);
+  const [activeOverlayId, setActiveOverlayId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftText, setDraftText] = useState("");
+  const [draftHighlight, setDraftHighlight] = useState<HighlightId>("classic");
+  const [draftAlign, setDraftAlign] = useState<AlignId>("center");
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [sidebarTool, setSidebarTool] = useState<null | "filter">(null);
+  const [showCrop, setShowCrop] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [applyingFilter, setApplyingFilter] = useState(false);
   const [isCloseFriends, setIsCloseFriends] = useState(false);
-  const [cfList, setCfList] = useState<string[]>(closeFriendsList);
-  const [showCFModal, setShowCFModal] = useState(false);
-  const [showAudienceSheet, setShowAudienceSheet] = useState(false);
-  const [mentions, setMentions] = useState<string[]>([]);
-  const [mentionSearch, setMentionSearch] = useState("");
+  const [showAudience, setShowAudience] = useState(false);
+  const [textMode, setTextMode] = useState<boolean>(params.mode === "text");
   const [showMentionPicker, setShowMentionPicker] = useState(false);
-  const [overlayDraft, setOverlayDraft] = useState("");
-  const [overlayLabels, setOverlayLabels] = useState<string[]>([]);
+  const [mentionQuery, setMentionQuery] = useState("");
 
+  // ─ Shared post (repost) — full-screen sticker, no separate background screen
   const sharedPost = params.sharedId
     ? {
         id: params.sharedId,
@@ -312,347 +498,405 @@ export default function CreateStoryScreen() {
       }
     : undefined;
 
-  const followers = getFollowers(currentUser?.id || "").map((f) => f.followerId);
+  const hasMedia = !!mediaUri;
+  const hasShared = !!sharedPost;
+  // Effective canvas mode
+  const inTextMode = !hasMedia && !hasShared && textMode;
+  const showPickerLanding = !hasMedia && !hasShared && !textMode;
+
+  // ─ Mention search inside text editor
+  useEffect(() => {
+    const m = draftText.match(/@([\w\u0600-\u06FF]*)$/);
+    if (m) {
+      setMentionQuery(m[1].toLowerCase());
+      setShowMentionPicker(true);
+    } else {
+      setShowMentionPicker(false);
+      setMentionQuery("");
+    }
+  }, [draftText]);
+
+  const mentionResults = useMemo(() => {
+    return users
+      .filter((u) => u.id !== currentUser?.id)
+      .filter((u) =>
+        (u.username || "").toLowerCase().includes(mentionQuery) ||
+        u.name.toLowerCase().includes(mentionQuery),
+      )
+      .slice(0, 6);
+  }, [users, currentUser?.id, mentionQuery]);
+
   const parsedMentionUsers = useMemo(() => {
     const found: User[] = [];
+    const allText = overlays.map((o) => o.text).join(" ");
     const regex = /@([\w\u0600-\u06FF]+)/g;
     let match;
-    while ((match = regex.exec(caption)) !== null) {
+    while ((match = regex.exec(allText)) !== null) {
       const handle = match[1].toLowerCase();
-      const user = users.find((u) =>
-        u.id !== currentUser?.id &&
-        (
-          u.username?.toLowerCase() === handle ||
-          u.name.toLowerCase().replace(/\s+/g, "_") === handle ||
-          u.email.toLowerCase() === handle
-        )
+      const u = users.find((x) =>
+        x.id !== currentUser?.id &&
+        (x.username?.toLowerCase() === handle ||
+          x.name.toLowerCase().replace(/\s+/g, "_") === handle ||
+          x.email.toLowerCase() === handle),
       );
-      if (user && !found.some((x) => x.id === user.id)) found.push(user);
+      if (u && !found.some((y) => y.id === u.id)) found.push(u);
     }
     return found;
-  }, [caption, users, currentUser?.id]);
+  }, [overlays, users, currentUser?.id]);
 
-  useEffect(() => {
-    if (!isCloseFriends) return;
-    const anim = Animated.loop(
-      Animated.timing(rotateAnim, { toValue: 1, duration: 3000, useNativeDriver: true })
-    );
-    anim.start();
-    return () => { anim.stop(); rotateAnim.setValue(0); };
-  }, [isCloseFriends]);
-
-  const rotate = rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
-
+  // ─ Media picker (gallery)
   const handlePickMedia = async () => {
-    if (Platform.OS === "web") { showToast("اختيار الوسائط غير مدعوم على الويب", "info"); return; }
+    if (Platform.OS === "web") {
+      showToast("Media picking unavailable on web preview", "info");
+      return;
+    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") { showToast("يرجى السماح بالوصول للمعرض", "error"); return; }
+    if (status !== "granted") {
+      showToast("Gallery permission required", "error");
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
       allowsEditing: false,
-      quality: 0.7,
+      quality: 0.85,
       videoMaxDuration: 60,
     });
     if (!result.canceled && result.assets[0]) {
       setMediaUri(result.assets[0].uri);
       setMediaType(result.assets[0].type === "video" ? "video" : "image");
       setSelectedFilter("none");
-      setOverlayLabels([]);
+      setTextMode(false);
     }
   };
 
-  const manipulateImage = async (actions: ImageManipulator.Action[]) => {
+  const pickTextBgFromGallery = async () => {
+    if (Platform.OS === "web") {
+      showToast("Gallery unavailable on web preview", "info");
+      return;
+    }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      showToast("Gallery permission required", "error");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setTextBgImage(result.assets[0].uri);
+    }
+  };
+
+  // ─ Image manipulation (instant rotate / flip)
+  const transformImage = async (actions: ImageManipulator.Action[]) => {
     if (!mediaUri || mediaType !== "image") return;
     try {
-      setApplyingFilter(true);
       const result = await ImageManipulator.manipulateAsync(mediaUri, actions, {
-        compress: 0.9,
+        compress: 0.92,
         format: ImageManipulator.SaveFormat.JPEG,
       });
       setMediaUri(result.uri);
-    } finally {
-      setApplyingFilter(false);
+    } catch {
+      showToast("Transform failed", "error");
     }
   };
 
-  const cropCenterSquare = async () => {
-    if (!mediaUri || mediaType !== "image") return;
-    Image.getSize(
-      mediaUri,
-      (width, height) => {
-        const size = Math.min(width, height);
-        manipulateImage([{ crop: { originX: (width - size) / 2, originY: (height - size) / 2, width: size, height: size } }]);
-      },
-      () => showToast("تعذر قص الصورة", "error")
-    );
+  // ─ Text overlay create/update
+  const openTextEditor = (existing?: TextOverlay) => {
+    if (existing) {
+      setEditingId(existing.id);
+      setDraftText(existing.text);
+      setDraftHighlight(existing.highlight);
+      setDraftAlign(existing.align);
+    } else {
+      setEditingId(null);
+      setDraftText("");
+      setDraftHighlight("classic");
+      setDraftAlign("center");
+    }
   };
 
-  const handlePublish = async () => {
-    if (!mediaUri && !sharedPost) {
-      showToast("يرجى اختيار صورة أو فيديو", "error");
-      return;
+  const closeTextEditor = (commit: boolean) => {
+    if (commit && draftText.trim()) {
+      if (editingId) {
+        setOverlays((prev) =>
+          prev.map((o) =>
+            o.id === editingId
+              ? { ...o, text: draftText.trim(), highlight: draftHighlight, align: draftAlign }
+              : o,
+          ),
+        );
+      } else {
+        const id = `ov_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        setOverlays((prev) => [
+          ...prev,
+          {
+            id,
+            text: draftText.trim(),
+            x: 0,
+            y: 0,
+            scale: 1,
+            highlight: draftHighlight,
+            align: draftAlign,
+          },
+        ]);
+        setActiveOverlayId(id);
+      }
     }
-    setPublishing(true);
-
-    let finalUri = mediaUri || sharedPost?.mediaUrl || "";
-    if (mediaUri && mediaType === "image" && selectedFilter !== "none") {
-      setApplyingFilter(true);
-      finalUri = await applyStoryFilter(mediaUri, selectedFilter);
-      setApplyingFilter(false);
-    }
-
-    if (isCloseFriends) {
-      updateCloseFriendsList(cfList);
-    }
-
-    await addStory(finalUri, mediaType, caption.trim() || undefined, selectedFilter, isCloseFriends, parsedMentionUsers.map((u) => u.id), sharedPost, overlayLabels.map((text) => ({ text })));
-    setPublishing(false);
-    showToast(isCloseFriends ? "تم النشر للأصدقاء المقربين!" : "تم نشر القصة! ستختفي خلال 24 ساعة", "success");
-    router.back();
-  };
-
-  const handleAddMention = (userId: string) => {
-    if (!mentions.includes(userId)) setMentions((prev) => [...prev, userId]);
-    setMentionSearch("");
+    setEditingId(null);
+    setDraftText("");
     setShowMentionPicker(false);
   };
 
-  const handleAudienceSelect = (cf: boolean) => {
-    setIsCloseFriends(cf);
-    if (cf && cfList.length === 0) {
-      setTimeout(() => setShowCFModal(true), 350);
+  const insertMention = (u: User) => {
+    const handle = u.username || u.name.replace(/\s+/g, "_");
+    const next = draftText.replace(/@([\w\u0600-\u06FF]*)$/, `@${handle} `);
+    setDraftText(next);
+    setShowMentionPicker(false);
+  };
+
+  // ─ Sidebar tools
+  const sidebarTools: {
+    id: string;
+    icon: keyof typeof Ionicons.glyphMap | { mci: keyof typeof MaterialCommunityIcons.glyphMap };
+    color: string;
+    onPress: () => void;
+  }[] = [
+    {
+      id: "crop",
+      icon: "crop-outline",
+      color: Z_BLUE,
+      onPress: () => {
+        if (mediaType !== "image" || !mediaUri) {
+          showToast("Crop available for images only", "info");
+          return;
+        }
+        setShowCrop(true);
+      },
+    },
+    {
+      id: "rotate",
+      icon: "refresh-outline",
+      color: Z_BLUE,
+      onPress: () => transformImage([{ rotate: 90 }]),
+    },
+    {
+      id: "flip",
+      icon: "swap-horizontal-outline",
+      color: Z_BLUE,
+      onPress: () => transformImage([{ flip: ImageManipulator.FlipType.Horizontal }]),
+    },
+    {
+      id: "filter",
+      icon: { mci: "image-filter-vintage" },
+      color: Z_GREEN,
+      onPress: () => setSidebarTool((s) => (s === "filter" ? null : "filter")),
+    },
+    {
+      id: "text",
+      icon: "text-outline",
+      color: Z_GREEN,
+      onPress: () => openTextEditor(),
+    },
+  ];
+
+  // ─ Publish
+  const handlePublish = async () => {
+    if (!mediaUri && !sharedPost && overlays.length === 0) {
+      showToast("Add media or text first", "error");
+      return;
+    }
+    setPublishing(true);
+    try {
+      let finalUri = mediaUri || sharedPost?.mediaUrl || textBgImage || "";
+      if (mediaUri && mediaType === "image" && selectedFilter !== "none") {
+        finalUri = await bakeFilter(mediaUri, selectedFilter);
+      }
+      const captionFromOverlays = overlays.map((o) => o.text).join("\n").trim() || undefined;
+      if (isCloseFriends) updateCloseFriendsList(closeFriendsList);
+
+      // Pass overlays as draggable label data
+      const overlayData = overlays.map((o) => ({ text: o.text }));
+
+      await addStory(
+        finalUri,
+        mediaType,
+        captionFromOverlays,
+        selectedFilter,
+        isCloseFriends,
+        parsedMentionUsers.map((u) => u.id),
+        sharedPost,
+        overlayData,
+      );
+      showToast(isCloseFriends ? "Posted to Close Friends" : "Story posted!", "success");
+      router.back();
+    } catch {
+      showToast("Failed to publish", "error");
+    } finally {
+      setPublishing(false);
     }
   };
 
-  const mentionResults = users
-    .filter((u) => u.id !== currentUser?.id && !mentions.includes(u.id))
-    .filter((u) =>
-      u.name.toLowerCase().includes(mentionSearch.toLowerCase()) ||
-      (u.username || "").toLowerCase().includes(mentionSearch.toLowerCase())
-    )
-    .slice(0, 6);
+  const [composerOpen, setComposerOpen] = useState(false);
 
-  const audienceColor = isCloseFriends ? "#8B5CF6" : "#3D91F4";
-  const audienceIcon = isCloseFriends ? "star" : "globe-outline";
-  const audienceLabel = isCloseFriends ? "أصدقاء مقربون" : "قصة عامة";
+  // Helper to invoke editor properly
+  const startEditor = (existing?: TextOverlay) => {
+    openTextEditor(existing);
+    setComposerOpen(true);
+    setActiveOverlayId(existing?.id || null);
+  };
+
+  // Auto-open composer when entering text mode with no overlays
+  useEffect(() => {
+    if (textMode && overlays.length === 0 && !composerOpen) {
+      startEditor();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textMode]);
 
   return (
     <KeyboardAvoidingView
-      style={[st.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      style={st.root}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <LinearGradient
-        colors={theme === "dark" ? ["rgba(139,92,246,0.15)", "transparent"] : ["rgba(139,92,246,0.06)", "transparent"]}
-        style={[st.headerGrad, { paddingTop: topPad + 8 }]}
-      >
-        <View style={st.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={[st.closeBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Ionicons name="close" size={22} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={[st.headerTitle, { color: colors.text }]}>قصة جديدة</Text>
-          <TouchableOpacity onPress={handlePublish} disabled={publishing || applyingFilter}>
-            <LinearGradient
-              colors={isCloseFriends ? ["#8B5CF6", "#6D28D9"] : ["#EC4899", "#7C3AED"]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={st.publishBtn}
-            >
-              {publishing || applyingFilter ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={st.publishBtnText}>نشر</Text>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
-
-      <ScrollView
-        contentContainerStyle={st.body}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── Audience Selection Button ── */}
-        <TouchableOpacity
-          style={[st.audienceBtn, { backgroundColor: colors.card, borderColor: audienceColor }]}
-          onPress={() => setShowAudienceSheet(true)}
-          activeOpacity={0.8}
-        >
-          <View style={[st.audienceBtnIcon, { backgroundColor: `${audienceColor}22` }]}>
-            {isCloseFriends ? (
-              <Animated.View style={{ transform: [{ rotate }] }}>
-                <Ionicons name="star" size={18} color={audienceColor} />
-              </Animated.View>
+      {/* ═══════════════ FULL-SCREEN CANVAS ═══════════════ */}
+      <View style={st.canvas}>
+        {/* Canvas background layer */}
+        {mediaUri ? (
+          <>
+            <Image source={{ uri: mediaUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            <FilterPreviewOverlay filter={selectedFilter} />
+          </>
+        ) : sharedPost ? (
+          // Repost full-screen: sticker over creator's media or gradient bg
+          <>
+            {sharedPost.mediaUrl ? (
+              <Image source={{ uri: sharedPost.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" blurRadius={28} />
             ) : (
-              <Ionicons name={audienceIcon} size={18} color={audienceColor} />
+              <LinearGradient
+                colors={TEXT_BACKGROUNDS[textBgIdx].colors}
+                style={StyleSheet.absoluteFill}
+              />
             )}
-          </View>
-          <Text style={[st.audienceBtnLabel, { color: audienceColor }]}>{audienceLabel}</Text>
-          <Ionicons name="chevron-down" size={16} color={audienceColor} style={{ marginStart: "auto" }} />
-        </TouchableOpacity>
-
-        {/* Close Friends Edit List button */}
-        {isCloseFriends && (
-          <TouchableOpacity
-            style={[st.editListBtn, { borderColor: "#8B5CF6" }]}
-            onPress={() => setShowCFModal(true)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="people-outline" size={16} color="#8B5CF6" />
-            <Text style={[st.editListText, { color: "#8B5CF6" }]}>
-              {cfList.length > 0 ? `تعديل القائمة (${cfList.length} شخص)` : "اختر الأصدقاء المقربين"}
-            </Text>
-            <Ionicons name="chevron-forward" size={14} color="#8B5CF6" />
-          </TouchableOpacity>
-        )}
-
-        {/* ── Shared Post Sticker Preview ── */}
-        {sharedPost && (
-          <View style={[st.sharedStickerCard, { backgroundColor: colors.card, borderColor: "#8B5CF6" }]}>
-            <LinearGradient colors={["#8B5CF622", "#EC489922"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.sharedStickerGrad}>
-              {sharedPost.mediaUrl ? (
-                <Image source={{ uri: sharedPost.mediaUrl }} style={st.sharedStickerThumb} resizeMode="cover" />
-              ) : (
-                <View style={[st.sharedStickerThumb, { backgroundColor: "#8B5CF644", alignItems: "center", justifyContent: "center" }]}>
-                  <Ionicons name={sharedPost.type === "reel" ? "film-outline" : "image-outline"} size={28} color="#8B5CF6" />
-                </View>
-              )}
-              <View style={{ flex: 1 }}>
-                <Text style={[st.sharedStickerType, { color: "#8B5CF6" }]}>
-                  {sharedPost.type === "story" ? "قصة مذكور فيها" : sharedPost.type === "reel" ? "مقطع" : "منشور"} مشارك
-                </Text>
-                {sharedPost.creatorName && (
-                  <View style={st.sharedCreatorRow}>
-                    {sharedPost.creatorAvatar ? (
-                      <Image source={{ uri: sharedPost.creatorAvatar }} style={st.sharedCreatorAvatar} />
-                    ) : null}
-                    <Text style={[st.sharedStickerCreator, { color: colors.text }]}>@{sharedPost.creatorName}</Text>
+            <View style={st.repostStickerWrap} pointerEvents="none">
+              <View style={st.repostSticker}>
+                {sharedPost.mediaUrl ? (
+                  <Image source={{ uri: sharedPost.mediaUrl }} style={st.repostStickerMedia} resizeMode="cover" />
+                ) : (
+                  <View style={[st.repostStickerMedia, { backgroundColor: "#222", alignItems: "center", justifyContent: "center" }]}>
+                    <Ionicons name={sharedPost.type === "reel" ? "film" : "image"} size={48} color={Z_BLUE} />
                   </View>
                 )}
-                {sharedPost.caption && (
-                  <Text numberOfLines={2} style={[st.sharedStickerCaption, { color: colors.textSecondary }]}>{sharedPost.caption}</Text>
-                )}
-              </View>
-            </LinearGradient>
-          </View>
-        )}
-
-        {/* ── Media ── */}
-        {mediaUri ? (
-          <View style={st.mediaWrap}>
-            <Image source={{ uri: mediaUri }} style={st.media} resizeMode="cover" />
-            <FilterPreviewOverlay filter={selectedFilter} />
-            {sharedPost && (
-              <View style={st.stickerOverlay}>
-                <View style={[st.stickerBubble, { backgroundColor: "rgba(0,0,0,0.7)" }]}>
-                  <Ionicons name={sharedPost.type === "reel" ? "film-outline" : "image-outline"} size={12} color="#8B5CF6" />
-                  <Text style={st.stickerBubbleText}>{sharedPost.creatorName || "منشور مشارك"}</Text>
+                <View style={st.repostStickerFooter}>
+                  {sharedPost.creatorAvatar ? (
+                    <Image source={{ uri: sharedPost.creatorAvatar }} style={st.repostStickerAvatar} />
+                  ) : (
+                    <View style={[st.repostStickerAvatar, { backgroundColor: Z_BLUE }]} />
+                  )}
+                  <Text style={st.repostStickerName} numberOfLines={1}>
+                    @{sharedPost.creatorName || "user"}
+                  </Text>
                 </View>
               </View>
-            )}
-            <View style={st.captionOverlay}>
-              <TextInput
-                style={st.captionInput}
-                value={caption}
-                onChangeText={setCaption}
-                placeholder="أضف وصفاً..."
-                placeholderTextColor="rgba(255,255,255,0.7)"
-                textAlign="center"
-                multiline
-              />
             </View>
-            {overlayLabels.map((label, index) => (
-              <DraggableOverlayLabel key={`${label}-${index}`} text={label} />
-            ))}
-            <TouchableOpacity onPress={handlePickMedia} style={st.changeMedia}>
-              <Ionicons name="checkmark" size={26} color="#fff" />
-            </TouchableOpacity>
-            {selectedFilter !== "none" && (
-              <View style={st.filterBadge}>
-                <Text style={st.filterBadgeText}>
-                  {STORY_FILTERS.find((f) => f.key === selectedFilter)?.label}
-                </Text>
-              </View>
-            )}
-          </View>
-        ) : !sharedPost ? (
-          <TouchableOpacity onPress={handlePickMedia} style={[st.pickerPlaceholder, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Ionicons name="add-circle-outline" size={52} color={colors.textSecondary} />
-            <Text style={[st.pickerText, { color: colors.textSecondary }]}>اضغط لاختيار صورة أو فيديو</Text>
-            <Text style={[st.pickerHint, { color: colors.textSecondary }]}>الصور: 25 ثانية | الفيديو: حتى 60 ثانية</Text>
-          </TouchableOpacity>
+          </>
         ) : (
-          <TouchableOpacity onPress={handlePickMedia} style={[st.pickerPlaceholder, { backgroundColor: colors.card, borderColor: "#8B5CF6" }]}>
-            <Ionicons name="add-circle-outline" size={36} color="#8B5CF6" />
-            <Text style={[st.pickerText, { color: "#8B5CF6" }]}>أضف خلفية للقصة (اختياري)</Text>
-          </TouchableOpacity>
+          // Text-only or empty
+          <>
+            {textBgImage ? (
+              <Image source={{ uri: textBgImage }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : (
+              <LinearGradient
+                colors={TEXT_BACKGROUNDS[textBgIdx].colors}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
+          </>
         )}
 
-        {mediaUri && mediaType === "image" && (
-          <View style={[st.editorTools, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[st.sectionLabel, { color: colors.textSecondary }]}>أدوات التحرير</Text>
-            <View style={st.editorToolRow}>
-              <TouchableOpacity style={st.editorToolBtn} onPress={() => manipulateImage([{ rotate: 90 }])}>
-                <Ionicons name="refresh" size={16} color="#3D91F4" />
-                <Text style={st.editorToolText}>تدوير</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={st.editorToolBtn} onPress={() => manipulateImage([{ flip: ImageManipulator.FlipType.Horizontal }])}>
-                <Ionicons name="swap-horizontal" size={16} color="#3D91F4" />
-                <Text style={st.editorToolText}>قلب أفقي</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={st.editorToolBtn} onPress={() => manipulateImage([{ flip: ImageManipulator.FlipType.Vertical }])}>
-                <Ionicons name="swap-vertical" size={16} color="#3D91F4" />
-                <Text style={st.editorToolText}>قلب عمودي</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={st.editorToolBtn} onPress={cropCenterSquare}>
-                <Ionicons name="crop" size={16} color="#3D91F4" />
-                <Text style={st.editorToolText}>قص</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={st.overlayComposer}>
-              <TextInput
-                value={overlayDraft}
-                onChangeText={setOverlayDraft}
-                placeholder="أضف نصاً أو ملصقاً واسحبه فوق القصة"
-                placeholderTextColor={colors.textSecondary}
-                style={[st.overlayInput, { color: colors.text, borderColor: colors.border }]}
-              />
-              <TouchableOpacity
-                style={st.overlayAddBtn}
-                onPress={() => {
-                  if (!overlayDraft.trim()) return;
-                  setOverlayLabels((prev) => [...prev, overlayDraft.trim()]);
-                  setOverlayDraft("");
+        {/* Draggable text overlays */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => setActiveOverlayId(null)}
+        >
+          <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+            {overlays.map((o) => (
+              <DraggableText
+                key={o.id}
+                overlay={o}
+                active={activeOverlayId === o.id}
+                onActivate={() => setActiveOverlayId(o.id)}
+                onDelete={() => {
+                  setOverlays((prev) => prev.filter((x) => x.id !== o.id));
+                  setActiveOverlayId(null);
                 }}
-              >
-                <Ionicons name="add" size={18} color="#000" />
+                onChange={(p) =>
+                  setOverlays((prev) => prev.map((x) => (x.id === o.id ? { ...x, ...p } : x)))
+                }
+                onEdit={() => startEditor(o)}
+              />
+            ))}
+          </View>
+        </Pressable>
+
+        {/* ─── Top bar: close + single Edit icon ─── */}
+        <View style={[st.topBar, { paddingTop: topPad + 6 }]}>
+          <TouchableOpacity onPress={() => router.back()} style={st.iconBtn}>
+            <Ionicons name="close" size={26} color="#fff" />
+          </TouchableOpacity>
+
+          <View style={{ flex: 1 }} />
+
+          {(hasMedia || hasShared || inTextMode) && (
+            <TouchableOpacity
+              onPress={() => setShowSidebar((s) => !s)}
+              style={[st.editPill, showSidebar && { borderColor: Z_GREEN }]}
+            >
+              <Ionicons name={showSidebar ? "checkmark" : "create-outline"} size={18} color={showSidebar ? Z_GREEN : Z_BLUE} />
+              <Text style={[st.editPillText, { color: showSidebar ? Z_GREEN : Z_BLUE }]}>
+                {showSidebar ? "Done" : "Edit"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* ─── Right Vertical Sidebar (icons only) ─── */}
+        {showSidebar && (
+          <View style={[st.sidebar, { top: topPad + 70 }]}>
+            {sidebarTools.map((t) => (
+              <TouchableOpacity key={t.id} onPress={t.onPress} style={st.sidebarBtn} activeOpacity={0.7}>
+                {typeof t.icon === "string" ? (
+                  <Ionicons name={t.icon as any} size={22} color={t.color} />
+                ) : (
+                  <MaterialCommunityIcons name={t.icon.mci} size={22} color={t.color} />
+                )}
               </TouchableOpacity>
-            </View>
+            ))}
           </View>
         )}
 
-        {/* Filter Selector */}
-        {mediaUri && mediaType === "image" && (
-          <View>
-            <Text style={[st.sectionLabel, { color: colors.textSecondary }]}>الفلاتر</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.filtersRow}>
+        {/* ─── Filter horizontal swipe (only when filter tool selected) ─── */}
+        {showSidebar && sidebarTool === "filter" && hasMedia && mediaType === "image" && (
+          <View style={[st.filterStrip, { bottom: insets.bottom + 100 }]}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 14, gap: 10 }}
+            >
               {STORY_FILTERS.map((f) => {
-                const isActive = selectedFilter === f.key;
+                const active = selectedFilter === f.key;
                 return (
                   <TouchableOpacity
                     key={f.key}
                     onPress={() => setSelectedFilter(f.key)}
-                    activeOpacity={0.8}
                     style={[
-                      st.filterItem,
-                      {
-                        backgroundColor: isActive ? colors.tint : colors.card,
-                        borderColor: isActive ? colors.tint : colors.border,
-                        transform: [{ scale: isActive ? 1.05 : 1 }],
-                      },
+                      st.filterChip,
+                      { borderColor: active ? Z_GREEN : "rgba(255,255,255,0.2)" },
+                      active && { backgroundColor: "rgba(0,230,118,0.15)" },
                     ]}
                   >
-                    <Text style={[st.filterLabel, { color: isActive ? (theme === "dark" ? "#000" : "#fff") : colors.textSecondary }]}>
+                    <Text style={[st.filterChipText, { color: active ? Z_GREEN : "#fff" }]}>
                       {f.label}
                     </Text>
                   </TouchableOpacity>
@@ -662,189 +906,562 @@ export default function CreateStoryScreen() {
           </View>
         )}
 
-        {/* ── Caption (standalone) ── */}
-        {!mediaUri && !sharedPost && (
-          <View style={[st.captionStandalone, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <TextInput
-              style={[st.captionStandaloneInput, { color: colors.text }]}
-              value={caption}
-              onChangeText={setCaption}
-              placeholder="اكتب قصتك..."
-              placeholderTextColor={colors.textSecondary}
-              textAlign="right"
-              multiline
-            />
+        {/* ─── Text-only background palette ─── */}
+        {inTextMode && !composerOpen && (
+          <View style={[st.bgPalette, { bottom: insets.bottom + 90 }]}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 10, paddingHorizontal: 14 }}
+            >
+              <TouchableOpacity onPress={pickTextBgFromGallery} style={st.bgPlusBtn}>
+                <Ionicons name="add" size={22} color={Z_GREEN} />
+              </TouchableOpacity>
+              {TEXT_BACKGROUNDS.map((bg, i) => {
+                const active = !textBgImage && i === textBgIdx;
+                return (
+                  <TouchableOpacity
+                    key={bg.id}
+                    onPress={() => { setTextBgIdx(i); setTextBgImage(null); }}
+                    style={[st.bgCircleWrap, active && { borderColor: Z_GREEN, borderWidth: 2 }]}
+                  >
+                    <LinearGradient colors={bg.colors} style={st.bgCircle} />
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
         )}
 
-        <View style={[st.mentionSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={st.mentionHeader}>
-            <Ionicons name="at-outline" size={18} color="#3D91F4" />
-            <Text style={[st.mentionHeaderText, { color: colors.text }]}>الإشارات من الوصف</Text>
-          </View>
-          <Text style={[st.tipsText, { color: colors.textSecondary }]}>
-            اكتب @username داخل الوصف وسيتم إشعار المستخدم تلقائياً وجعل الإشارة قابلة للضغط في القصة.
-          </Text>
-          {parsedMentionUsers.length > 0 && (
-            <View style={st.mentionTags}>
-              {parsedMentionUsers.map((u) => (
-                <View key={u.id} style={st.mentionTag}>
-                  <Text style={st.mentionTagText}>@{u.username || u.name}</Text>
-                </View>
-              ))}
+        {/* ─── Landing picker (only when nothing selected) ─── */}
+        {showPickerLanding && (
+          <View style={st.landing}>
+            <Text style={st.landingTitle}>Create a Story</Text>
+            <View style={st.landingRow}>
+              <TouchableOpacity style={[st.landingBtn, { borderColor: Z_BLUE }]} onPress={handlePickMedia} activeOpacity={0.85}>
+                <Ionicons name="images-outline" size={28} color={Z_BLUE} />
+                <Text style={[st.landingBtnText, { color: Z_BLUE }]}>Photo / Video</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[st.landingBtn, { borderColor: Z_GREEN }]}
+                onPress={() => setTextMode(true)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="text" size={28} color={Z_GREEN} />
+                <Text style={[st.landingBtnText, { color: Z_GREEN }]}>Create Text Story</Text>
+              </TouchableOpacity>
             </View>
-          )}
+          </View>
+        )}
+
+        {/* ─── Bottom bar: Audience + Publish ─── */}
+        {(hasMedia || hasShared || inTextMode) && !composerOpen && (
+          <View style={[st.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+            <TouchableOpacity
+              style={[st.audPill, { borderColor: isCloseFriends ? Z_GREEN : Z_BLUE }]}
+              onPress={() => setShowAudience(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={isCloseFriends ? "star" : "globe-outline"}
+                size={16}
+                color={isCloseFriends ? Z_GREEN : Z_BLUE}
+              />
+              <Text style={[st.audPillText, { color: isCloseFriends ? Z_GREEN : Z_BLUE }]}>
+                {isCloseFriends ? "Close Friends" : "Public"}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[st.publishBtn, { backgroundColor: isCloseFriends ? Z_GREEN : Z_BLUE }]}
+              onPress={handlePublish}
+              disabled={publishing}
+              activeOpacity={0.85}
+            >
+              {publishing ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <>
+                  <Text style={st.publishBtnText}>Share</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#000" />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {/* ═══════════════ TEXT COMPOSER OVERLAY ═══════════════ */}
+      {composerOpen && (
+        <View style={st.composerWrap} pointerEvents="box-none">
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => { closeTextEditor(true); setComposerOpen(false); }}
+          />
+          <View style={st.composerCenter} pointerEvents="box-none">
+            <View style={[st.composerBubble, highlightStyle(draftHighlight).wrap]}>
+              <TextInput
+                value={draftText}
+                onChangeText={setDraftText}
+                placeholder="Type something..."
+                placeholderTextColor="rgba(255,255,255,0.6)"
+                autoFocus
+                multiline
+                style={[
+                  highlightStyle(draftHighlight).text,
+                  {
+                    fontSize: 28,
+                    fontFamily: "Inter_700Bold",
+                    textAlign: draftAlign,
+                    minWidth: 160,
+                    maxWidth: SCREEN.width - 60,
+                  },
+                ]}
+              />
+            </View>
+
+            {/* Mention picker */}
+            {showMentionPicker && mentionResults.length > 0 && (
+              <View style={st.mentionPicker}>
+                <FlatList
+                  data={mentionResults}
+                  keyExtractor={(u) => u.id}
+                  keyboardShouldPersistTaps="handled"
+                  renderItem={({ item }) => {
+                    const color = ACCENT_COLORS[(item.name?.length ?? 0) % ACCENT_COLORS.length];
+                    return (
+                      <TouchableOpacity style={st.mentionRow} onPress={() => insertMention(item)}>
+                        <View style={[st.mentionAvatar, { backgroundColor: `${color}40` }]}>
+                          {item.avatar ? (
+                            <Image source={{ uri: item.avatar }} style={StyleSheet.absoluteFill as any} />
+                          ) : (
+                            <Text style={{ color, fontFamily: "Inter_700Bold" }}>
+                              {item.name[0]?.toUpperCase()}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={st.mentionName}>{item.name}</Text>
+                          {item.username ? (
+                            <Text style={st.mentionHandle}>@{item.username}</Text>
+                          ) : null}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              </View>
+            )}
+          </View>
+
+          {/* Styling Bar */}
+          <View style={[st.styleBar, { paddingBottom: insets.bottom + 14 }]}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, alignItems: "center" }}
+            >
+              {/* Alignment toggle */}
+              <TouchableOpacity
+                style={st.alignBtn}
+                onPress={() =>
+                  setDraftAlign((a) => (a === "left" ? "center" : a === "center" ? "right" : "left"))
+                }
+              >
+                <Ionicons
+                  name={
+                    draftAlign === "left"
+                      ? "reorder-three-outline"
+                      : draftAlign === "center"
+                      ? "menu-outline"
+                      : "reorder-three-outline"
+                  }
+                  size={20}
+                  color={Z_GREEN}
+                  style={draftAlign === "right" ? { transform: [{ scaleX: -1 }] } : undefined}
+                />
+              </TouchableOpacity>
+
+              {/* Highlight chips */}
+              {HIGHLIGHT_STYLES.map((h) => {
+                const active = draftHighlight === h.id;
+                return (
+                  <TouchableOpacity
+                    key={h.id}
+                    onPress={() => setDraftHighlight(h.id)}
+                    style={[
+                      st.hChip,
+                      { borderColor: active ? Z_GREEN : "rgba(255,255,255,0.18)" },
+                      active && { backgroundColor: "rgba(0,230,118,0.15)" },
+                    ]}
+                  >
+                    <Text style={[st.hChipText, { color: active ? Z_GREEN : "#fff" }]}>
+                      {h.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[st.doneBtn, { backgroundColor: Z_GREEN }]}
+              onPress={() => { closeTextEditor(true); setComposerOpen(false); }}
+            >
+              <Text style={st.doneBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+      )}
 
-        {/* Tips */}
-        <View style={[st.tipsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
-          <Text style={[st.tipsText, { color: colors.textSecondary }]}>
-            القصص تختفي تلقائياً بعد 24 ساعة من نشرها
-          </Text>
-        </View>
-
-        <View style={{ height: 32 }} />
-      </ScrollView>
-
-      <AudienceSheet
-        visible={showAudienceSheet}
-        onClose={() => setShowAudienceSheet(false)}
-        isCloseFriends={isCloseFriends}
-        onSelect={handleAudienceSelect}
-        colors={colors}
+      {/* ═══════════════ MODALS ═══════════════ */}
+      <CropModal
+        visible={showCrop}
+        uri={mediaUri}
+        onClose={() => setShowCrop(false)}
+        onApply={(uri) => { setMediaUri(uri); setShowCrop(false); }}
       />
 
-      <CloseFriendsModal
-        visible={showCFModal}
-        onClose={() => { setShowCFModal(false); if (cfList.length === 0) setIsCloseFriends(false); }}
-        selectedIds={cfList}
-        onSave={(ids) => { setCfList(ids); if (ids.length === 0) setIsCloseFriends(false); }}
-        followers={followers}
-        users={users}
-        colors={colors}
+      <AudienceSheet
+        visible={showAudience}
+        onClose={() => setShowAudience(false)}
+        isCloseFriends={isCloseFriends}
+        onSelect={setIsCloseFriends}
       />
     </KeyboardAvoidingView>
   );
 }
 
+// ── Styles ──────────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
-  container: { flex: 1 },
-  headerGrad: { paddingHorizontal: 16, paddingBottom: 12 },
-  headerRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 4 },
-  closeBtn: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", borderWidth: 1 },
-  headerTitle: { flex: 1, fontSize: 20, fontFamily: "Inter_700Bold" },
-  publishBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 14 },
-  publishBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 },
-  body: { padding: 16, gap: 14 },
+  root: { flex: 1, backgroundColor: Z_BG },
+  canvas: { flex: 1, backgroundColor: Z_BG, position: "relative", overflow: "hidden" },
 
-  audienceBtn: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderRadius: 16, borderWidth: 1.5,
-    paddingHorizontal: 14, paddingVertical: 12,
+  topBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingBottom: 6,
+    zIndex: 20,
   },
-  audienceBtnIcon: {
-    width: 34, height: 34, borderRadius: 10,
-    alignItems: "center", justifyContent: "center",
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  audienceBtnLabel: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
-
-  audienceSheet: {
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    borderTopWidth: 0.5, padding: 20, paddingBottom: 40, gap: 12,
+  editPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderColor: Z_BLUE,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
-  audienceTitle: { fontFamily: "Inter_700Bold", fontSize: 18, textAlign: "center", marginBottom: 2 },
-  audienceSubtitle: { fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center", marginBottom: 4 },
-  audienceOption: {
-    flexDirection: "row", alignItems: "center", gap: 14,
-    borderRadius: 16, borderWidth: 1.5, padding: 14,
+  editPillText: { fontFamily: "Inter_700Bold", fontSize: 13 },
+
+  sidebar: {
+    position: "absolute",
+    right: 12,
+    backgroundColor: "rgba(10,10,10,0.85)",
+    borderRadius: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    gap: 16,
+    borderWidth: 1,
+    borderColor: Z_BORDER,
+    zIndex: 19,
   },
-  audienceIconWrap: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  audienceOptionTitle: { fontFamily: "Inter_700Bold", fontSize: 15, marginBottom: 2 },
-  audienceOptionDesc: { fontFamily: "Inter_400Regular", fontSize: 12 },
-  audienceCheck: { marginLeft: 4 },
-
-  editListBtn: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10,
+  sidebarBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  editListText: { flex: 1, fontFamily: "Inter_500Medium", fontSize: 13 },
 
-  sharedStickerCard: { borderRadius: 16, borderWidth: 1.5, overflow: "hidden" },
-  sharedStickerGrad: { flexDirection: "row", gap: 12, padding: 12, alignItems: "center" },
-  sharedStickerThumb: { width: 56, height: 56, borderRadius: 10, overflow: "hidden" },
-  sharedStickerType: { fontFamily: "Inter_700Bold", fontSize: 11, marginBottom: 2 },
-  sharedStickerCreator: { fontFamily: "Inter_600SemiBold", fontSize: 13 },
-  sharedStickerCaption: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 },
-  sharedCreatorRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  sharedCreatorAvatar: { width: 22, height: 22, borderRadius: 11 },
-
-  mediaWrap: { borderRadius: 20, overflow: "hidden", aspectRatio: 9 / 16, position: "relative" },
-  media: { width: "100%", height: "100%" },
-  stickerOverlay: { position: "absolute", bottom: 80, left: 0, right: 0, alignItems: "center" },
-  stickerBubble: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: "#8B5CF655" },
-  stickerBubbleText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 },
-  captionOverlay: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: "rgba(0,0,0,0.4)" },
-  captionInput: { color: "#fff", fontFamily: "Inter_500Medium", fontSize: 16, textShadowColor: "rgba(0,0,0,0.5)", textShadowRadius: 4 },
-  draggableOverlayLabel: { position: "absolute", top: "42%", left: "24%", backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: "rgba(61,145,244,0.55)" },
-  draggableOverlayText: { color: "#fff", fontFamily: "Inter_800ExtraBold", fontSize: 22, textShadowColor: "rgba(0,0,0,0.7)", textShadowRadius: 6 },
-  changeMedia: {
-    position: "absolute", bottom: 12, right: 12,
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: "#FF8C00", alignItems: "center", justifyContent: "center",
-    borderWidth: 2.5, borderColor: "rgba(255,255,255,0.55)",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.5, shadowRadius: 8, elevation: 8,
+  filterStrip: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    paddingVertical: 8,
+    backgroundColor: "rgba(0,0,0,0.55)",
   },
-  filterBadge: { position: "absolute", top: 12, left: 12, backgroundColor: "rgba(0,0,0,0.6)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  filterBadgeText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 },
-  pickerPlaceholder: { aspectRatio: 9 / 16, borderRadius: 20, borderWidth: 2, borderStyle: "dashed", alignItems: "center", justifyContent: "center", gap: 12 },
-  pickerText: { fontSize: 15, fontFamily: "Inter_500Medium" },
-  pickerHint: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  sectionLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", marginBottom: 10, letterSpacing: 0.5 },
-  filtersRow: { gap: 10 },
-  filterItem: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 12, borderWidth: 1 },
-  filterLabel: { fontFamily: "Inter_500Medium", fontSize: 13 },
-  editorTools: { borderRadius: 16, borderWidth: 1, padding: 12, gap: 10 },
-  editorToolRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  editorToolBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(61,145,244,0.12)", borderColor: "rgba(61,145,244,0.35)", borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
-  editorToolText: { color: "#3D91F4", fontFamily: "Inter_600SemiBold", fontSize: 12 },
-  overlayComposer: { flexDirection: "row", alignItems: "center", gap: 8 },
-  overlayInput: { flex: 1, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, fontFamily: "Inter_400Regular", fontSize: 13 },
-  overlayAddBtn: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#00C853" },
-  captionStandalone: { borderRadius: 16, borderWidth: 1, padding: 14, minHeight: 80 },
-  captionStandaloneInput: { fontFamily: "Inter_400Regular", fontSize: 15, lineHeight: 22 },
-  tipsCard: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1, padding: 12 },
-  tipsText: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  filterChipText: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
 
-  mentionSection: { borderRadius: 16, borderWidth: 1, padding: 14, gap: 10 },
-  mentionHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  mentionHeaderText: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
-  mentionTags: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  mentionTag: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#8B5CF6", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  mentionTagText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 },
-  addMentionBtn: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderStyle: "dashed", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
-  addMentionText: { fontFamily: "Inter_400Regular", fontSize: 13 },
-  mentionSearchInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, fontFamily: "Inter_400Regular", fontSize: 14, marginBottom: 8 },
-  mentionResult: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
-  mentionResultAvatar: { width: 32, height: 32, borderRadius: 16, overflow: "hidden", alignItems: "center", justifyContent: "center" },
-  mentionResultAvatarText: { fontFamily: "Inter_700Bold", fontSize: 13 },
-  mentionResultName: { flex: 1, fontFamily: "Inter_600SemiBold", fontSize: 13 },
-  mentionResultHandle: { fontFamily: "Inter_400Regular", fontSize: 12 },
+  bgPalette: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+  },
+  bgCircleWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+  },
+  bgCircle: { flex: 1 },
+  bgPlusBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: Z_GREEN,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
 
+  landing: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 28,
+    gap: 24,
+  },
+  landingTitle: { color: "#fff", fontSize: 26, fontFamily: "Inter_700Bold", marginBottom: 8 },
+  landingRow: { flexDirection: "row", gap: 14 },
+  landingBtn: {
+    flex: 1,
+    minWidth: 130,
+    borderWidth: 1.5,
+    borderRadius: 22,
+    paddingVertical: 28,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  landingBtnText: { fontFamily: "Inter_700Bold", fontSize: 14, textAlign: "center" },
+
+  bottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    zIndex: 18,
+  },
+  audPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 1,
+  },
+  audPillText: { fontFamily: "Inter_700Bold", fontSize: 13 },
+  publishBtn: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 24,
+  },
+  publishBtnText: { color: "#000", fontFamily: "Inter_700Bold", fontSize: 15 },
+
+  // Repost sticker
+  repostStickerWrap: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  repostSticker: {
+    width: SCREEN.width * 0.78,
+    aspectRatio: 9 / 14,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderWidth: 2,
+    borderColor: Z_BLUE,
+    overflow: "hidden",
+  },
+  repostStickerMedia: { flex: 1, width: "100%" },
+  repostStickerFooter: {
+    position: "absolute",
+    bottom: 0, left: 0, right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 10,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  repostStickerAvatar: { width: 22, height: 22, borderRadius: 11 },
+  repostStickerName: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 13 },
+
+  // Draggable text
+  draggableBox: { position: "absolute", top: "40%", left: "12%" },
+  deleteHandle: {
+    position: "absolute",
+    top: -10,
+    right: -10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#FF3B30",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scaleHandle: {
+    position: "absolute",
+    bottom: -10,
+    right: -10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Z_BLUE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Composer
+  composerWrap: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    zIndex: 30,
+  },
+  composerCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  composerBubble: {
+    minHeight: 60,
+    minWidth: 100,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mentionPicker: {
+    position: "absolute",
+    bottom: 100,
+    left: 20,
+    right: 20,
+    maxHeight: 240,
+    backgroundColor: Z_PANEL,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Z_BORDER,
+    overflow: "hidden",
+  },
+  mentionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 10,
+  },
+  mentionAvatar: { width: 32, height: 32, borderRadius: 16, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  mentionName: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 },
+  mentionHandle: { color: Z_MUTED, fontFamily: "Inter_400Regular", fontSize: 11 },
+
+  styleBar: {
+    position: "absolute",
+    bottom: 0, left: 0, right: 0,
+    paddingTop: 10,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(0,0,0,0.75)",
+  },
+  alignBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  hChipText: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
+  doneBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 18,
+  },
+  doneBtnText: { color: "#000", fontFamily: "Inter_700Bold", fontSize: 13 },
+
+  // Crop modal
+  cropBackdrop: { flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center" },
+  cropHeader: {
+    position: "absolute",
+    top: 50,
+    left: 0, right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  cropHeaderBtn: { padding: 8 },
+  cropTitle: { flex: 1, color: "#fff", textAlign: "center", fontFamily: "Inter_700Bold", fontSize: 15 },
+  cropFrame: {
+    overflow: "hidden",
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Z_GREEN,
+    backgroundColor: "#111",
+  },
+  cropImageClip: { ...StyleSheet.absoluteFillObject, overflow: "hidden" },
+  cropGridOverlay: { ...StyleSheet.absoluteFillObject },
+  cropGridLineV1: { position: "absolute", top: 0, bottom: 0, left: "33%", width: 1, backgroundColor: "rgba(255,255,255,0.25)" },
+  cropGridLineV2: { position: "absolute", top: 0, bottom: 0, left: "66%", width: 1, backgroundColor: "rgba(255,255,255,0.25)" },
+  cropGridLineH1: { position: "absolute", left: 0, right: 0, top: "33%", height: 1, backgroundColor: "rgba(255,255,255,0.25)" },
+  cropGridLineH2: { position: "absolute", left: 0, right: 0, top: "66%", height: 1, backgroundColor: "rgba(255,255,255,0.25)" },
+  cropHint: { position: "absolute", bottom: 50, color: Z_MUTED, fontFamily: "Inter_400Regular", fontSize: 12 },
+
+  // Sheets
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
-  cfSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 0.5, padding: 16, paddingBottom: 36, gap: 14 },
-  handle: { width: 36, height: 3, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
-  cfTitle: { fontFamily: "Inter_700Bold", fontSize: 18, textAlign: "center" },
-  searchBox: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 14, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8 },
-  searchInput: { flex: 1, fontFamily: "Inter_400Regular", fontSize: 14 },
-  cfRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
-  miniAvatar: { width: 40, height: 40, borderRadius: 20, overflow: "hidden", alignItems: "center", justifyContent: "center" },
-  miniAvatarText: { fontFamily: "Inter_700Bold", fontSize: 16 },
-  cfUserName: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
-  cfUserHandle: { fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 1 },
-  checkbox: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  emptyText: { textAlign: "center", fontFamily: "Inter_400Regular", paddingVertical: 20 },
-  cfSaveBtn: { borderRadius: 20, overflow: "hidden", marginTop: 8 },
-  cfSaveBtnGrad: { paddingVertical: 14, alignItems: "center" },
-  cfSaveBtnText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 },
+  sheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    padding: 18,
+    paddingBottom: 36,
+    gap: 12,
+  },
+  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: Z_BORDER, marginBottom: 8 },
+  sheetTitle: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 18, textAlign: "center" },
+  audOpt: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1.5,
+    borderRadius: 16,
+    padding: 14,
+  },
+  audOptText: { fontFamily: "Inter_700Bold", fontSize: 15 },
 });

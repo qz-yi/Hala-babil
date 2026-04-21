@@ -344,12 +344,17 @@ export default function StoryViewerScreen() {
   const handleAddToMyStory = () => {
     if (!currentStory) return;
     setPaused(true);
+    // Bug fix: chain originalStoryId so reposts of reposts still resolve to the
+    // original story. If the current story is itself a repost, prefer its
+    // originalStoryId; otherwise use the current story's id.
+    const chainedOriginalStoryId =
+      currentStory.sharedPost?.originalStoryId || currentStory.id;
     router.push({
       pathname: "/create-story",
       params: {
         sharedType: "story",
         sharedId: currentStory.id,
-        originalStoryId: currentStory.id,
+        originalStoryId: chainedOriginalStoryId,
         sharedMediaUrl: currentStory.mediaUrl,
         sharedCaption: currentStory.caption || "",
         sharedCreatorName: user?.username || user?.name || "",

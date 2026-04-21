@@ -1236,9 +1236,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
     : "http://localhost:3000";
 
+  // Resilient fetch: 15s timeout + retry على أخطاء الشبكة المؤقتة (EAI_AGAIN, network errors)
+  const apiFetch = useCallback(
+    async (url: string, init: RequestInit = {}, opts: { retries?: number; timeoutMs?: number } = {}) => {
+      const { retries = 2, timeoutMs = 15_000 } = opts;
+      let lastErr: unknown;
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const res = await fetch(url, { ...init, signal: controller.signal });
+          clearTimeout(timer);
+          // Retry على 502/503/504 (مشاكل خادم مؤقتة)
+          if (attempt < retries && (res.status === 502 || res.status === 503 || res.status === 504)) {
+            console.warn(`[api] HTTP ${res.status} on ${url}, retrying (${attempt + 1}/${retries})`);
+            await new Promise((r) => setTimeout(r, 400 * 2 ** attempt));
+            continue;
+          }
+          return res;
+        } catch (err) {
+          clearTimeout(timer);
+          lastErr = err;
+          const msg = String((err as Error)?.message || err);
+          const isTransient =
+            msg.includes("EAI_AGAIN") ||
+            msg.includes("ENOTFOUND") ||
+            msg.includes("ECONNRESET") ||
+            msg.includes("ETIMEDOUT") ||
+            msg.includes("Network request failed") ||
+            msg.includes("Failed to fetch") ||
+            msg.includes("aborted");
+          if (attempt >= retries || !isTransient) throw err;
+          const backoff = 500 * 2 ** attempt; // 500ms, 1000ms
+          console.warn(`[api] transient network error "${msg}" → retrying in ${backoff}ms (${attempt + 1}/${retries})`);
+          await new Promise((r) => setTimeout(r, backoff));
+        }
+      }
+      throw lastErr;
+    },
+    [],
+  );
+
   const loadStoriesFromServer = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/stories`);
+      const res = await apiFetch(`${API_BASE}/api/stories`);
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data?.error || "stories_fetch_failed");
@@ -1267,7 +1308,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("[stories] Failed to load stories from database", err);
     }
-  }, [API_BASE]);
+  }, [API_BASE, apiFetch]);
 
   useEffect(() => {
     if (currentUser) {
@@ -2793,7 +2834,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!currentUser) return;
       let story: Story;
       try {
-        const res = await fetch(`${API_BASE}/api/stories`, {
+        const res = await apiFetch(`${API_BASE}/api/stories`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -2803,9 +2844,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             mediaType,
             filter,
             isCloseFriends,
-            mentions,
-            sharedPost,
-            overlays,
+            mentions: Array.isArray(mentions) ? mentions : [],
+            sharedPost: sharedPost ?? null,
+            overlays: Array.isArray(overlays) ? overlays : [],
           }),
         });
         const rawText = await res.text();
@@ -2877,7 +2918,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       if (storyNotifications.length > 0) saveNotifications([...storyNotifications, ...notifications]);
     },
-    [API_BASE, currentUser, stories, users, notifications]
+    [API_BASE, apiFetch, currentUser, stories, users, notifications]
   );
 
   const deleteStory = useCallback(

@@ -3,6 +3,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
+import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -29,7 +30,9 @@ import { useApp } from "@/context/AppContext";
 import type { User } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 
-// ── Theme constants (Strict Zentram Dark) ──────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
+// THEME (Strict Zentram Dark)
+// ────────────────────────────────────────────────────────────────────────────
 const Z_BG = "#000000";
 const Z_PANEL = "#0A0A0A";
 const Z_BORDER = "rgba(255,255,255,0.08)";
@@ -37,14 +40,53 @@ const Z_BLUE = "#3D91F4";   // Electric Blue
 const Z_GREEN = "#00E676";  // Vibrant Green
 const Z_TEXT = "#FFFFFF";
 const Z_MUTED = "rgba(255,255,255,0.55)";
+const Z_INPUT_BG = "rgba(0,0,0,0.55)"; // semi-transparent black
 
-// ── Filters & Backgrounds ──────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
+// ARABIC STRINGS
+// ────────────────────────────────────────────────────────────────────────────
+const T = {
+  createStory: "إنشاء قصة",
+  photoVideo: "صورة / فيديو",
+  textStory: "قصة نصية",
+  edit: "تعديل",
+  done: "تم",
+  share: "نشر",
+  audience: "الجمهور",
+  publicLabel: "عام",
+  closeFriends: "أصدقاء مقربون",
+  noFollowers: "لا يوجد متابعون",
+  searchFollowers: "ابحث في المتابعين...",
+  save: "حفظ",
+  manualCrop: "قص يدوي · 9:16",
+  cropHint: "اسحب الزوايا لتحديد منطقة القص",
+  apply: "تطبيق",
+  type: "اكتب شيئاً...",
+  classic: "كلاسيكي",
+  neon: "نيون",
+  block: "بلوك",
+  plain: "شفاف",
+  pickMedia: "اختر صورة أو فيديو",
+  permissionGallery: "يرجى السماح بالوصول للمعرض",
+  permissionDenied: "تم رفض الإذن",
+  selectMediaFirst: "اختر وسائط أولاً",
+  cropImageOnly: "القص يعمل على الصور فقط",
+  postedPublic: "تم نشر القصة",
+  postedCF: "تم النشر للأصدقاء المقربين",
+  publishFailed: "فشل النشر",
+  needContent: "أضف وسائط أو نصاً",
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ────────────────────────────────────────────────────────────────────────────
 const STORY_FILTERS = [
-  { key: "none", label: "Original" },
-  { key: "warm", label: "Warm" },
-  { key: "cool", label: "Cool" },
-  { key: "vintage", label: "Vintage" },
-  { key: "grayscale", label: "B&W" },
+  { key: "none", label: "الأصلي" },
+  { key: "warm", label: "دافئ" },
+  { key: "cool", label: "بارد" },
+  { key: "vintage", label: "فينتاج" },
+  { key: "grayscale", label: "أبيض وأسود" },
+  { key: "sepia", label: "سيبيا" },
 ];
 
 const TEXT_BACKGROUNDS: { id: string; colors: [string, string] }[] = [
@@ -55,15 +97,14 @@ const TEXT_BACKGROUNDS: { id: string; colors: [string, string] }[] = [
   { id: "violet", colors: ["#8E2DE2", "#4A00E0"] },
   { id: "fire", colors: ["#F12711", "#F5AF19"] },
   { id: "rose", colors: ["#FF0844", "#FFB199"] },
-  { id: "gold", colors: ["#B79891", "#94716B"] },
   { id: "neon", colors: ["#00F260", "#0575E6"] },
 ];
 
 const HIGHLIGHT_STYLES = [
-  { id: "classic", label: "Classic" },
-  { id: "neon", label: "Neon" },
-  { id: "block", label: "Block" },
-  { id: "transparent", label: "Plain" },
+  { id: "classic", label: T.classic },
+  { id: "neon", label: T.neon },
+  { id: "block", label: T.block },
+  { id: "transparent", label: T.plain },
 ] as const;
 
 type HighlightId = (typeof HIGHLIGHT_STYLES)[number]["id"];
@@ -75,36 +116,49 @@ type TextOverlay = {
   x: number;
   y: number;
   scale: number;
+  rotation: number;
   highlight: HighlightId;
   align: AlignId;
 };
 
 const SCREEN = Dimensions.get("window");
 
-// ── Filter overlay (preview only, baked at publish) ────────────────────────
-function FilterPreviewOverlay({ filter }: { filter: string }) {
-  if (filter === "none") return null;
+// ────────────────────────────────────────────────────────────────────────────
+// FILTER UTILITIES
+// ────────────────────────────────────────────────────────────────────────────
+function filterOverlayColor(filter: string): string | null {
   const overlays: Record<string, string> = {
     warm: "rgba(255,120,0,0.25)",
     cool: "rgba(0,100,255,0.22)",
     vintage: "rgba(160,100,40,0.28)",
     grayscale: "rgba(128,128,128,0.0)",
+    sepia: "rgba(112,66,20,0.35)",
   };
-  const overlay = overlays[filter];
-  if (!overlay) return null;
-  return (
-    <View
-      style={[
-        StyleSheet.absoluteFill,
-        {
-          backgroundColor: overlay,
-          ...(filter === "grayscale" && Platform.OS === "web"
-            ? ({ filter: "grayscale(100%)" } as any)
-            : {}),
-        },
-      ]}
-    />
-  );
+  return overlays[filter] || null;
+}
+
+function webFilterCss(filter: string): any {
+  if (Platform.OS !== "web") return undefined;
+  switch (filter) {
+    case "grayscale":
+      return { filter: "grayscale(100%)" };
+    case "sepia":
+      return { filter: "sepia(80%)" };
+    case "warm":
+      return { filter: "saturate(140%) hue-rotate(-10deg)" };
+    case "cool":
+      return { filter: "saturate(120%) hue-rotate(15deg)" };
+    case "vintage":
+      return { filter: "contrast(90%) sepia(40%) saturate(120%)" };
+    default:
+      return undefined;
+  }
+}
+
+function FilterOverlay({ filter }: { filter: string }) {
+  const c = filterOverlayColor(filter);
+  if (!c || filter === "none") return null;
+  return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c }]} />;
 }
 
 async function bakeFilter(uri: string, filter: string): Promise<string> {
@@ -121,52 +175,59 @@ async function bakeFilter(uri: string, filter: string): Promise<string> {
   }
 }
 
-// ── Highlight visual styles ────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
+// HIGHLIGHT VISUAL STYLES
+// ────────────────────────────────────────────────────────────────────────────
 function highlightStyle(h: HighlightId): { wrap: any; text: any } {
   switch (h) {
     case "neon":
       return {
-        wrap: { backgroundColor: "transparent" },
-        text: {
-          color: Z_GREEN,
-          textShadowColor: Z_GREEN,
-          textShadowRadius: 12,
-        },
+        wrap: { backgroundColor: "transparent", paddingHorizontal: 6, paddingVertical: 4 },
+        text: { color: Z_GREEN, textShadowColor: Z_GREEN, textShadowRadius: 12 },
       };
     case "block":
       return {
-        wrap: {
-          backgroundColor: "#FFFFFF",
-          paddingHorizontal: 10,
-          paddingVertical: 4,
-          borderRadius: 4,
-        },
+        wrap: { backgroundColor: "#FFFFFF", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 4 },
         text: { color: "#000000" },
       };
     case "transparent":
       return {
-        wrap: { backgroundColor: "transparent" },
-        text: {
-          color: "#FFFFFF",
-          textShadowColor: "rgba(0,0,0,0.65)",
-          textShadowRadius: 8,
-        },
+        wrap: { backgroundColor: "transparent", paddingHorizontal: 6, paddingVertical: 4 },
+        text: { color: "#FFFFFF", textShadowColor: "rgba(0,0,0,0.65)", textShadowRadius: 8 },
       };
     case "classic":
     default:
       return {
-        wrap: {
-          backgroundColor: "rgba(0,0,0,0.55)",
-          paddingHorizontal: 12,
-          paddingVertical: 6,
-          borderRadius: 12,
-        },
+        wrap: { backgroundColor: Z_INPUT_BG, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14 },
         text: { color: "#FFFFFF" },
       };
   }
 }
 
-// ── Draggable text overlay ─────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
+// VIDEO PLAYER (preview with optional CSS filter on web)
+// ────────────────────────────────────────────────────────────────────────────
+function VideoPreview({ uri, filter }: { uri: string; filter: string }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
+  return (
+    <View style={[StyleSheet.absoluteFill, webFilterCss(filter)]}>
+      <VideoView
+        player={player}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+        nativeControls={false}
+      />
+    </View>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// DRAGGABLE TEXT OVERLAY (move + continuous scale + rotate)
+// ────────────────────────────────────────────────────────────────────────────
 function DraggableText({
   overlay,
   active,
@@ -184,20 +245,42 @@ function DraggableText({
 }) {
   const pan = useRef(new Animated.ValueXY({ x: overlay.x, y: overlay.y })).current;
   const lastPos = useRef({ x: overlay.x, y: overlay.y });
+  const scaleRef = useRef(overlay.scale);
+  const rotRef = useRef(overlay.rotation);
+  const [, force] = useState(0);
+  const wrapRef = useRef<View>(null);
+  const wrapCenter = useRef({ x: 0, y: 0 });
 
-  const responder = useRef(
+  useEffect(() => {
+    pan.setValue({ x: overlay.x, y: overlay.y });
+    lastPos.current = { x: overlay.x, y: overlay.y };
+    scaleRef.current = overlay.scale;
+    rotRef.current = overlay.rotation;
+    force((n) => n + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlay.id]);
+
+  const measureCenter = () => {
+    return new Promise<void>((resolve) => {
+      if (!wrapRef.current) return resolve();
+      wrapRef.current.measureInWindow((x, y, w, h) => {
+        wrapCenter.current = { x: x + w / 2, y: y + h / 2 };
+        resolve();
+      });
+    });
+  };
+
+  // ── Move responder ──
+  const moveResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, g) =>
-        Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2,
       onPanResponderGrant: () => {
         onActivate();
         pan.setOffset({ x: lastPos.current.x, y: lastPos.current.y });
         pan.setValue({ x: 0, y: 0 });
       },
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-        useNativeDriver: false,
-      }),
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
       onPanResponderRelease: (_, g) => {
         const nx = lastPos.current.x + g.dx;
         const ny = lastPos.current.y + g.dy;
@@ -208,67 +291,141 @@ function DraggableText({
     }),
   ).current;
 
+  // ── Scale handle (continuous drag) ──
+  const scaleStartDist = useRef(1);
+  const scaleStartScale = useRef(1);
+  const scaleResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: async (e) => {
+        onActivate();
+        await measureCenter();
+        const tx = e.nativeEvent.pageX;
+        const ty = e.nativeEvent.pageY;
+        scaleStartDist.current = Math.max(
+          20,
+          Math.hypot(tx - wrapCenter.current.x, ty - wrapCenter.current.y),
+        );
+        scaleStartScale.current = scaleRef.current;
+      },
+      onPanResponderMove: (e) => {
+        const tx = e.nativeEvent.pageX;
+        const ty = e.nativeEvent.pageY;
+        const d = Math.max(
+          20,
+          Math.hypot(tx - wrapCenter.current.x, ty - wrapCenter.current.y),
+        );
+        const next = Math.max(0.4, Math.min(5, scaleStartScale.current * (d / scaleStartDist.current)));
+        scaleRef.current = next;
+        force((n) => n + 1);
+      },
+      onPanResponderRelease: () => {
+        onChange({ scale: scaleRef.current });
+      },
+    }),
+  ).current;
+
+  // ── Rotate handle (circular drag) ──
+  const rotStartAngle = useRef(0);
+  const rotStartRot = useRef(0);
+  const rotResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: async (e) => {
+        onActivate();
+        await measureCenter();
+        const tx = e.nativeEvent.pageX;
+        const ty = e.nativeEvent.pageY;
+        rotStartAngle.current = Math.atan2(ty - wrapCenter.current.y, tx - wrapCenter.current.x);
+        rotStartRot.current = rotRef.current;
+      },
+      onPanResponderMove: (e) => {
+        const tx = e.nativeEvent.pageX;
+        const ty = e.nativeEvent.pageY;
+        const a = Math.atan2(ty - wrapCenter.current.y, tx - wrapCenter.current.x);
+        const delta = a - rotStartAngle.current;
+        rotRef.current = rotStartRot.current + (delta * 180) / Math.PI;
+        force((n) => n + 1);
+      },
+      onPanResponderRelease: () => {
+        onChange({ rotation: rotRef.current });
+      },
+    }),
+  ).current;
+
   const hs = highlightStyle(overlay.highlight);
-  const fontSize = 26 * overlay.scale;
+  const fontSize = 26 * scaleRef.current;
 
   return (
     <Animated.View
-      {...responder.panHandlers}
+      ref={wrapRef as any}
       style={[
         st.draggableBox,
-        { transform: [{ translateX: pan.x }, { translateY: pan.y }] },
+        {
+          transform: [
+            { translateX: pan.x },
+            { translateY: pan.y },
+            { rotate: `${rotRef.current}deg` },
+          ],
+        },
       ]}
     >
-      <Pressable onPress={onActivate} onLongPress={onEdit}>
-        <View
-          style={[
-            hs.wrap,
-            active && {
-              borderWidth: 1,
-              borderStyle: "dashed",
-              borderColor: Z_BLUE,
-            },
-          ]}
-        >
-          <Text
+      <View {...moveResponder.panHandlers}>
+        <Pressable onPress={onActivate} onLongPress={onEdit}>
+          <View
             style={[
-              hs.text,
-              {
-                fontSize,
-                fontFamily: "Inter_700Bold",
-                textAlign: overlay.align,
-                maxWidth: SCREEN.width - 60,
+              hs.wrap,
+              active && {
+                borderWidth: 1,
+                borderStyle: "dashed",
+                borderColor: Z_BLUE,
               },
             ]}
           >
-            {overlay.text}
-          </Text>
-        </View>
-      </Pressable>
+            <Text
+              style={[
+                hs.text,
+                {
+                  fontSize,
+                  fontFamily: "Inter_700Bold",
+                  textAlign: overlay.align,
+                  maxWidth: SCREEN.width - 80,
+                },
+              ]}
+            >
+              {overlay.text}
+            </Text>
+          </View>
+        </Pressable>
+      </View>
 
       {active && (
         <>
-          <TouchableOpacity
-            style={st.deleteHandle}
-            onPress={onDelete}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="close" size={14} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={st.scaleHandle}
-            onPress={() => onChange({ scale: overlay.scale >= 2 ? 0.7 : overlay.scale + 0.25 })}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
+          {/* X delete handle (top-left) */}
+          <View style={st.handleDelete} {...{ }}>
+            <TouchableOpacity onPress={onDelete} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Ionicons name="close" size={14} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          {/* Rotate handle (top-right) - circular drag */}
+          <View {...rotResponder.panHandlers} style={st.handleRotate}>
+            <Ionicons name="sync-outline" size={14} color="#fff" />
+          </View>
+          {/* Scale handle (bottom-right) - drag away/toward center */}
+          <View {...scaleResponder.panHandlers} style={st.handleScale}>
             <Ionicons name="resize-outline" size={14} color="#fff" />
-          </TouchableOpacity>
+          </View>
         </>
       )}
     </Animated.View>
   );
 }
 
-// ── Manual Crop Modal (9:16 guide) ─────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
+// CORNER-HANDLE CROP MODAL
+// ────────────────────────────────────────────────────────────────────────────
+type CropRect = { x: number; y: number; w: number; h: number };
+
 function CropModal({
   visible,
   uri,
@@ -280,68 +437,147 @@ function CropModal({
   onClose: () => void;
   onApply: (newUri: string) => void;
 }) {
+  const insets = useSafeAreaInsets();
   const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
   const [busy, setBusy] = useState(false);
-  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const last = useRef({ x: 0, y: 0 });
 
-  const frameW = SCREEN.width - 40;
-  const frameH = (frameW * 16) / 9;
+  // Display container fits screen with padding
+  const PAD = 20;
+  const containerW = SCREEN.width - PAD * 2;
+  const containerH = SCREEN.height - 220;
+
+  // Computed image fit (contain)
+  const fitScale = imgSize
+    ? Math.min(containerW / imgSize.w, containerH / imgSize.h)
+    : 1;
+  const dispW = imgSize ? imgSize.w * fitScale : containerW;
+  const dispH = imgSize ? imgSize.h * fitScale : containerH;
+  const imgLeft = (containerW - dispW) / 2;
+  const imgTop = (containerH - dispH) / 2;
+
+  // Crop rect in display coords (relative to container origin)
+  const [crop, setCrop] = useState<CropRect>({ x: 0, y: 0, w: 100, h: 100 });
 
   useEffect(() => {
     if (!visible || !uri) return;
-    pan.setValue({ x: 0, y: 0 });
-    last.current = { x: 0, y: 0 };
     Image.getSize(
       uri,
-      (w, h) => setImgSize({ w, h }),
+      (w, h) => {
+        setImgSize({ w, h });
+        // Initial crop: 9:16 centered within image area
+        const fs = Math.min(containerW / w, containerH / h);
+        const dW = w * fs;
+        const dH = h * fs;
+        const il = (containerW - dW) / 2;
+        const it = (containerH - dH) / 2;
+        const targetH = dH;
+        const targetW = (targetH * 9) / 16;
+        const finalW = Math.min(dW, targetW);
+        const finalH = (finalW * 16) / 9;
+        setCrop({
+          x: il + (dW - finalW) / 2,
+          y: it + (dH - finalH) / 2,
+          w: finalW,
+          h: finalH,
+        });
+      },
       () => setImgSize(null),
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, uri]);
 
-  const responder = useRef(
+  const cropRef = useRef(crop);
+  useEffect(() => { cropRef.current = crop; }, [crop]);
+
+  // Bound crop to image rectangle
+  const clampCrop = (c: CropRect): CropRect => {
+    const minX = imgLeft;
+    const minY = imgTop;
+    const maxX = imgLeft + dispW;
+    const maxY = imgTop + dispH;
+    let { x, y, w, h } = c;
+    w = Math.max(60, Math.min(maxX - minX, w));
+    h = (w * 16) / 9;
+    if (h > maxY - minY) {
+      h = maxY - minY;
+      w = (h * 9) / 16;
+    }
+    x = Math.max(minX, Math.min(maxX - w, x));
+    y = Math.max(minY, Math.min(maxY - h, y));
+    return { x, y, w, h };
+  };
+
+  // ─ Move whole crop frame ─
+  const startCrop = useRef<CropRect>(crop);
+  const moveResp = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        pan.setOffset({ x: last.current.x, y: last.current.y });
-        pan.setValue({ x: 0, y: 0 });
-      },
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-        useNativeDriver: false,
-      }),
-      onPanResponderRelease: (_, g) => {
-        last.current = {
-          x: last.current.x + g.dx,
-          y: last.current.y + g.dy,
-        };
-        pan.flattenOffset();
+      onPanResponderGrant: () => { startCrop.current = cropRef.current; },
+      onPanResponderMove: (_, g) => {
+        setCrop(
+          clampCrop({
+            x: startCrop.current.x + g.dx,
+            y: startCrop.current.y + g.dy,
+            w: startCrop.current.w,
+            h: startCrop.current.h,
+          }),
+        );
       },
     }),
   ).current;
 
-  // Display: image fills frame (cover), user pans to reposition
-  const displayScale = imgSize
-    ? Math.max(frameW / imgSize.w, frameH / imgSize.h)
-    : 1;
-  const dispW = imgSize ? imgSize.w * displayScale : frameW;
-  const dispH = imgSize ? imgSize.h * displayScale : frameH;
+  // ─ Corner resize (maintains 9:16) ─
+  const cornerStart = useRef<CropRect>(crop);
+  const makeCornerResp = (corner: "tl" | "tr" | "bl" | "br") =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => { cornerStart.current = cropRef.current; },
+      onPanResponderMove: (_, g) => {
+        const s = cornerStart.current;
+        let dx = g.dx;
+        // For each corner, compute new w (and y/x adjusted) maintaining ratio
+        let nx = s.x, ny = s.y, nw = s.w;
+        switch (corner) {
+          case "br":
+            nw = s.w + dx;
+            break;
+          case "tr":
+            nw = s.w + dx;
+            ny = s.y - ((nw - s.w) * 16) / 9;
+            break;
+          case "bl":
+            nw = s.w - dx;
+            nx = s.x + (s.w - nw);
+            break;
+          case "tl":
+            nw = s.w - dx;
+            nx = s.x + (s.w - nw);
+            ny = s.y - ((nw - s.w) * 16) / 9;
+            break;
+        }
+        const nh = (nw * 16) / 9;
+        setCrop(clampCrop({ x: nx, y: ny, w: nw, h: nh }));
+      },
+    });
+
+  const cornerTL = useRef(makeCornerResp("tl")).current;
+  const cornerTR = useRef(makeCornerResp("tr")).current;
+  const cornerBL = useRef(makeCornerResp("bl")).current;
+  const cornerBR = useRef(makeCornerResp("br")).current;
 
   const apply = async () => {
     if (!uri || !imgSize) return onClose();
     setBusy(true);
     try {
-      // image is centered with offset (last.current)
-      // visible region in display coords = [frameLeft, frameTop, frameW, frameH]
-      // image left in display coords = (frameW - dispW)/2 + last.current.x
-      const imgLeftDisp = (frameW - dispW) / 2 + last.current.x;
-      const imgTopDisp = (frameH - dispH) / 2 + last.current.y;
-      const visLeftDisp = -imgLeftDisp;
-      const visTopDisp = -imgTopDisp;
-      // Convert to source pixels
-      const sx = Math.max(0, visLeftDisp / displayScale);
-      const sy = Math.max(0, visTopDisp / displayScale);
-      const sw = Math.min(imgSize.w - sx, frameW / displayScale);
-      const sh = Math.min(imgSize.h - sy, frameH / displayScale);
+      // Convert crop (display coords relative to container) to source pixels
+      const localX = (crop.x - imgLeft) / fitScale;
+      const localY = (crop.y - imgTop) / fitScale;
+      const localW = crop.w / fitScale;
+      const localH = crop.h / fitScale;
+      const sx = Math.max(0, localX);
+      const sy = Math.max(0, localY);
+      const sw = Math.min(imgSize.w - sx, localW);
+      const sh = Math.min(imgSize.h - sy, localH);
       const result = await ImageManipulator.manipulateAsync(
         uri,
         [{ crop: { originX: sx, originY: sy, width: sw, height: sh } }],
@@ -357,93 +593,178 @@ function CropModal({
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={st.cropBackdrop}>
+      <View style={[st.cropBackdrop, { paddingTop: insets.top }]}>
         <View style={st.cropHeader}>
           <TouchableOpacity onPress={onClose} style={st.cropHeaderBtn}>
-            <Ionicons name="close" size={24} color="#fff" />
+            <Ionicons name="close" size={26} color="#fff" />
           </TouchableOpacity>
-          <Text style={st.cropTitle}>Manual Crop · 9:16</Text>
+          <Text style={st.cropTitle}>{T.manualCrop}</Text>
           <TouchableOpacity onPress={apply} disabled={busy} style={st.cropHeaderBtn}>
             {busy ? (
               <ActivityIndicator size="small" color={Z_GREEN} />
             ) : (
-              <Ionicons name="checkmark" size={26} color={Z_GREEN} />
+              <Ionicons name="checkmark" size={28} color={Z_GREEN} />
             )}
           </TouchableOpacity>
         </View>
 
-        <View style={[st.cropFrame, { width: frameW, height: frameH }]}>
-          <View style={st.cropImageClip}>
-            <Animated.View
-              {...responder.panHandlers}
+        <View style={[st.cropContainer, { width: containerW, height: containerH }]}>
+          {uri && imgSize && (
+            <Image
+              source={{ uri }}
               style={{
+                position: "absolute",
+                left: imgLeft,
+                top: imgTop,
                 width: dispW,
                 height: dispH,
-                position: "absolute",
-                left: (frameW - dispW) / 2,
-                top: (frameH - dispH) / 2,
-                transform: [{ translateX: pan.x }, { translateY: pan.y }],
               }}
-            >
-              {uri && (
-                <Image source={{ uri }} style={{ width: "100%", height: "100%" }} />
-              )}
-            </Animated.View>
+              resizeMode="contain"
+            />
+          )}
+
+          {/* Dark overlays outside crop */}
+          <View pointerEvents="none" style={[st.cropMask, { left: 0, top: 0, right: 0, height: crop.y }]} />
+          <View pointerEvents="none" style={[st.cropMask, { left: 0, top: crop.y + crop.h, right: 0, bottom: 0 }]} />
+          <View pointerEvents="none" style={[st.cropMask, { left: 0, top: crop.y, width: crop.x, height: crop.h }]} />
+          <View pointerEvents="none" style={[st.cropMask, { left: crop.x + crop.w, top: crop.y, right: 0, height: crop.h }]} />
+
+          {/* Crop frame */}
+          <View
+            {...moveResp.panHandlers}
+            style={[st.cropFrame, { left: crop.x, top: crop.y, width: crop.w, height: crop.h }]}
+          >
+            {/* Grid */}
+            <View pointerEvents="none" style={st.cropGridLineV1} />
+            <View pointerEvents="none" style={st.cropGridLineV2} />
+            <View pointerEvents="none" style={st.cropGridLineH1} />
+            <View pointerEvents="none" style={st.cropGridLineH2} />
           </View>
-          <View pointerEvents="none" style={st.cropGridOverlay}>
-            <View style={st.cropGridLineV1} />
-            <View style={st.cropGridLineV2} />
-            <View style={st.cropGridLineH1} />
-            <View style={st.cropGridLineH2} />
+
+          {/* Corner handles (positioned absolute on container) */}
+          <View {...cornerTL.panHandlers} style={[st.cornerHandle, { left: crop.x - 18, top: crop.y - 18 }]}>
+            <View style={[st.cornerInner, { borderTopWidth: 3, borderLeftWidth: 3 }]} />
+          </View>
+          <View {...cornerTR.panHandlers} style={[st.cornerHandle, { left: crop.x + crop.w - 18, top: crop.y - 18 }]}>
+            <View style={[st.cornerInner, { borderTopWidth: 3, borderRightWidth: 3 }]} />
+          </View>
+          <View {...cornerBL.panHandlers} style={[st.cornerHandle, { left: crop.x - 18, top: crop.y + crop.h - 18 }]}>
+            <View style={[st.cornerInner, { borderBottomWidth: 3, borderLeftWidth: 3 }]} />
+          </View>
+          <View {...cornerBR.panHandlers} style={[st.cornerHandle, { left: crop.x + crop.w - 18, top: crop.y + crop.h - 18 }]}>
+            <View style={[st.cornerInner, { borderBottomWidth: 3, borderRightWidth: 3 }]} />
           </View>
         </View>
 
-        <Text style={st.cropHint}>Drag the image to reposition · Tap ✓ to apply</Text>
+        <Text style={[st.cropHint, { paddingBottom: insets.bottom + 16 }]}>
+          {T.cropHint}
+        </Text>
       </View>
     </Modal>
   );
 }
 
-// ── Audience Sheet (kept simple for new minimal UI) ────────────────────────
-function AudienceSheet({
+// ────────────────────────────────────────────────────────────────────────────
+// CLOSE FRIENDS PICKER (followers-only search)
+// ────────────────────────────────────────────────────────────────────────────
+function CloseFriendsModal({
   visible,
   onClose,
-  isCloseFriends,
-  onSelect,
+  selectedIds,
+  onSave,
+  followerUsers,
 }: {
   visible: boolean;
   onClose: () => void;
-  isCloseFriends: boolean;
-  onSelect: (cf: boolean) => void;
+  selectedIds: string[];
+  onSave: (ids: string[]) => void;
+  followerUsers: User[];
 }) {
+  const insets = useSafeAreaInsets();
+  const [selected, setSelected] = useState<string[]>(selectedIds);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (visible) { setSelected(selectedIds); setSearch(""); }
+  }, [visible, selectedIds]);
+
+  const filtered = followerUsers.filter((u) => {
+    const q = search.toLowerCase();
+    return (
+      u.name.toLowerCase().includes(q) ||
+      (u.username || "").toLowerCase().includes(q)
+    );
+  });
+
+  const toggle = (id: string) => {
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={st.backdrop} onPress={onClose} />
-      <View style={[st.sheet, { backgroundColor: Z_PANEL, borderColor: Z_BORDER }]}>
+      <View style={[st.cfSheet, { backgroundColor: Z_PANEL, paddingBottom: insets.bottom + 24 }]}>
         <View style={st.handle} />
-        <Text style={st.sheetTitle}>Audience</Text>
+        <Text style={st.sheetTitle}>{T.closeFriends}</Text>
+
+        <View style={st.searchBox}>
+          <Ionicons name="search" size={16} color={Z_MUTED} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder={T.searchFollowers}
+            placeholderTextColor={Z_MUTED}
+            style={st.searchInput}
+          />
+        </View>
+
+        <FlatList
+          data={filtered}
+          keyExtractor={(u) => u.id}
+          style={{ maxHeight: 360 }}
+          ListEmptyComponent={<Text style={st.emptyText}>{T.noFollowers}</Text>}
+          renderItem={({ item }) => {
+            const color = ACCENT_COLORS[(item.name?.length ?? 0) % ACCENT_COLORS.length];
+            const isSelected = selected.includes(item.id);
+            return (
+              <TouchableOpacity style={st.cfRow} onPress={() => toggle(item.id)} activeOpacity={0.8}>
+                <View style={[st.miniAvatar, { backgroundColor: `${color}33` }]}>
+                  {item.avatar ? (
+                    <Image source={{ uri: item.avatar }} style={StyleSheet.absoluteFill as any} />
+                  ) : (
+                    <Text style={[st.miniAvatarText, { color }]}>{item.name[0]?.toUpperCase()}</Text>
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.cfUserName}>{item.name}</Text>
+                  {item.username ? <Text style={st.cfUserHandle}>@{item.username}</Text> : null}
+                </View>
+                <View style={[st.checkbox, { borderColor: isSelected ? Z_GREEN : Z_BORDER, backgroundColor: isSelected ? Z_GREEN : "transparent" }]}>
+                  {isSelected && <Ionicons name="checkmark" size={14} color="#000" />}
+                </View>
+              </TouchableOpacity>
+            );
+          }}
+        />
 
         <TouchableOpacity
-          style={[st.audOpt, { borderColor: !isCloseFriends ? Z_BLUE : Z_BORDER }]}
-          onPress={() => { onSelect(false); onClose(); }}
+          style={[st.cfSaveBtn, { backgroundColor: Z_GREEN }]}
+          onPress={() => { onSave(selected); onClose(); }}
         >
-          <Ionicons name="globe-outline" size={20} color={!isCloseFriends ? Z_BLUE : Z_MUTED} />
-          <Text style={[st.audOptText, { color: !isCloseFriends ? Z_BLUE : Z_TEXT }]}>Public</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[st.audOpt, { borderColor: isCloseFriends ? Z_GREEN : Z_BORDER }]}
-          onPress={() => { onSelect(true); onClose(); }}
-        >
-          <Ionicons name="star" size={20} color={isCloseFriends ? Z_GREEN : Z_MUTED} />
-          <Text style={[st.audOptText, { color: isCloseFriends ? Z_GREEN : Z_TEXT }]}>Close Friends</Text>
+          <Text style={st.cfSaveBtnText}>
+            {T.save} ({selected.length})
+          </Text>
         </TouchableOpacity>
       </View>
     </Modal>
   );
 }
 
-// ── MAIN: Create Story Screen ──────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
+// MAIN: Create Story Screen
+// ────────────────────────────────────────────────────────────────────────────
 export default function CreateStoryScreen() {
   const params = useLocalSearchParams<{
     sharedType?: string;
@@ -457,10 +778,10 @@ export default function CreateStoryScreen() {
     mode?: string;
   }>();
 
-  const { addStory, users, currentUser, closeFriendsList, updateCloseFriendsList } = useApp();
+  const { addStory, users, currentUser, getFollowers, closeFriendsList, updateCloseFriendsList } = useApp();
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
-  const topPad = Platform.OS === "web" ? 16 : insets.top;
+  const topPad = Platform.OS === "web" ? 12 : insets.top;
 
   // ─ State
   const [mediaUri, setMediaUri] = useState<string | null>(null);
@@ -475,16 +796,18 @@ export default function CreateStoryScreen() {
   const [draftHighlight, setDraftHighlight] = useState<HighlightId>("classic");
   const [draftAlign, setDraftAlign] = useState<AlignId>("center");
   const [showSidebar, setShowSidebar] = useState(false);
-  const [sidebarTool, setSidebarTool] = useState<null | "filter">(null);
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [showCrop, setShowCrop] = useState(false);
+  const [showCFModal, setShowCFModal] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [isCloseFriends, setIsCloseFriends] = useState(false);
-  const [showAudience, setShowAudience] = useState(false);
+  const [cfList, setCfList] = useState<string[]>(closeFriendsList);
   const [textMode, setTextMode] = useState<boolean>(params.mode === "text");
   const [showMentionPicker, setShowMentionPicker] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
+  const [composerOpen, setComposerOpen] = useState(false);
 
-  // ─ Shared post (repost) — full-screen sticker, no separate background screen
+  // ─ Shared post (repost) — full-screen sticker
   const sharedPost = params.sharedId
     ? {
         id: params.sharedId,
@@ -500,11 +823,10 @@ export default function CreateStoryScreen() {
 
   const hasMedia = !!mediaUri;
   const hasShared = !!sharedPost;
-  // Effective canvas mode
   const inTextMode = !hasMedia && !hasShared && textMode;
-  const showPickerLanding = !hasMedia && !hasShared && !textMode;
+  const showLanding = !hasMedia && !hasShared && !textMode;
 
-  // ─ Mention search inside text editor
+  // ─ Mention search inside composer
   useEffect(() => {
     const m = draftText.match(/@([\w\u0600-\u06FF]*)$/);
     if (m) {
@@ -544,15 +866,21 @@ export default function CreateStoryScreen() {
     return found;
   }, [overlays, users, currentUser?.id]);
 
-  // ─ Media picker (gallery)
+  // ─ Followers list (for Close Friends search)
+  const followerUsers = useMemo(() => {
+    if (!currentUser) return [];
+    const followerIds = getFollowers(currentUser.id).map((f) => f.followerId);
+    return users.filter((u) => followerIds.includes(u.id));
+  }, [currentUser, getFollowers, users]);
+
+  // ─ Media picker
   const handlePickMedia = async () => {
     if (Platform.OS === "web") {
-      showToast("Media picking unavailable on web preview", "info");
-      return;
+      showToast("اختيار الوسائط محدود على الويب", "info");
     }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      showToast("Gallery permission required", "error");
+      showToast(T.permissionGallery, "error");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -570,15 +898,8 @@ export default function CreateStoryScreen() {
   };
 
   const pickTextBgFromGallery = async () => {
-    if (Platform.OS === "web") {
-      showToast("Gallery unavailable on web preview", "info");
-      return;
-    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      showToast("Gallery permission required", "error");
-      return;
-    }
+    if (status !== "granted") { showToast(T.permissionGallery, "error"); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.85,
@@ -588,7 +909,6 @@ export default function CreateStoryScreen() {
     }
   };
 
-  // ─ Image manipulation (instant rotate / flip)
   const transformImage = async (actions: ImageManipulator.Action[]) => {
     if (!mediaUri || mediaType !== "image") return;
     try {
@@ -598,26 +918,28 @@ export default function CreateStoryScreen() {
       });
       setMediaUri(result.uri);
     } catch {
-      showToast("Transform failed", "error");
+      // ignore
     }
   };
 
-  // ─ Text overlay create/update
-  const openTextEditor = (existing?: TextOverlay) => {
+  // ─ Text composer
+  const startEditor = (existing?: TextOverlay) => {
     if (existing) {
       setEditingId(existing.id);
       setDraftText(existing.text);
       setDraftHighlight(existing.highlight);
       setDraftAlign(existing.align);
+      setActiveOverlayId(existing.id);
     } else {
       setEditingId(null);
       setDraftText("");
       setDraftHighlight("classic");
       setDraftAlign("center");
     }
+    setComposerOpen(true);
   };
 
-  const closeTextEditor = (commit: boolean) => {
+  const closeComposer = (commit: boolean) => {
     if (commit && draftText.trim()) {
       if (editingId) {
         setOverlays((prev) =>
@@ -631,15 +953,7 @@ export default function CreateStoryScreen() {
         const id = `ov_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
         setOverlays((prev) => [
           ...prev,
-          {
-            id,
-            text: draftText.trim(),
-            x: 0,
-            y: 0,
-            scale: 1,
-            highlight: draftHighlight,
-            align: draftAlign,
-          },
+          { id, text: draftText.trim(), x: 0, y: 0, scale: 1, rotation: 0, highlight: draftHighlight, align: draftAlign },
         ]);
         setActiveOverlayId(id);
       }
@@ -647,6 +961,7 @@ export default function CreateStoryScreen() {
     setEditingId(null);
     setDraftText("");
     setShowMentionPicker(false);
+    setComposerOpen(false);
   };
 
   const insertMention = (u: User) => {
@@ -654,97 +969,6 @@ export default function CreateStoryScreen() {
     const next = draftText.replace(/@([\w\u0600-\u06FF]*)$/, `@${handle} `);
     setDraftText(next);
     setShowMentionPicker(false);
-  };
-
-  // ─ Sidebar tools
-  const sidebarTools: {
-    id: string;
-    icon: keyof typeof Ionicons.glyphMap | { mci: keyof typeof MaterialCommunityIcons.glyphMap };
-    color: string;
-    onPress: () => void;
-  }[] = [
-    {
-      id: "crop",
-      icon: "crop-outline",
-      color: Z_BLUE,
-      onPress: () => {
-        if (mediaType !== "image" || !mediaUri) {
-          showToast("Crop available for images only", "info");
-          return;
-        }
-        setShowCrop(true);
-      },
-    },
-    {
-      id: "rotate",
-      icon: "refresh-outline",
-      color: Z_BLUE,
-      onPress: () => transformImage([{ rotate: 90 }]),
-    },
-    {
-      id: "flip",
-      icon: "swap-horizontal-outline",
-      color: Z_BLUE,
-      onPress: () => transformImage([{ flip: ImageManipulator.FlipType.Horizontal }]),
-    },
-    {
-      id: "filter",
-      icon: { mci: "image-filter-vintage" },
-      color: Z_GREEN,
-      onPress: () => setSidebarTool((s) => (s === "filter" ? null : "filter")),
-    },
-    {
-      id: "text",
-      icon: "text-outline",
-      color: Z_GREEN,
-      onPress: () => openTextEditor(),
-    },
-  ];
-
-  // ─ Publish
-  const handlePublish = async () => {
-    if (!mediaUri && !sharedPost && overlays.length === 0) {
-      showToast("Add media or text first", "error");
-      return;
-    }
-    setPublishing(true);
-    try {
-      let finalUri = mediaUri || sharedPost?.mediaUrl || textBgImage || "";
-      if (mediaUri && mediaType === "image" && selectedFilter !== "none") {
-        finalUri = await bakeFilter(mediaUri, selectedFilter);
-      }
-      const captionFromOverlays = overlays.map((o) => o.text).join("\n").trim() || undefined;
-      if (isCloseFriends) updateCloseFriendsList(closeFriendsList);
-
-      // Pass overlays as draggable label data
-      const overlayData = overlays.map((o) => ({ text: o.text }));
-
-      await addStory(
-        finalUri,
-        mediaType,
-        captionFromOverlays,
-        selectedFilter,
-        isCloseFriends,
-        parsedMentionUsers.map((u) => u.id),
-        sharedPost,
-        overlayData,
-      );
-      showToast(isCloseFriends ? "Posted to Close Friends" : "Story posted!", "success");
-      router.back();
-    } catch {
-      showToast("Failed to publish", "error");
-    } finally {
-      setPublishing(false);
-    }
-  };
-
-  const [composerOpen, setComposerOpen] = useState(false);
-
-  // Helper to invoke editor properly
-  const startEditor = (existing?: TextOverlay) => {
-    openTextEditor(existing);
-    setComposerOpen(true);
-    setActiveOverlayId(existing?.id || null);
   };
 
   // Auto-open composer when entering text mode with no overlays
@@ -755,98 +979,191 @@ export default function CreateStoryScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [textMode]);
 
+  // ─ Sidebar tools (Close Friends added)
+  type Tool = {
+    id: string;
+    iconType: "ion" | "mci";
+    icon: any;
+    color: string;
+    onPress: () => void;
+    arabicLabel: string;
+  };
+  const sidebarTools: Tool[] = [
+    {
+      id: "crop",
+      iconType: "ion",
+      icon: "crop-outline",
+      color: Z_BLUE,
+      arabicLabel: "قص",
+      onPress: () => {
+        if (mediaType !== "image" || !mediaUri) {
+          showToast(T.cropImageOnly, "info");
+          return;
+        }
+        setShowCrop(true);
+      },
+    },
+    {
+      id: "rotate",
+      iconType: "ion",
+      icon: "refresh-outline",
+      color: Z_BLUE,
+      arabicLabel: "تدوير",
+      onPress: () => transformImage([{ rotate: 90 }]),
+    },
+    {
+      id: "flip",
+      iconType: "ion",
+      icon: "swap-horizontal-outline",
+      color: Z_BLUE,
+      arabicLabel: "قلب",
+      onPress: () => transformImage([{ flip: ImageManipulator.FlipType.Horizontal }]),
+    },
+    {
+      id: "filter",
+      iconType: "mci",
+      icon: "image-filter-vintage",
+      color: Z_GREEN,
+      arabicLabel: "فلاتر",
+      onPress: () => setFilterPanelOpen((s) => !s),
+    },
+    {
+      id: "text",
+      iconType: "ion",
+      icon: "text-outline",
+      color: Z_GREEN,
+      arabicLabel: "نص",
+      onPress: () => startEditor(),
+    },
+    {
+      id: "closeFriends",
+      iconType: "ion",
+      icon: "star-outline",
+      color: Z_GREEN,
+      arabicLabel: T.closeFriends,
+      onPress: () => setShowCFModal(true),
+    },
+  ];
+
+  // ─ Publish
+  const handlePublish = async () => {
+    if (!mediaUri && !sharedPost && overlays.length === 0) {
+      showToast(T.needContent, "error");
+      return;
+    }
+    setPublishing(true);
+    try {
+      let finalUri = mediaUri || sharedPost?.mediaUrl || textBgImage || "";
+      if (mediaUri && mediaType === "image" && selectedFilter !== "none") {
+        finalUri = await bakeFilter(mediaUri, selectedFilter);
+      }
+      const captionFromOverlays = overlays.map((o) => o.text).join("\n").trim() || undefined;
+      if (isCloseFriends) updateCloseFriendsList(cfList);
+
+      const overlayData = overlays.map((o) => ({ text: o.text }));
+      const mentionsArray = parsedMentionUsers.map((u) => u.id); // always an array
+
+      await addStory(
+        finalUri,
+        mediaType,
+        captionFromOverlays,
+        selectedFilter,
+        isCloseFriends,
+        mentionsArray,
+        sharedPost,
+        overlayData,
+      );
+      showToast(isCloseFriends ? T.postedCF : T.postedPublic, "success");
+      router.back();
+    } catch (err: any) {
+      console.error("[create-story] publish failed", err);
+      showToast(`${T.publishFailed}: ${err?.message || ""}`, "error");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ──────────────────────────────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView
       style={st.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {/* ═══════════════ FULL-SCREEN CANVAS ═══════════════ */}
       <View style={st.canvas}>
-        {/* Canvas background layer */}
+        {/* ════════ Background canvas layer ════════ */}
         {mediaUri ? (
-          <>
-            <Image source={{ uri: mediaUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-            <FilterPreviewOverlay filter={selectedFilter} />
-          </>
+          mediaType === "video" ? (
+            <>
+              <VideoPreview uri={mediaUri} filter={selectedFilter} />
+              <FilterOverlay filter={selectedFilter} />
+            </>
+          ) : (
+            <>
+              <Image
+                source={{ uri: mediaUri }}
+                style={[StyleSheet.absoluteFill, webFilterCss(selectedFilter)]}
+                resizeMode="cover"
+              />
+              <FilterOverlay filter={selectedFilter} />
+            </>
+          )
         ) : sharedPost ? (
-          // Repost full-screen: sticker over creator's media or gradient bg
+          // FULL-SCREEN repost: media fills the screen edge-to-edge
           <>
             {sharedPost.mediaUrl ? (
-              <Image source={{ uri: sharedPost.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" blurRadius={28} />
+              <Image source={{ uri: sharedPost.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             ) : (
-              <LinearGradient
-                colors={TEXT_BACKGROUNDS[textBgIdx].colors}
-                style={StyleSheet.absoluteFill}
-              />
+              <LinearGradient colors={TEXT_BACKGROUNDS[textBgIdx].colors} style={StyleSheet.absoluteFill} />
             )}
-            <View style={st.repostStickerWrap} pointerEvents="none">
-              <View style={st.repostSticker}>
-                {sharedPost.mediaUrl ? (
-                  <Image source={{ uri: sharedPost.mediaUrl }} style={st.repostStickerMedia} resizeMode="cover" />
-                ) : (
-                  <View style={[st.repostStickerMedia, { backgroundColor: "#222", alignItems: "center", justifyContent: "center" }]}>
-                    <Ionicons name={sharedPost.type === "reel" ? "film" : "image"} size={48} color={Z_BLUE} />
-                  </View>
-                )}
-                <View style={st.repostStickerFooter}>
-                  {sharedPost.creatorAvatar ? (
-                    <Image source={{ uri: sharedPost.creatorAvatar }} style={st.repostStickerAvatar} />
-                  ) : (
-                    <View style={[st.repostStickerAvatar, { backgroundColor: Z_BLUE }]} />
-                  )}
-                  <Text style={st.repostStickerName} numberOfLines={1}>
-                    @{sharedPost.creatorName || "user"}
-                  </Text>
-                </View>
-              </View>
+            {/* Mention attribution badge (small, top-center) */}
+            <View pointerEvents="none" style={[st.repostBadge, { top: topPad + 60 }]}>
+              {sharedPost.creatorAvatar ? (
+                <Image source={{ uri: sharedPost.creatorAvatar }} style={st.repostBadgeAvatar} />
+              ) : (
+                <View style={[st.repostBadgeAvatar, { backgroundColor: Z_BLUE }]} />
+              )}
+              <Text style={st.repostBadgeText}>@{sharedPost.creatorName || "user"}</Text>
             </View>
           </>
         ) : (
-          // Text-only or empty
           <>
             {textBgImage ? (
               <Image source={{ uri: textBgImage }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             ) : (
-              <LinearGradient
-                colors={TEXT_BACKGROUNDS[textBgIdx].colors}
-                style={StyleSheet.absoluteFill}
-              />
+              <LinearGradient colors={TEXT_BACKGROUNDS[textBgIdx].colors} style={StyleSheet.absoluteFill} />
             )}
           </>
         )}
 
-        {/* Draggable text overlays */}
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={() => setActiveOverlayId(null)}
-        >
-          <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-            {overlays.map((o) => (
-              <DraggableText
-                key={o.id}
-                overlay={o}
-                active={activeOverlayId === o.id}
-                onActivate={() => setActiveOverlayId(o.id)}
-                onDelete={() => {
-                  setOverlays((prev) => prev.filter((x) => x.id !== o.id));
-                  setActiveOverlayId(null);
-                }}
-                onChange={(p) =>
-                  setOverlays((prev) => prev.map((x) => (x.id === o.id ? { ...x, ...p } : x)))
-                }
-                onEdit={() => startEditor(o)}
-              />
-            ))}
-          </View>
-        </Pressable>
+        {/* ════════ Draggable text overlays (no parent Pressable that would block sidebar) ════════ */}
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          {overlays.map((o) => (
+            <DraggableText
+              key={o.id}
+              overlay={o}
+              active={activeOverlayId === o.id}
+              onActivate={() => setActiveOverlayId(o.id)}
+              onDelete={() => {
+                setOverlays((prev) => prev.filter((x) => x.id !== o.id));
+                setActiveOverlayId(null);
+              }}
+              onChange={(p) =>
+                setOverlays((prev) => prev.map((x) => (x.id === o.id ? { ...x, ...p } : x)))
+              }
+              onEdit={() => startEditor(o)}
+            />
+          ))}
+        </View>
 
-        {/* ─── Top bar: close + single Edit icon ─── */}
-        <View style={[st.topBar, { paddingTop: topPad + 6 }]}>
+        {/* ════════ Top bar: close + Edit pill ════════ */}
+        <View style={[st.topBar, { paddingTop: topPad + 6 }]} pointerEvents="box-none">
           <TouchableOpacity onPress={() => router.back()} style={st.iconBtn}>
             <Ionicons name="close" size={26} color="#fff" />
           </TouchableOpacity>
 
-          <View style={{ flex: 1 }} />
+          <View style={{ flex: 1 }} pointerEvents="none" />
 
           {(hasMedia || hasShared || inTextMode) && (
             <TouchableOpacity
@@ -855,35 +1172,36 @@ export default function CreateStoryScreen() {
             >
               <Ionicons name={showSidebar ? "checkmark" : "create-outline"} size={18} color={showSidebar ? Z_GREEN : Z_BLUE} />
               <Text style={[st.editPillText, { color: showSidebar ? Z_GREEN : Z_BLUE }]}>
-                {showSidebar ? "Done" : "Edit"}
+                {showSidebar ? T.done : T.edit}
               </Text>
             </TouchableOpacity>
           )}
         </View>
 
-        {/* ─── Right Vertical Sidebar (icons only) ─── */}
+        {/* ════════ Vertical Sidebar (icons) ════════ */}
         {showSidebar && (
-          <View style={[st.sidebar, { top: topPad + 70 }]}>
+          <View style={[st.sidebar, { top: topPad + 70 }]} pointerEvents="box-none">
             {sidebarTools.map((t) => (
-              <TouchableOpacity key={t.id} onPress={t.onPress} style={st.sidebarBtn} activeOpacity={0.7}>
-                {typeof t.icon === "string" ? (
-                  <Ionicons name={t.icon as any} size={22} color={t.color} />
+              <TouchableOpacity
+                key={t.id}
+                onPress={t.onPress}
+                style={st.sidebarBtn}
+                activeOpacity={0.6}
+              >
+                {t.iconType === "ion" ? (
+                  <Ionicons name={t.icon} size={22} color={t.color} />
                 ) : (
-                  <MaterialCommunityIcons name={t.icon.mci} size={22} color={t.color} />
+                  <MaterialCommunityIcons name={t.icon} size={22} color={t.color} />
                 )}
               </TouchableOpacity>
             ))}
           </View>
         )}
 
-        {/* ─── Filter horizontal swipe (only when filter tool selected) ─── */}
-        {showSidebar && sidebarTool === "filter" && hasMedia && mediaType === "image" && (
+        {/* ════════ Filter horizontal swipe (when filter tool active) ════════ */}
+        {showSidebar && filterPanelOpen && hasMedia && (
           <View style={[st.filterStrip, { bottom: insets.bottom + 100 }]}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 14, gap: 10 }}
-            >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 14, gap: 10 }}>
               {STORY_FILTERS.map((f) => {
                 const active = selectedFilter === f.key;
                 return (
@@ -906,14 +1224,10 @@ export default function CreateStoryScreen() {
           </View>
         )}
 
-        {/* ─── Text-only background palette ─── */}
+        {/* ════════ Text-only background palette ════════ */}
         {inTextMode && !composerOpen && (
           <View style={[st.bgPalette, { bottom: insets.bottom + 90 }]}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 10, paddingHorizontal: 14 }}
-            >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 14 }}>
               <TouchableOpacity onPress={pickTextBgFromGallery} style={st.bgPlusBtn}>
                 <Ionicons name="add" size={22} color={Z_GREEN} />
               </TouchableOpacity>
@@ -933,42 +1247,37 @@ export default function CreateStoryScreen() {
           </View>
         )}
 
-        {/* ─── Landing picker (only when nothing selected) ─── */}
-        {showPickerLanding && (
-          <View style={st.landing}>
-            <Text style={st.landingTitle}>Create a Story</Text>
+        {/* ════════ Landing chooser ════════ */}
+        {showLanding && (
+          <View style={st.landing} pointerEvents="box-none">
+            <Text style={st.landingTitle}>{T.createStory}</Text>
             <View style={st.landingRow}>
               <TouchableOpacity style={[st.landingBtn, { borderColor: Z_BLUE }]} onPress={handlePickMedia} activeOpacity={0.85}>
                 <Ionicons name="images-outline" size={28} color={Z_BLUE} />
-                <Text style={[st.landingBtnText, { color: Z_BLUE }]}>Photo / Video</Text>
+                <Text style={[st.landingBtnText, { color: Z_BLUE }]}>{T.photoVideo}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[st.landingBtn, { borderColor: Z_GREEN }]}
-                onPress={() => setTextMode(true)}
-                activeOpacity={0.85}
-              >
+              <TouchableOpacity style={[st.landingBtn, { borderColor: Z_GREEN }]} onPress={() => setTextMode(true)} activeOpacity={0.85}>
                 <Ionicons name="text" size={28} color={Z_GREEN} />
-                <Text style={[st.landingBtnText, { color: Z_GREEN }]}>Create Text Story</Text>
+                <Text style={[st.landingBtnText, { color: Z_GREEN }]}>{T.textStory}</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
 
-        {/* ─── Bottom bar: Audience + Publish ─── */}
+        {/* ════════ Bottom bar: Audience pill + Publish ════════ */}
         {(hasMedia || hasShared || inTextMode) && !composerOpen && (
-          <View style={[st.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+          <View style={[st.bottomBar, { paddingBottom: insets.bottom + 12 }]} pointerEvents="box-none">
             <TouchableOpacity
               style={[st.audPill, { borderColor: isCloseFriends ? Z_GREEN : Z_BLUE }]}
-              onPress={() => setShowAudience(true)}
-              activeOpacity={0.8}
+              onPress={() => {
+                const next = !isCloseFriends;
+                setIsCloseFriends(next);
+                if (next && cfList.length === 0) setShowCFModal(true);
+              }}
             >
-              <Ionicons
-                name={isCloseFriends ? "star" : "globe-outline"}
-                size={16}
-                color={isCloseFriends ? Z_GREEN : Z_BLUE}
-              />
+              <Ionicons name={isCloseFriends ? "star" : "globe-outline"} size={16} color={isCloseFriends ? Z_GREEN : Z_BLUE} />
               <Text style={[st.audPillText, { color: isCloseFriends ? Z_GREEN : Z_BLUE }]}>
-                {isCloseFriends ? "Close Friends" : "Public"}
+                {isCloseFriends ? T.closeFriends : T.publicLabel}
               </Text>
             </TouchableOpacity>
 
@@ -982,7 +1291,7 @@ export default function CreateStoryScreen() {
                 <ActivityIndicator size="small" color="#000" />
               ) : (
                 <>
-                  <Text style={st.publishBtnText}>Share</Text>
+                  <Text style={st.publishBtnText}>{T.share}</Text>
                   <Ionicons name="arrow-forward" size={18} color="#000" />
                 </>
               )}
@@ -991,19 +1300,16 @@ export default function CreateStoryScreen() {
         )}
       </View>
 
-      {/* ═══════════════ TEXT COMPOSER OVERLAY ═══════════════ */}
+      {/* ════════ Text composer ════════ */}
       {composerOpen && (
-        <View style={st.composerWrap} pointerEvents="box-none">
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => { closeTextEditor(true); setComposerOpen(false); }}
-          />
+        <View style={st.composerWrap}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => closeComposer(true)} />
           <View style={st.composerCenter} pointerEvents="box-none">
             <View style={[st.composerBubble, highlightStyle(draftHighlight).wrap]}>
               <TextInput
                 value={draftText}
                 onChangeText={setDraftText}
-                placeholder="Type something..."
+                placeholder={T.type}
                 placeholderTextColor="rgba(255,255,255,0.6)"
                 autoFocus
                 multiline
@@ -1020,7 +1326,6 @@ export default function CreateStoryScreen() {
               />
             </View>
 
-            {/* Mention picker */}
             {showMentionPicker && mentionResults.length > 0 && (
               <View style={st.mentionPicker}>
                 <FlatList
@@ -1035,16 +1340,12 @@ export default function CreateStoryScreen() {
                           {item.avatar ? (
                             <Image source={{ uri: item.avatar }} style={StyleSheet.absoluteFill as any} />
                           ) : (
-                            <Text style={{ color, fontFamily: "Inter_700Bold" }}>
-                              {item.name[0]?.toUpperCase()}
-                            </Text>
+                            <Text style={{ color, fontFamily: "Inter_700Bold" }}>{item.name[0]?.toUpperCase()}</Text>
                           )}
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={st.mentionName}>{item.name}</Text>
-                          {item.username ? (
-                            <Text style={st.mentionHandle}>@{item.username}</Text>
-                          ) : null}
+                          {item.username ? <Text style={st.mentionHandle}>@{item.username}</Text> : null}
                         </View>
                       </TouchableOpacity>
                     );
@@ -1054,35 +1355,20 @@ export default function CreateStoryScreen() {
             )}
           </View>
 
-          {/* Styling Bar */}
           <View style={[st.styleBar, { paddingBottom: insets.bottom + 14 }]}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8, alignItems: "center" }}
-            >
-              {/* Alignment toggle */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, alignItems: "center" }}>
               <TouchableOpacity
                 style={st.alignBtn}
-                onPress={() =>
-                  setDraftAlign((a) => (a === "left" ? "center" : a === "center" ? "right" : "left"))
-                }
+                onPress={() => setDraftAlign((a) => (a === "left" ? "center" : a === "center" ? "right" : "left"))}
               >
                 <Ionicons
-                  name={
-                    draftAlign === "left"
-                      ? "reorder-three-outline"
-                      : draftAlign === "center"
-                      ? "menu-outline"
-                      : "reorder-three-outline"
-                  }
+                  name={draftAlign === "center" ? "menu-outline" : "reorder-three-outline"}
                   size={20}
                   color={Z_GREEN}
                   style={draftAlign === "right" ? { transform: [{ scaleX: -1 }] } : undefined}
                 />
               </TouchableOpacity>
 
-              {/* Highlight chips */}
               {HIGHLIGHT_STYLES.map((h) => {
                 const active = draftHighlight === h.id;
                 return (
@@ -1095,25 +1381,20 @@ export default function CreateStoryScreen() {
                       active && { backgroundColor: "rgba(0,230,118,0.15)" },
                     ]}
                   >
-                    <Text style={[st.hChipText, { color: active ? Z_GREEN : "#fff" }]}>
-                      {h.label}
-                    </Text>
+                    <Text style={[st.hChipText, { color: active ? Z_GREEN : "#fff" }]}>{h.label}</Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
 
-            <TouchableOpacity
-              style={[st.doneBtn, { backgroundColor: Z_GREEN }]}
-              onPress={() => { closeTextEditor(true); setComposerOpen(false); }}
-            >
-              <Text style={st.doneBtnText}>Done</Text>
+            <TouchableOpacity style={[st.doneBtn, { backgroundColor: Z_GREEN }]} onPress={() => closeComposer(true)}>
+              <Text style={st.doneBtnText}>{T.done}</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
-      {/* ═══════════════ MODALS ═══════════════ */}
+      {/* ════════ Crop modal ════════ */}
       <CropModal
         visible={showCrop}
         uri={mediaUri}
@@ -1121,50 +1402,47 @@ export default function CreateStoryScreen() {
         onApply={(uri) => { setMediaUri(uri); setShowCrop(false); }}
       />
 
-      <AudienceSheet
-        visible={showAudience}
-        onClose={() => setShowAudience(false)}
-        isCloseFriends={isCloseFriends}
-        onSelect={setIsCloseFriends}
+      {/* ════════ Close Friends modal ════════ */}
+      <CloseFriendsModal
+        visible={showCFModal}
+        onClose={() => { setShowCFModal(false); if (cfList.length === 0) setIsCloseFriends(false); }}
+        selectedIds={cfList}
+        onSave={(ids) => {
+          setCfList(ids);
+          if (ids.length > 0) setIsCloseFriends(true);
+        }}
+        followerUsers={followerUsers}
       />
     </KeyboardAvoidingView>
   );
 }
 
-// ── Styles ──────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
+// STYLES
+// ────────────────────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: Z_BG },
   canvas: { flex: 1, backgroundColor: Z_BG, position: "relative", overflow: "hidden" },
 
   topBar: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
+    top: 0, left: 0, right: 0,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
     paddingBottom: 6,
-    zIndex: 20,
+    zIndex: 30,
   },
   iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: "rgba(0,0,0,0.45)",
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: "center", justifyContent: "center",
   },
   editPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+    flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: "rgba(0,0,0,0.55)",
-    borderColor: Z_BLUE,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    borderColor: Z_BLUE, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
   },
   editPillText: { fontFamily: "Inter_700Bold", fontSize: 13 },
 
@@ -1173,295 +1451,220 @@ const st = StyleSheet.create({
     right: 12,
     backgroundColor: "rgba(10,10,10,0.85)",
     borderRadius: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    gap: 16,
-    borderWidth: 1,
-    borderColor: Z_BORDER,
-    zIndex: 19,
+    paddingVertical: 12, paddingHorizontal: 8,
+    gap: 14,
+    borderWidth: 1, borderColor: Z_BORDER,
+    zIndex: 25,
   },
   sidebarBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: "center", justifyContent: "center",
   },
 
   filterStrip: {
     position: "absolute",
-    left: 0,
-    right: 0,
+    left: 0, right: 0,
     paddingVertical: 8,
     backgroundColor: "rgba(0,0,0,0.55)",
+    zIndex: 24,
   },
   filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 16, borderWidth: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
   },
   filterChipText: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
 
-  bgPalette: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-  },
+  bgPalette: { position: "absolute", left: 0, right: 0, zIndex: 24 },
   bgCircleWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 38, height: 38, borderRadius: 19,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.25)",
   },
   bgCircle: { flex: 1 },
   bgPlusBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: Z_GREEN,
+    width: 38, height: 38, borderRadius: 19,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderColor: Z_GREEN,
     backgroundColor: "rgba(0,0,0,0.4)",
   },
 
   landing: {
     position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 28,
-    gap: 24,
+    top: 0, bottom: 0, left: 0, right: 0,
+    alignItems: "center", justifyContent: "center",
+    padding: 28, gap: 24,
   },
   landingTitle: { color: "#fff", fontSize: 26, fontFamily: "Inter_700Bold", marginBottom: 8 },
   landingRow: { flexDirection: "row", gap: 14 },
   landingBtn: {
-    flex: 1,
-    minWidth: 130,
-    borderWidth: 1.5,
-    borderRadius: 22,
-    paddingVertical: 28,
-    paddingHorizontal: 14,
-    alignItems: "center",
-    gap: 10,
+    flex: 1, minWidth: 130,
+    borderWidth: 1.5, borderRadius: 22,
+    paddingVertical: 28, paddingHorizontal: 14,
+    alignItems: "center", gap: 10,
     backgroundColor: "rgba(255,255,255,0.04)",
   },
   landingBtnText: { fontFamily: "Inter_700Bold", fontSize: 14, textAlign: "center" },
 
   bottomBar: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    zIndex: 18,
+    bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 16, paddingTop: 10,
+    flexDirection: "row", alignItems: "center", gap: 10,
+    zIndex: 22,
   },
   audPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    flexDirection: "row", alignItems: "center", gap: 8,
     backgroundColor: "rgba(0,0,0,0.55)",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 24,
-    borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderRadius: 24, borderWidth: 1,
   },
   audPillText: { fontFamily: "Inter_700Bold", fontSize: 13 },
   publishBtn: {
     flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 24,
+    flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8,
+    paddingVertical: 14, borderRadius: 24,
   },
   publishBtnText: { color: "#000", fontFamily: "Inter_700Bold", fontSize: 15 },
 
-  // Repost sticker
-  repostStickerWrap: {
-    position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  repostSticker: {
-    width: SCREEN.width * 0.78,
-    aspectRatio: 9 / 14,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    borderWidth: 2,
-    borderColor: Z_BLUE,
-    overflow: "hidden",
-  },
-  repostStickerMedia: { flex: 1, width: "100%" },
-  repostStickerFooter: {
-    position: "absolute",
-    bottom: 0, left: 0, right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    padding: 10,
+  // Repost
+  repostBadge: {
+    position: "absolute", alignSelf: "center",
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 12, paddingVertical: 6,
     backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 16,
+    borderWidth: 1, borderColor: Z_BLUE,
   },
-  repostStickerAvatar: { width: 22, height: 22, borderRadius: 11 },
-  repostStickerName: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 13 },
+  repostBadgeAvatar: { width: 22, height: 22, borderRadius: 11 },
+  repostBadgeText: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 13 },
 
   // Draggable text
   draggableBox: { position: "absolute", top: "40%", left: "12%" },
-  deleteHandle: {
-    position: "absolute",
-    top: -10,
-    right: -10,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+  handleDelete: {
+    position: "absolute", top: -12, left: -12,
+    width: 26, height: 26, borderRadius: 13,
     backgroundColor: "#FF3B30",
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "#000",
   },
-  scaleHandle: {
-    position: "absolute",
-    bottom: -10,
-    right: -10,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+  handleRotate: {
+    position: "absolute", top: -12, right: -12,
+    width: 26, height: 26, borderRadius: 13,
     backgroundColor: Z_BLUE,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "#000",
+  },
+  handleScale: {
+    position: "absolute", bottom: -12, right: -12,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: Z_GREEN,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "#000",
   },
 
   // Composer
   composerWrap: {
-    position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: "rgba(0,0,0,0.65)",
-    zIndex: 30,
+    zIndex: 50,
   },
   composerCenter: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 20,
+    flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 20,
   },
   composerBubble: {
-    minHeight: 60,
-    minWidth: 100,
-    alignItems: "center",
-    justifyContent: "center",
+    minHeight: 60, minWidth: 100,
+    alignItems: "center", justifyContent: "center",
   },
   mentionPicker: {
-    position: "absolute",
-    bottom: 100,
-    left: 20,
-    right: 20,
+    position: "absolute", bottom: 100, left: 20, right: 20,
     maxHeight: 240,
     backgroundColor: Z_PANEL,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Z_BORDER,
+    borderRadius: 14, borderWidth: 1, borderColor: Z_BORDER,
     overflow: "hidden",
   },
-  mentionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 10,
-  },
+  mentionRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 10 },
   mentionAvatar: { width: 32, height: 32, borderRadius: 16, overflow: "hidden", alignItems: "center", justifyContent: "center" },
   mentionName: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 },
   mentionHandle: { color: Z_MUTED, fontFamily: "Inter_400Regular", fontSize: 11 },
 
   styleBar: {
-    position: "absolute",
-    bottom: 0, left: 0, right: 0,
-    paddingTop: 10,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    paddingTop: 10, paddingHorizontal: 12,
+    flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: "rgba(0,0,0,0.75)",
   },
   alignBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 40, height: 40, borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: "center", justifyContent: "center",
   },
   hChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 16, borderWidth: 1,
   },
   hChipText: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
-  doneBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 18,
-  },
+  doneBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 18 },
   doneBtnText: { color: "#000", fontFamily: "Inter_700Bold", fontSize: 13 },
 
   // Crop modal
-  cropBackdrop: { flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center" },
+  cropBackdrop: { flex: 1, backgroundColor: "#000", alignItems: "center" },
   cropHeader: {
-    position: "absolute",
-    top: 50,
-    left: 0, right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 20, paddingVertical: 12,
+    width: "100%",
   },
   cropHeaderBtn: { padding: 8 },
   cropTitle: { flex: 1, color: "#fff", textAlign: "center", fontFamily: "Inter_700Bold", fontSize: 15 },
-  cropFrame: {
-    overflow: "hidden",
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: Z_GREEN,
+  cropContainer: {
     backgroundColor: "#111",
+    overflow: "hidden",
+    position: "relative",
+    marginTop: 8,
   },
-  cropImageClip: { ...StyleSheet.absoluteFillObject, overflow: "hidden" },
-  cropGridOverlay: { ...StyleSheet.absoluteFillObject },
-  cropGridLineV1: { position: "absolute", top: 0, bottom: 0, left: "33%", width: 1, backgroundColor: "rgba(255,255,255,0.25)" },
-  cropGridLineV2: { position: "absolute", top: 0, bottom: 0, left: "66%", width: 1, backgroundColor: "rgba(255,255,255,0.25)" },
-  cropGridLineH1: { position: "absolute", left: 0, right: 0, top: "33%", height: 1, backgroundColor: "rgba(255,255,255,0.25)" },
-  cropGridLineH2: { position: "absolute", left: 0, right: 0, top: "66%", height: 1, backgroundColor: "rgba(255,255,255,0.25)" },
-  cropHint: { position: "absolute", bottom: 50, color: Z_MUTED, fontFamily: "Inter_400Regular", fontSize: 12 },
+  cropMask: { position: "absolute", backgroundColor: "rgba(0,0,0,0.65)" },
+  cropFrame: {
+    position: "absolute",
+    borderWidth: 2, borderColor: Z_GREEN,
+    backgroundColor: "transparent",
+  },
+  cropGridLineV1: { position: "absolute", top: 0, bottom: 0, left: "33%", width: 1, backgroundColor: "rgba(255,255,255,0.35)" },
+  cropGridLineV2: { position: "absolute", top: 0, bottom: 0, left: "66%", width: 1, backgroundColor: "rgba(255,255,255,0.35)" },
+  cropGridLineH1: { position: "absolute", left: 0, right: 0, top: "33%", height: 1, backgroundColor: "rgba(255,255,255,0.35)" },
+  cropGridLineH2: { position: "absolute", left: 0, right: 0, top: "66%", height: 1, backgroundColor: "rgba(255,255,255,0.35)" },
+  cornerHandle: {
+    position: "absolute", width: 36, height: 36,
+    alignItems: "center", justifyContent: "center",
+    zIndex: 5,
+  },
+  cornerInner: {
+    width: 22, height: 22, borderColor: Z_GREEN,
+  },
+  cropHint: { color: Z_MUTED, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 12, textAlign: "center" },
 
-  // Sheets
+  // Close Friends sheet
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
-  sheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    padding: 18,
-    paddingBottom: 36,
-    gap: 12,
+  cfSheet: {
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 18, gap: 12,
+    borderTopWidth: 1, borderColor: Z_BORDER,
   },
-  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: Z_BORDER, marginBottom: 8 },
+  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: Z_BORDER, marginBottom: 6 },
   sheetTitle: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 18, textAlign: "center" },
-  audOpt: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderWidth: 1.5,
-    borderRadius: 16,
-    padding: 14,
+  searchBox: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    borderRadius: 14, borderWidth: 1, borderColor: Z_BORDER,
+    paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: "#000",
   },
-  audOptText: { fontFamily: "Inter_700Bold", fontSize: 15 },
+  searchInput: { flex: 1, color: "#fff", fontFamily: "Inter_400Regular", fontSize: 14 },
+  cfRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
+  miniAvatar: { width: 40, height: 40, borderRadius: 20, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  miniAvatarText: { fontFamily: "Inter_700Bold", fontSize: 16 },
+  cfUserName: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  cfUserHandle: { color: Z_MUTED, fontFamily: "Inter_400Regular", fontSize: 12 },
+  checkbox: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  emptyText: { textAlign: "center", color: Z_MUTED, fontFamily: "Inter_400Regular", paddingVertical: 20 },
+  cfSaveBtn: { borderRadius: 18, paddingVertical: 14, alignItems: "center", marginTop: 8 },
+  cfSaveBtnText: { color: "#000", fontFamily: "Inter_700Bold", fontSize: 15 },
 });

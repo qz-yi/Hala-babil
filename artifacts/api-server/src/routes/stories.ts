@@ -70,13 +70,21 @@ router.post("/stories", async (req, res) => {
     overlays?: { text: string }[];
   };
 
-  const finalImageUrl = imageUrl ?? mediaUrl;
+  const finalImageUrl = imageUrl ?? mediaUrl ?? "";
   const finalContent = content ?? caption ?? null;
   const createdAt = new Date();
   const expiresAt = new Date(createdAt.getTime() + 24 * 60 * 60 * 1000);
 
-  if (!creatorId || !finalImageUrl) {
-    return res.status(400).json({ error: "missing_required_story_fields" });
+  // Text-only stories (no media) are allowed when content or overlays exist
+  const hasTextContent =
+    (typeof finalContent === "string" && finalContent.trim().length > 0) ||
+    (Array.isArray(overlays) && overlays.length > 0);
+
+  if (!creatorId) {
+    return res.status(400).json({ error: "missing_creator_id" });
+  }
+  if (!finalImageUrl && !hasTextContent) {
+    return res.status(400).json({ error: "missing_story_content" });
   }
 
   if (expiresAt.getTime() <= Date.now()) {

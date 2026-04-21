@@ -1,0 +1,30 @@
+URGENT: Story Editor Logic & Publishing System Fix
+​Objective: The previous implementation is broken. You must fix the interactive gestures, the text engine, and the critical publishing error.
+​1️⃣ Manual Interactive Cropping
+​Current Bug: The crop is automatic and incorrect.
+​Fix: Implement a Corner-Handle Crop.
+​Use a library like react-native-image-crop-picker (configured for manual) OR a custom PanResponder overlay.
+​The user must be able to drag the corners and pinch-to-zoom the image to select the exact area to crop (9:16 ratio).
+​2️⃣ Text Engine & Filter Bug (Image/Video)
+​Text Tool: Fix the onPress event. The text button is currently non-responsive. Ensure it is not blocked by a parent view's Z-Index.
+​Video Filters: The filters only apply to images. ACTION: Use react-native-video with a GL filter overlay or a native module to ensure filters (like B&W, Sepia) apply to the video stream during preview.
+​3️⃣ Advanced Gesture Controls (Scale/Rotate)
+​Scaling: Replace "Click to enlarge" with Continuous Drag Scaling.
+​Logic: While holding the "Scale Handle," dragging AWAY from the text center increases size; dragging TOWARD the center decreases it.
+​Rotation Handle: Add a Third Handle (Rotation icon).
+​Logic: Dragging this handle in a circular motion must update the transform: [{ rotate: 'Xdeg' }] property of the text component in real-time.
+​4️⃣ The "Red Error" & Publishing Fix
+​The Bug: Red error message appearing on post attempt.
+​Action: Debug the POST /api/stories payload.
+​Ensure mediaUrl is not null.
+​Ensure mentions is sent as an empty array [] if no one is mentioned (not null).
+​Check if the server expects a type field (IMAGE/VIDEO) and ensure it's being sent correctly.
+​5️⃣ Localization & Close Friends (Vertical Sidebar)
+​Arabic First: Translate ALL UI strings (Edit, Crop, Rotate, Filter, Text, Done) to Arabic. Use i18n or the local strings file.
+​Close Friends Icon: Add a beautiful icon to the Vertical Sidebar for "Close Friends".
+​Function: Tapping it opens a search modal.
+​Search Logic: The list should ONLY show users from the Followers list (الذين يتابعونني).
+​State: Clicking a user toggles them in/out of the closeFriends array for that post.
+​6️⃣ UI Cleanup
+​Transparency: Ensure the text input background during typing is semi-transparent black.
+​Full Screen: When reposting a mentioned story, it MUST occupy the full 9:16 screen with the "Edit" button visible.

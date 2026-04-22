@@ -1,0 +1,22 @@
+CRITICAL: Media Processing Engine & UX Flow Correction
+​Objective: The editor UI is present but non-functional. You must fix the media processing logic (Filtering, Cropping, Text Rendering) and correct the publishing flow to match Instagram's UX.
+​1️⃣ Media Processing Fix (Filters, Crop & Text)
+​The Issue: Filters and Crops are ignored during publishing.
+​The Fix: You must ensure that the UniversalEditor applies transformations to the actual file before uploading.
+​Image: Use canvas or a processing library to burn the filters, text overlays, and crops into a new blob/file.
+​Video: Implement video trimming and cropping parameters in the FFmpeg or VideoProcessing logic. Do not send the original file if it was edited.
+​Text Overlay: Text created in the editor MUST be rendered onto the image/video frame. Stop mapping editor text to the caption field in the database.
+​2️⃣ Publishing Flow (The "Next" Step)
+​New UX Flow: 1. User edits media in UniversalEditor.
+2. Clicking "Next" (التالي) should NOT publish. It must navigate to a "Finalize Post" screen.
+3. Finalize Screen: Show a small preview of the edited media (scaled down) with an input field for the Caption (وصف المنشور) and Mentions.
+4. Clicking "Share" (نشر) on this screen is what triggers the API call.
+​3️⃣ Text-Only Posts (Canvas Rendering)
+​The Issue: Backgrounds and styles are lost on publish.
+​The Fix: When a user creates a text post with a background, you must render the entire design (Background + Styled Text) into a single PNG Image. Publish this image as a POST instead of sending raw text.
+​4️⃣ Aspect Ratio & Scaling
+​The Issue: Images/Videos are being cropped or shrunk incorrectly.
+​The Fix: * If no crop is applied, maintain the Original Aspect Ratio.
+​Use object-fit: contain for the preview and ensure the upload maintains the source dimensions unless explicitly changed by the user.
+​5️⃣ Video Cropping Logic
+​Fix: Enable the crop tool for videos. It should allow the user to select the frame area (1:1, 4:5, 16:9). Pass these coordinates to the video processor to generate the cropped version.

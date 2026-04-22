@@ -203,6 +203,14 @@ function RootLayoutNav() {
           }}
         />
         <Stack.Screen
+          name="finalize-post"
+          options={{
+            presentation: "modal",
+            headerShown: false,
+            animation: "slide_from_right",
+          }}
+        />
+        <Stack.Screen
           name="story/[userId]"
           options={{
             presentation: "fullScreenModal",

@@ -26,6 +26,7 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import ViewShot, { captureRef } from "react-native-view-shot";
 
 import { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
@@ -61,6 +62,7 @@ const T = {
   edit: "تعديل",
   done: "تم",
   share: "نشر",
+  next: "التالي",
   audience: "الجمهور",
   publicLabel: "عام",
   closeFriends: "أصدقاء مقربون",
@@ -110,6 +112,9 @@ function modeConfig(mode: EditorMode) {
         landingMediaLabel: T.photoVideo,
         landingTextLabel: T.textPost,
         successMsg: T.postedPost,
+        preserveAspect: true,        // posts use original aspect (contain)
+        needsFinalize: true,         // posts go through caption/mentions screen
+        publishLabel: T.next,
       };
     case "reel":
       return {
@@ -122,6 +127,9 @@ function modeConfig(mode: EditorMode) {
         landingMediaLabel: T.video,
         landingTextLabel: "",
         successMsg: T.postedReel,
+        preserveAspect: false,
+        needsFinalize: true,         // reels also get a caption screen
+        publishLabel: T.next,
       };
     case "profile":
       return {
@@ -134,6 +142,9 @@ function modeConfig(mode: EditorMode) {
         landingMediaLabel: T.photo,
         landingTextLabel: "",
         successMsg: T.postedAvatar,
+        preserveAspect: false,
+        needsFinalize: false,
+        publishLabel: T.share,
       };
     case "cover":
       return {
@@ -146,6 +157,9 @@ function modeConfig(mode: EditorMode) {
         landingMediaLabel: T.photo,
         landingTextLabel: "",
         successMsg: T.postedCover,
+        preserveAspect: false,
+        needsFinalize: false,
+        publishLabel: T.share,
       };
     case "story":
     default:
@@ -159,6 +173,9 @@ function modeConfig(mode: EditorMode) {
         landingMediaLabel: T.photoVideo,
         landingTextLabel: T.textStory,
         successMsg: T.postedPublic,
+        preserveAspect: false,
+        needsFinalize: false,
+        publishLabel: T.share,
       };
   }
 }
@@ -258,6 +275,29 @@ async function bakeFilter(uri: string, filter: string): Promise<string> {
     return result.uri;
   } catch {
     return uri;
+  }
+}
+
+/**
+ * Capture the bakeable canvas (background image + filter overlay + text overlays)
+ * into a single PNG file. Used to "burn" filters and overlays into the published
+ * media so the published artifact reflects what the user designed.
+ *
+ * Returns the captured file URI, or null if capture failed (e.g. on web before
+ * onLayout, or for video — caller must fall back to the raw URI in that case).
+ */
+async function captureCanvas(ref: React.RefObject<ViewShot | null>): Promise<string | null> {
+  if (!ref.current) return null;
+  try {
+    const uri = await captureRef(ref as any, {
+      format: "png",
+      quality: 1,
+      result: "tmpfile",
+    });
+    return uri || null;
+  } catch (err) {
+    console.warn("[universal-editor] canvas capture failed", err);
+    return null;
   }
 }
 
@@ -975,6 +1015,7 @@ export default function CreateStoryScreen() {
   const [showCrop, setShowCrop] = useState(false);
   const [showCFModal, setShowCFModal] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const shotRef = useRef<ViewShot | null>(null);
   const [isCloseFriends, setIsCloseFriends] = useState(false);
   const [cfList, setCfList] = useState<string[]>(closeFriendsList);
   const [textMode, setTextMode] = useState<boolean>(false);
@@ -1253,6 +1294,19 @@ export default function CreateStoryScreen() {
   );
 
   // ─ Publish (branches by editor mode)
+  //
+  // The publish pipeline has two stages:
+  //   1. BAKE — capture the live canvas (image + filter + text overlays) into a
+  //      single flat PNG via ViewShot. This burns the user's edits into the file
+  //      so what they see is what gets published. For text-only posts (no media,
+  //      gradient + text), the gradient + styled text is captured the same way.
+  //      For videos, baking is currently impossible without FFmpeg, so the raw
+  //      video URI is forwarded along with overlay metadata for the player to
+  //      render at runtime.
+  //   2. PUBLISH — for modes that need a caption ("post", "reel"), navigate to
+  //      the Finalize screen which collects caption + mentions and triggers the
+  //      actual API call. For modes without a caption ("story", "profile",
+  //      "cover"), publish directly here.
   const handlePublish = async () => {
     // Validate per-mode requirements
     if (editorMode === "reel") {
@@ -1265,48 +1319,77 @@ export default function CreateStoryScreen() {
         showToast(T.needImage, "error");
         return;
       }
-    } else if (!mediaUri && !sharedPost && overlays.length === 0) {
+    } else if (!mediaUri && !sharedPost && overlays.length === 0 && !textBgImage) {
       showToast(T.needContent, "error");
       return;
     }
 
     setPublishing(true);
     try {
+      // ─ Stage 1: BAKE ────────────────────────────────────────────────────
+      // For images and text-only canvases, capture the live preview to PNG so
+      // the filter and text overlays are burned into the published file.
+      // For videos we keep the original URI (no client-side video processing).
+      const isVideo = mediaUri && mediaType === "video";
       let finalUri = mediaUri || sharedPost?.mediaUrl || textBgImage || "";
-      if (mediaUri && mediaType === "image" && selectedFilter !== "none") {
-        finalUri = await bakeFilter(mediaUri, selectedFilter);
+      let bakedMediaType: "image" | "video" | "none" = mediaUri
+        ? mediaType
+        : (textBgImage || overlays.length > 0 ? "image" : "none");
+
+      if (!isVideo) {
+        // Hide the active selection chrome before capturing (handled by clearing
+        // activeOverlayId — handles/borders are gated on `active`).
+        setActiveOverlayId(null);
+        // Yield a frame so the UI updates before capture
+        await new Promise((r) => setTimeout(r, 60));
+        const captured = await captureCanvas(shotRef);
+        if (captured) {
+          finalUri = captured;
+          bakedMediaType = "image"; // baked output is always an image
+        } else if (mediaUri && mediaType === "image" && selectedFilter !== "none") {
+          // Fallback: at least resize/compress so something is sent
+          finalUri = await bakeFilter(mediaUri, selectedFilter);
+        }
       }
-      // Text overlays exist as INTERACTIVE overlays only — never auto-baked into caption.
-      // Posts/Reels keep the textual content as caption since their schema needs it,
-      // but Stories must NOT carry auto-caption (text only as overlays on media).
-      const overlayText = overlays.map((o) => o.text).join("\n").trim() || undefined;
-      const overlayData = overlays.map((o) => ({ text: o.text }));
+
       const mentionsArray = parsedMentionUsers.map((u) => u.id);
 
-      if (editorMode === "post") {
-        // Posts: media+filter or text-only background
-        if (!mediaUri && textBgImage) finalUri = textBgImage;
-        await addPost(
-          overlayText,                             // caption from overlays
-          finalUri || undefined,
-          mediaUri ? mediaType : (textBgImage ? "image" : "none"),
-          (selectedFilter as any),
-        );
-      } else if (editorMode === "reel") {
-        await addReel(finalUri, overlayText || "", "none");
-      } else if (editorMode === "profile") {
+      // ─ Stage 2: PUBLISH or FINALIZE ─────────────────────────────────────
+      if (cfg.needsFinalize) {
+        // Posts and reels go through the Finalize screen for caption + mentions.
+        // The finalize screen handles the actual API call.
+        router.replace({
+          pathname: "/finalize-post",
+          params: {
+            mode: editorMode,
+            mediaUri: finalUri,
+            mediaType: bakedMediaType,
+            // For videos we still pass the raw filter so the viewer can apply it.
+            filter: isVideo ? selectedFilter : "none",
+            mentions: mentionsArray.join(","),
+          },
+        } as any);
+        return;
+      }
+
+      // Direct-publish modes (story / profile / cover):
+      if (editorMode === "profile") {
         if (!currentUser) throw new Error("no user");
         await updateProfile(currentUser.name, currentUser.bio, finalUri);
       } else if (editorMode === "cover") {
         await updateCoverPhoto(finalUri);
       } else {
-        // Default: STORY mode
+        // STORY mode
         if (isCloseFriends) updateCloseFriendsList(cfList);
+        // Overlays are now baked into the image — pass empty overlayData so the
+        // viewer doesn't double-render them on top of the captured PNG. Videos
+        // still rely on overlay metadata since they cannot be baked.
+        const overlayData = isVideo ? overlays.map((o) => ({ text: o.text })) : [];
         await addStory(
           finalUri,
-          mediaType,
+          bakedMediaType === "none" ? "image" : (bakedMediaType as "image" | "video"),
           undefined, // caption removed — text is purely overlay
-          selectedFilter,
+          isVideo ? selectedFilter : "none",
           isCloseFriends,
           mentionsArray,
           sharedPost,
@@ -1336,6 +1419,13 @@ export default function CreateStoryScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={st.canvas}>
+        {/* ════════ Bakeable canvas (captured by ViewShot on publish) ════════ */}
+        <ViewShot
+          ref={shotRef as any}
+          style={StyleSheet.absoluteFill}
+          options={{ format: "png", quality: 1, result: "tmpfile" }}
+          {...({ collapsable: false } as any)}
+        >
         {/* ════════ Background canvas layer ════════ */}
         {mediaUri ? (
           mediaType === "video" ? (
@@ -1348,7 +1438,7 @@ export default function CreateStoryScreen() {
               <Image
                 source={{ uri: mediaUri }}
                 style={[StyleSheet.absoluteFill, webFilterCss(selectedFilter)]}
-                resizeMode="cover"
+                resizeMode={cfg.preserveAspect ? "contain" : "cover"}
               />
               <FilterOverlay filter={selectedFilter} />
             </>
@@ -1408,6 +1498,8 @@ export default function CreateStoryScreen() {
             />
           ))}
         </View>
+        </ViewShot>
+        {/* End of bakeable canvas */}
 
         {/* ════════ Top bar: close + Edit pill ════════ */}
         <View style={[st.topBar, { paddingTop: topPad + 6 }]} pointerEvents="box-none">
@@ -1549,7 +1641,7 @@ export default function CreateStoryScreen() {
                 <ActivityIndicator size="small" color="#000" />
               ) : (
                 <>
-                  <Text style={st.publishBtnText}>{T.share}</Text>
+                  <Text style={st.publishBtnText}>{cfg.publishLabel}</Text>
                   <Ionicons name="arrow-forward" size={18} color="#000" />
                 </>
               )}

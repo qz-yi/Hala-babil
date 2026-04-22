@@ -144,7 +144,7 @@ function SharedContentPreview({
     } else if (sharedContent.type === "story") {
       const story = stories.find((s) => s.id === sharedContent.id);
       if (story && story.expiresAt > Date.now()) {
-        router.push(`/story/${story.creatorId}` as any);
+        router.push(`/story/${story.creatorId}?storyId=${story.id}` as any);
       }
     }
   };

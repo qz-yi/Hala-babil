@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -204,7 +204,7 @@ function ShareStoryModal({
 }
 
 export default function StoryViewerScreen() {
-  const { userId } = useLocalSearchParams<{ userId: string }>();
+  const { userId, storyId: deepLinkStoryId } = useLocalSearchParams<{ userId: string; storyId?: string }>();
   const {
     users, getUserStories, viewStory, currentUser, theme,
     likeStory, replyToStory, deleteStory,
@@ -255,6 +255,25 @@ export default function StoryViewerScreen() {
   const currentUserIndex = usersWithStories.findIndex((u) => u.id === userId);
 
   const storyDuration = currentStory?.mediaType === "video" ? 60000 : IMAGE_STORY_DURATION;
+
+  // ─ pauseStoryTimer: stops the Animated timer SYNCHRONOUSLY before setting
+  // paused state. This closes the race window where the completion callback
+  // could fire handleNext() between setPaused(true) and the re-render.
+  const pauseStoryTimer = useCallback(() => {
+    animRef.current?.stop();
+    setPaused(true);
+  }, []);
+
+  // ─ Deep link: jump to a specific story when navigated with ?storyId=
+  useEffect(() => {
+    if (!deepLinkStoryId || stories.length === 0) return;
+    const idx = stories.findIndex((s) => s.id === deepLinkStoryId);
+    if (idx >= 0 && idx !== currentIndex) {
+      setCurrentIndex(idx);
+    }
+    // Only run when the param or story list changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkStoryId, stories.length]);
 
   useEffect(() => { elapsedRef.current = 0; }, [currentIndex, currentStory?.id]);
 
@@ -377,7 +396,7 @@ export default function StoryViewerScreen() {
       return;
     }
     if (sp.type === "reel") {
-      router.push("/(tabs)/reels" as any);
+      router.push(`/(tabs)/reels?reelId=${sp.id}` as any);
     } else {
       router.push(`/post/${targetId}` as any);
     }
@@ -598,7 +617,7 @@ export default function StoryViewerScreen() {
                   placeholderTextColor="rgba(255,255,255,0.5)"
                   value={replyText}
                   onChangeText={setReplyText}
-                  onFocus={() => setPaused(true)}
+                  onFocus={() => pauseStoryTimer()}
                   onBlur={() => { if (!replyText.trim()) setPaused(false); }}
                   textAlign="right"
                   returnKeyType="send"
@@ -626,7 +645,7 @@ export default function StoryViewerScreen() {
                 </Animated.View>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => { setPaused(true); setShowShare(true); }}
+                onPress={() => { pauseStoryTimer(); setShowShare(true); }}
                 style={styles.reactionBtn}
                 activeOpacity={0.8}
               >
@@ -642,7 +661,7 @@ export default function StoryViewerScreen() {
         <View style={[styles.myStoryBottom, { bottom: botPad + 16 }]}>
           <TouchableOpacity
             style={styles.viewsBadge}
-            onPress={() => { setPaused(true); setShowViewers(true); }}
+            onPress={() => { pauseStoryTimer(); setShowViewers(true); }}
             activeOpacity={0.85}
           >
             <Ionicons name="eye-outline" size={15} color="rgba(255,255,255,0.85)" />
@@ -733,14 +752,14 @@ export default function StoryViewerScreen() {
       <Pressable
         style={styles.tapLeft}
         onPress={handlePrev}
-        onPressIn={() => setPaused(true)}
+        onPressIn={() => pauseStoryTimer()}
         onPressOut={() => setPaused(false)}
         delayLongPress={150}
       />
       <Pressable
         style={styles.tapRight}
         onPress={handleNext}
-        onPressIn={() => setPaused(true)}
+        onPressIn={() => pauseStoryTimer()}
         onPressOut={() => setPaused(false)}
         delayLongPress={150}
       />

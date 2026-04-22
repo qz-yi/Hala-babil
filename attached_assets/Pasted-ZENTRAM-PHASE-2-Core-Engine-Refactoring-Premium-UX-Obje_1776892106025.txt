@@ -1,0 +1,21 @@
+ZENTRAM PHASE 2: Core Engine Refactoring & Premium UX
+​Objective: Fix critical lifecycle bugs, enable full video processing, and align sharing aesthetics with Instagram's "Clean UI" standard.
+​1️⃣ Story & Lifecycle Fixes
+​Editor Timeout Bug: When adding a new story while viewing existing ones, the StoryViewer timer MUST pause. Prevent onComplete or onClose navigation from firing if the StoryEditor modal is active.
+​Black Screen on Share: Fix the rendering of shared content (Posts/Reels/Tagged Stories) inside the Editor. Ensure the SharedContentPreview correctly fetches and displays the source mediaUrl.
+​Audio Management: Implement useIsFocused (or equivalent). All videos/reels in the feed MUST stop playing and mute immediately when the user switches tabs or navigates away from the screen.
+​2️⃣ Full Video Processing (Reels & Posts)
+​Video Editor Logic: The UniversalEditor must support video.
+​Text & Filters: Overlay text and CSS filters must be "baked" into the video using a processing pipeline (e.g., FFmpeg on backend or Canvas-capture on frontend).
+​Crop: Enable frame-cropping for videos. Do not send the original file if a crop is applied.
+​3️⃣ Navigation & Pull-to-Refresh
+​Pull-to-Refresh: Add a RefreshControl to the Home Feed for fetching the latest posts.
+​Deep Linking Fix: When clicking a shared post/reel in DMs or Stories, it must navigate to the specific PostDetail or ReelView component, NOT a generic placeholder or the wrong view.
+​4️⃣ Contextual & Multi-Select Sharing
+​Contextual Room Sharing: If a user is currently active in a "Room," add a "Share to [Room Name]" option in the share sheet. Hide this option if no room is active.
+​Multi-Select in Reels: Change the selectedUser state in the Reels share sheet to an Array. Allow users to select multiple recipients simultaneously, identical to the Post sharing logic.
+​5️⃣ Visual Aesthetics (Instagram Standard)
+​Clean Sharing UI: Redesign shared cards in DMs and Rooms.
+​Remove small arrows and thick borders.
+​Use a "Full Bleed" or "Rounded Minimalist" card style where the media takes center stage, and the username is a small overlay or header.
+​Follow the provided Instagram reference for the "Shared Post" look.

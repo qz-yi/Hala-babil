@@ -2,9 +2,9 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Dimensions,
@@ -540,14 +540,24 @@ function ShareSheet({
   visible: boolean;
   onClose: () => void;
 }) {
-  const { users, currentUser, shareReelToConversation, reels, shareContentToStory } = useApp();
+  const { users, currentUser, shareReelToConversation, reels, shareContentToStory, isRoomMinimized, minimizedRoomId, minimizedRoomName, sendRoomMessage } = useApp();
   const { showToast } = useToast();
   const others = users.filter((u) => u.id !== currentUser?.id);
   const [addedToStory, setAddedToStory] = useState(false);
+  const [sent, setSent] = useState<string[]>([]);
+  const [sentToRoom, setSentToRoom] = useState(false);
 
   const handleShare = (userId: string) => {
+    if (sent.includes(userId)) return;
     shareReelToConversation(reelId, userId);
-    showToast("تم مشاركة المقطع", "success");
+    setSent((prev) => [...prev, userId]);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleDone = () => {
+    if (sent.length > 0) {
+      showToast(`تم مشاركة المقطع مع ${sent.length} شخص`, "success");
+    }
     onClose();
   };
 
@@ -555,18 +565,33 @@ function ShareSheet({
     const reel = reels.find((r) => r.id === reelId);
     if (!reel) return;
     const creator = users.find((u) => u.id === reel.creatorId);
-    // Pass mediaType "video" so the reel remains a playable video entity in the story.
     shareContentToStory("reel", reelId, reel.videoUrl, reel.title, creator?.name, reel.creatorId, "video");
     onClose();
-    // Note: success toast/state is emitted by the editor only on actual publish, not on cancel.
+  };
+
+  const handleShareToRoom = () => {
+    if (!minimizedRoomId) return;
+    const reel = reels.find((r) => r.id === reelId);
+    const creator = reel ? users.find((u) => u.id === reel.creatorId) : null;
+    const label = `🎬 ${creator?.name || ""} — ${reel?.title || "مقطع فيديو"}`.trim();
+    sendRoomMessage(minimizedRoomId, label || "مقطع فيديو");
+    setSentToRoom(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.sheetBackdrop} onPress={onClose} />
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleDone}>
+      <Pressable style={styles.sheetBackdrop} onPress={handleDone} />
       <View style={[styles.commentSheet, { backgroundColor: CARD, borderColor: BORDER }]}>
         <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
-        <Text style={[styles.sheetTitle, { color: TEXT }]}>مشاركة</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 }}>
+          <Text style={[styles.sheetTitle, { color: TEXT }]}>مشاركة</Text>
+          {sent.length > 0 && (
+            <TouchableOpacity onPress={handleDone} style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#7C3AED", borderRadius: 20 }}>
+              <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: "#fff" }}>إرسال ({sent.length})</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Add to Story */}
         <TouchableOpacity
@@ -580,7 +605,21 @@ function ShareSheet({
           </Text>
         </TouchableOpacity>
 
-        <Text style={[{ fontFamily: "Inter_600SemiBold", fontSize: 12, color: TEXT2, letterSpacing: 0.5, marginTop: 4, marginBottom: 4 }]}>إرسال لشخص</Text>
+        {/* Contextual Room Share */}
+        {isRoomMinimized && minimizedRoomId && (
+          <TouchableOpacity
+            style={[styles.addToStoryReelBtn, { borderColor: sentToRoom ? "#10B981" : "#7C3AED", backgroundColor: sentToRoom ? "#10B98122" : "#7C3AED22" }]}
+            onPress={!sentToRoom ? handleShareToRoom : undefined}
+            activeOpacity={0.85}
+          >
+            <Ionicons name={sentToRoom ? "checkmark-circle" : "mic-outline"} size={20} color={sentToRoom ? "#10B981" : "#7C3AED"} />
+            <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 14, color: sentToRoom ? "#10B981" : "#7C3AED" }}>
+              {sentToRoom ? "تمت المشاركة في الغرفة" : `مشاركة في ${minimizedRoomName}`}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <Text style={[{ fontFamily: "Inter_600SemiBold", fontSize: 12, color: TEXT2, letterSpacing: 0.5, marginTop: 4, marginBottom: 4 }]}>إرسال لأشخاص</Text>
 
         <FlatList
           data={others}
@@ -591,29 +630,36 @@ function ShareSheet({
               لا يوجد مستخدمون لمشاركتهم
             </Text>
           }
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.shareUser} onPress={() => handleShare(item.id)}>
-              <View
-                style={[
-                  styles.commentAvatar,
-                  { backgroundColor: ACCENT_COLORS[item.id.length % ACCENT_COLORS.length] },
-                ]}
-              >
-                {item.avatar ? (
-                  <Image source={{ uri: item.avatar }} style={styles.commentAvatarImg} />
+          renderItem={({ item }) => {
+            const isSent = sent.includes(item.id);
+            return (
+              <TouchableOpacity style={styles.shareUser} onPress={() => handleShare(item.id)} activeOpacity={isSent ? 1 : 0.7}>
+                <View
+                  style={[
+                    styles.commentAvatar,
+                    { backgroundColor: ACCENT_COLORS[item.id.length % ACCENT_COLORS.length] },
+                  ]}
+                >
+                  {item.avatar ? (
+                    <Image source={{ uri: item.avatar }} style={styles.commentAvatarImg} />
+                  ) : (
+                    <Text style={styles.commentAvatarText}>{item.name[0]?.toUpperCase()}</Text>
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.commentUser, { color: TEXT }]}>{item.name}</Text>
+                  <Text style={[styles.commentText, { color: TEXT2, fontSize: 12 }]}>
+                    @{item.username || item.email}
+                  </Text>
+                </View>
+                {isSent ? (
+                  <Ionicons name="checkmark-circle" size={22} color="#10B981" />
                 ) : (
-                  <Text style={styles.commentAvatarText}>{item.name[0]?.toUpperCase()}</Text>
+                  <Feather name="send" size={16} color="#3D91F4" strokeWidth={1.5} />
                 )}
-              </View>
-              <View>
-                <Text style={[styles.commentUser, { color: TEXT }]}>{item.name}</Text>
-                <Text style={[styles.commentText, { color: TEXT2, fontSize: 12 }]}>
-                  @{item.username || item.email}
-                </Text>
-              </View>
-              <Feather name="send" size={16} color="#3D91F4" strokeWidth={1.5} style={{ marginLeft: "auto" as any }} />
-            </TouchableOpacity>
-          )}
+              </TouchableOpacity>
+            );
+          }}
         />
       </View>
     </Modal>
@@ -787,14 +833,27 @@ export default function ReelsScreen() {
   } = useApp();
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
+  const { reelId: deepLinkReelId } = useLocalSearchParams<{ reelId?: string }>();
+  const flatListRef = useRef<FlatList>(null);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [commentReel, setCommentReel] = useState<string | null>(null);
   const [commentReelOwnerId, setCommentReelOwnerId] = useState<string>("");
   const [shareReel, setShareReel] = useState<string | null>(null);
-  // Publish flow now lives in the UniversalEditor (/create-story?mode=reel)
   const [refreshing, setRefreshing] = useState(false);
   const [screenFocused, setScreenFocused] = useState(true);
+
+  // Deep link: when navigated here with a reelId param, scroll to that reel
+  useEffect(() => {
+    if (!deepLinkReelId || reels.length === 0) return;
+    const idx = reels.findIndex((r) => r.id === deepLinkReelId);
+    if (idx >= 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({ index: idx, animated: true });
+        setActiveIndex(idx);
+      }, 300);
+    }
+  }, [deepLinkReelId, reels]);
 
   // Stop video when leaving tab
   useFocusEffect(
@@ -861,6 +920,7 @@ export default function ReelsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: "#000" }]}>
       <FlatList
+        ref={flatListRef}
         data={reels}
         keyExtractor={(r) => r.id}
         showsVerticalScrollIndicator={false}

@@ -331,6 +331,289 @@ async function captureCanvas(
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// VIDEO BAKING (web only)
+// Uses Canvas + MediaRecorder to bake CSS filters and text overlays into the
+// video file, and optionally crop the frame.
+// ────────────────────────────────────────────────────────────────────────────
+type BakeVideoParams = {
+  videoUri: string;
+  filter: string;
+  overlays: Array<{ text: string; x: number; y: number; scale: number; rotation: number }>;
+  cropRect?: { x: number; y: number; w: number; h: number }; // normalized 0-1
+  canvasWidth: number;
+  canvasHeight: number;
+  onProgress?: (pct: number) => void;
+};
+
+async function bakeVideoWeb(params: BakeVideoParams): Promise<string | null> {
+  if (Platform.OS !== "web") return null;
+  if (typeof document === "undefined") return null;
+
+  const filterCssMap: Record<string, string> = {
+    none: "none",
+    warm: "brightness(1.1) saturate(1.3) sepia(0.2)",
+    cool: "hue-rotate(30deg) brightness(1.1) saturate(0.9)",
+    vintage: "sepia(0.5) contrast(0.9) brightness(0.95)",
+    grayscale: "grayscale(1)",
+    sepia: "sepia(0.8)",
+  };
+  const cssFilter = filterCssMap[params.filter] || "none";
+
+  return new Promise<string | null>((resolve) => {
+    const video = document.createElement("video");
+    video.src = params.videoUri;
+    video.muted = true;
+    video.crossOrigin = "anonymous";
+    video.preload = "auto";
+
+    video.onerror = () => resolve(null);
+
+    video.onloadedmetadata = () => {
+      const naturalW = video.videoWidth || 1080;
+      const naturalH = video.videoHeight || 1920;
+
+      const srcX = params.cropRect ? Math.round(naturalW * params.cropRect.x) : 0;
+      const srcY = params.cropRect ? Math.round(naturalH * params.cropRect.y) : 0;
+      const srcW = params.cropRect ? Math.round(naturalW * params.cropRect.w) : naturalW;
+      const srcH = params.cropRect ? Math.round(naturalH * params.cropRect.h) : naturalH;
+
+      const outW = Math.min(srcW, 1080);
+      const outH = Math.round((outW * srcH) / srcW);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = outW;
+      canvas.height = outH;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(null); return; }
+
+      let stream: MediaStream;
+      try {
+        stream = (canvas as any).captureStream(30);
+      } catch {
+        resolve(null);
+        return;
+      }
+
+      const mimeType = (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported?.("video/webm;codecs=vp8"))
+        ? "video/webm;codecs=vp8"
+        : (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported?.("video/webm"))
+        ? "video/webm"
+        : "";
+
+      if (!mimeType || typeof MediaRecorder === "undefined") { resolve(null); return; }
+
+      const chunks: BlobPart[] = [];
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: "video/webm" });
+        resolve(URL.createObjectURL(blob));
+      };
+
+      const duration = isFinite(video.duration) ? video.duration : 0;
+      let stopped = false;
+
+      const stopRecorder = () => {
+        if (stopped) return;
+        stopped = true;
+        try { recorder.stop(); } catch {}
+      };
+
+      const drawFrame = () => {
+        if (stopped) return;
+        if (video.ended) { stopRecorder(); return; }
+
+        ctx.filter = cssFilter;
+        ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
+
+        ctx.filter = "none";
+        for (const overlay of params.overlays) {
+          const fontSize = Math.round(28 * overlay.scale * (outW / params.canvasWidth));
+          ctx.save();
+          ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+          ctx.fillStyle = "#FFFFFF";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.shadowColor = "rgba(0,0,0,0.85)";
+          ctx.shadowBlur = 10;
+          const cx = (overlay.x / params.canvasWidth) * outW;
+          const cy = (overlay.y / params.canvasHeight) * outH;
+          ctx.translate(cx, cy);
+          ctx.rotate((overlay.rotation * Math.PI) / 180);
+          ctx.fillText(overlay.text, 0, 0);
+          ctx.restore();
+        }
+
+        if (params.onProgress && duration > 0) {
+          params.onProgress(Math.min(99, (video.currentTime / duration) * 100));
+        }
+
+        requestAnimationFrame(drawFrame);
+      };
+
+      video.addEventListener("ended", stopRecorder);
+      // Safety: stop after duration + 1s if ended event not fired
+      if (duration > 0) {
+        setTimeout(stopRecorder, (duration + 1) * 1000);
+      }
+
+      recorder.start();
+      video.play().catch(() => { stopRecorder(); resolve(null); });
+      requestAnimationFrame(drawFrame);
+    };
+  });
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// VIDEO CROP SHEET — simple aspect-ratio presets (centers the crop)
+// ────────────────────────────────────────────────────────────────────────────
+const VIDEO_CROP_PRESETS = [
+  { key: "original", label: "الأصلي", ratio: null },
+  { key: "9:16", label: "9:16 عمودي", ratio: 9 / 16 },
+  { key: "16:9", label: "16:9 أفقي", ratio: 16 / 9 },
+  { key: "1:1", label: "1:1 مربع", ratio: 1 },
+] as const;
+
+function computeVideoCropRect(
+  videoNaturalW: number,
+  videoNaturalH: number,
+  preset: typeof VIDEO_CROP_PRESETS[number],
+): { x: number; y: number; w: number; h: number } | null {
+  if (!preset.ratio) return null;
+  const naturalAspect = videoNaturalW / videoNaturalH;
+  const targetAspect = preset.ratio;
+  if (Math.abs(naturalAspect - targetAspect) < 0.01) return null;
+  if (naturalAspect > targetAspect) {
+    // Wider than target — crop horizontally
+    const newW = videoNaturalH * targetAspect;
+    const x = (videoNaturalW - newW) / 2 / videoNaturalW;
+    return { x, y: 0, w: newW / videoNaturalW, h: 1 };
+  } else {
+    // Taller than target — crop vertically
+    const newH = videoNaturalW / targetAspect;
+    const y = (videoNaturalH - newH) / 2 / videoNaturalH;
+    return { x: 0, y, w: 1, h: newH / videoNaturalH };
+  }
+}
+
+function VideoCropSheet({
+  visible,
+  videoUri,
+  onApply,
+  onClose,
+}: {
+  visible: boolean;
+  videoUri: string;
+  onApply: (rect: { x: number; y: number; w: number; h: number } | null) => void;
+  onClose: () => void;
+}) {
+  const [selected, setSelectedKey] = useState<string>("original");
+  const videoRef = useRef<{ width: number; height: number } | null>(null);
+
+  const handleSelect = (preset: typeof VIDEO_CROP_PRESETS[number]) => {
+    setSelectedKey(preset.key);
+  };
+
+  const handleApply = () => {
+    const preset = VIDEO_CROP_PRESETS.find((p) => p.key === selected) ?? VIDEO_CROP_PRESETS[0];
+    if (!preset.ratio) {
+      onApply(null);
+    } else {
+      const w = videoRef.current?.width ?? 1080;
+      const h = videoRef.current?.height ?? 1920;
+      const rect = computeVideoCropRect(w, h, preset as any);
+      onApply(rect);
+    }
+    onClose();
+  };
+
+  const player = useVideoPlayer(videoUri, (p) => {
+    p.muted = true;
+    p.loop = true;
+    p.play();
+  });
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)", justifyContent: "flex-end" }}>
+        {/* Preview */}
+        <View style={{ height: 260, width: "100%", backgroundColor: "#000", alignItems: "center", justifyContent: "center" }}>
+          <VideoView
+            player={player}
+            style={{ width: "100%", height: 260 }}
+            contentFit="contain"
+            nativeControls={false}
+            onLayout={(e) => {
+              videoRef.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height };
+            }}
+          />
+          {/* Crop ratio overlay indicator */}
+          {selected !== "original" && (() => {
+            const preset = VIDEO_CROP_PRESETS.find((p) => p.key === selected);
+            if (!preset?.ratio) return null;
+            const maxH = 220;
+            const maxW = 260;
+            let w = maxH * preset.ratio;
+            let h = maxH;
+            if (w > maxW) { w = maxW; h = maxW / preset.ratio; }
+            return (
+              <View pointerEvents="none" style={{
+                position: "absolute",
+                width: w, height: h,
+                borderWidth: 2, borderColor: Z_GREEN,
+                borderRadius: 4,
+              }} />
+            );
+          })()}
+        </View>
+        {/* Presets */}
+        <View style={{ backgroundColor: Z_PANEL, paddingVertical: 20, paddingHorizontal: 16 }}>
+          <Text style={{ color: Z_TEXT, fontFamily: "Inter_600SemiBold", fontSize: 16, marginBottom: 14, textAlign: "center" }}>
+            نسبة الاقتصاص
+          </Text>
+          <View style={{ flexDirection: "row", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+            {VIDEO_CROP_PRESETS.map((preset) => {
+              const active = selected === preset.key;
+              return (
+                <TouchableOpacity
+                  key={preset.key}
+                  onPress={() => handleSelect(preset)}
+                  style={{
+                    paddingHorizontal: 16, paddingVertical: 10,
+                    borderRadius: 22,
+                    borderWidth: 1.5,
+                    borderColor: active ? Z_GREEN : Z_BORDER,
+                    backgroundColor: active ? `${Z_GREEN}22` : "transparent",
+                  }}
+                >
+                  <Text style={{ color: active ? Z_GREEN : Z_MUTED, fontFamily: "Inter_600SemiBold", fontSize: 13 }}>
+                    {preset.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={{ flexDirection: "row", gap: 12, marginTop: 20 }}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={{ flex: 1, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: Z_BORDER, alignItems: "center" }}
+            >
+              <Text style={{ color: Z_MUTED, fontFamily: "Inter_600SemiBold" }}>إلغاء</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleApply}
+              style={{ flex: 1, paddingVertical: 14, borderRadius: 14, backgroundColor: Z_GREEN, alignItems: "center" }}
+            >
+              <Text style={{ color: "#000", fontFamily: "Inter_700Bold" }}>تطبيق</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // HIGHLIGHT VISUAL STYLES
 // ────────────────────────────────────────────────────────────────────────────
 function highlightStyle(h: HighlightId): { wrap: any; text: any } {
@@ -1042,6 +1325,9 @@ export default function CreateStoryScreen() {
   const [showSidebar, setShowSidebar] = useState(false);
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [showCrop, setShowCrop] = useState(false);
+  const [showVideoCropSheet, setShowVideoCropSheet] = useState(false);
+  const [videoCropRect, setVideoCropRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [bakeProgress, setBakeProgress] = useState(0);
   const [showCFModal, setShowCFModal] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const shotRef = useRef<ViewShot | null>(null);
@@ -1156,6 +1442,7 @@ export default function CreateStoryScreen() {
       setMediaUri(result.assets[0].uri);
       setMediaType(result.assets[0].type === "video" ? "video" : "image");
       setSelectedFilter("none");
+      setVideoCropRect(null);
       setTextMode(false);
     }
   };
@@ -1270,11 +1557,12 @@ export default function CreateStoryScreen() {
       color: Z_BLUE,
       arabicLabel: "قص",
       onPress: () => {
-        if (mediaType !== "image" || !mediaUri) {
-          showToast(T.cropImageOnly, "info");
-          return;
+        if (!mediaUri) return;
+        if (mediaType === "video") {
+          setShowVideoCropSheet(true);
+        } else {
+          setShowCrop(true);
         }
-        setShowCrop(true);
       },
     },
     {
@@ -1391,6 +1679,39 @@ export default function CreateStoryScreen() {
           } else {
             throw new Error("فشل تجهيز الصورة، حاول مجدداً");
           }
+        }
+      } else if (isVideo && mediaUri) {
+        // ─ Video baking (web only) ──────────────────────────────────────────
+        // Bake filter, text overlays, and crop into the video file when on
+        // web. On native, overlays are stored as metadata only (existing
+        // behavior). Skip baking entirely when there is nothing to bake.
+        const needsBaking =
+          selectedFilter !== "none" ||
+          overlays.length > 0 ||
+          videoCropRect !== null;
+
+        if (Platform.OS === "web" && needsBaking) {
+          setBakeProgress(0);
+          const bakedUri = await bakeVideoWeb({
+            videoUri: mediaUri,
+            filter: selectedFilter,
+            overlays: overlays.map((o) => ({
+              text: o.text,
+              x: o.x,
+              y: o.y,
+              scale: o.scale,
+              rotation: o.rotation ?? 0,
+            })),
+            cropRect: videoCropRect ?? undefined,
+            canvasWidth: SCREEN.width,
+            canvasHeight: SCREEN.height,
+            onProgress: setBakeProgress,
+          });
+          if (bakedUri) {
+            finalUri = bakedUri;
+            bakedMediaType = "video";
+          }
+          // If baking returned null (unsupported browser), fall back to original URI
         }
       }
 
@@ -1576,11 +1897,21 @@ export default function CreateStoryScreen() {
                 style={st.sidebarBtn}
                 activeOpacity={0.6}
               >
-                {t.iconType === "ion" ? (
-                  <Ionicons name={t.icon} size={22} color={t.color} />
-                ) : (
-                  <MaterialCommunityIcons name={t.icon} size={22} color={t.color} />
-                )}
+                <View>
+                  {t.iconType === "ion" ? (
+                    <Ionicons name={t.icon} size={22} color={t.color} />
+                  ) : (
+                    <MaterialCommunityIcons name={t.icon} size={22} color={t.color} />
+                  )}
+                  {/* Green dot when video crop is applied */}
+                  {t.id === "crop" && videoCropRect !== null && (
+                    <View style={{
+                      position: "absolute", top: -2, right: -2,
+                      width: 8, height: 8, borderRadius: 4,
+                      backgroundColor: Z_GREEN, borderWidth: 1, borderColor: "#000",
+                    }} />
+                  )}
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -1801,13 +2132,49 @@ export default function CreateStoryScreen() {
         </View>
       )}
 
-      {/* ════════ Crop modal ════════ */}
+      {/* ════════ Crop modal (images) ════════ */}
       <CropModal
         visible={showCrop}
         uri={mediaUri}
         onClose={() => setShowCrop(false)}
         onApply={(uri) => { setMediaUri(uri); setShowCrop(false); }}
       />
+
+      {/* ════════ Video crop sheet ════════ */}
+      {mediaUri && mediaType === "video" && (
+        <VideoCropSheet
+          visible={showVideoCropSheet}
+          videoUri={mediaUri}
+          onApply={(rect) => setVideoCropRect(rect)}
+          onClose={() => setShowVideoCropSheet(false)}
+        />
+      )}
+
+      {/* ════════ Video baking progress overlay ════════ */}
+      {publishing && mediaType === "video" && Platform.OS === "web" && (
+        <View
+          style={{
+            position: "absolute", inset: 0,
+            backgroundColor: "rgba(0,0,0,0.78)",
+            alignItems: "center", justifyContent: "center",
+            zIndex: 9999,
+          }}
+          pointerEvents="box-only"
+        >
+          <View style={{ alignItems: "center", gap: 16 }}>
+            <ActivityIndicator size="large" color={Z_GREEN} />
+            <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 16 }}>
+              جاري معالجة الفيديو...
+            </Text>
+            <View style={{ width: 220, height: 6, backgroundColor: Z_BORDER, borderRadius: 3 }}>
+              <View style={{ width: `${bakeProgress}%` as any, height: 6, backgroundColor: Z_GREEN, borderRadius: 3 }} />
+            </View>
+            <Text style={{ color: Z_MUTED, fontFamily: "Inter_400Regular", fontSize: 13 }}>
+              {Math.round(bakeProgress)}%
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* ════════ Close Friends modal ════════ */}
       <CloseFriendsModal

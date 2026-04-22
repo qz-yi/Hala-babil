@@ -193,6 +193,8 @@ Most other mobile data is still stored in AsyncStorage. The API server also hand
 - **Mention repost editor flow**: "Add to my story" from a story mention opens `/create-story` with the original story as a sticker instead of publishing immediately. Reposted story stickers preserve `originalStoryId`.
 - **Comment story rings**: Post and reel comment avatars show a green/blue/pink story ring when that commenter has an active visible story; tapping the avatar opens their story directly.
 - **Story editor tools**: Image stories support rotate, horizontal/vertical flip, center crop, and draggable text/sticker overlays using the dark Zentram theme.
+- **Video baking (web)**: `bakeVideoWeb` in `create-story.tsx` uses Canvas + MediaRecorder to bake CSS filters and text overlays into video files on web. Runs frame-by-frame via `requestAnimationFrame` loop on a `captureStream` canvas. Falls back to original URI if browser doesn't support `MediaRecorder`.
+- **Video crop**: `VideoCropSheet` provides 4 aspect-ratio presets (Original, 9:16, 16:9, 1:1) via center-crop. Stores normalized crop rect in `videoCropRect` state; passed to `bakeVideoWeb` as a source rectangle for `drawImage`. Crop button in sidebar shows green dot indicator when crop is active. Baking progress shown via overlay with progress bar.
 
 #### Post Creation
 - **Image/Video tabs**: Separate tabs at top of create post screen — image tab uses `ImagePicker.MediaTypeOptions.Images`, video tab uses `Videos`

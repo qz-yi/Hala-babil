@@ -343,6 +343,10 @@ export default function StoryViewerScreen() {
 
   const handleAddToMyStory = () => {
     if (!currentStory) return;
+    // Stop animation immediately (synchronous) before the async state update,
+    // preventing a race where the completion callback fires and triggers navigation
+    // while the editor screen is opening on top of the viewer.
+    animRef.current?.stop();
     setPaused(true);
     // Bug fix: chain originalStoryId so reposts of reposts still resolve to the
     // original story. If the current story is itself a repost, prefer its

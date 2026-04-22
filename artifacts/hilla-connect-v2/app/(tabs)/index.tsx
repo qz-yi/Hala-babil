@@ -2,9 +2,9 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -16,6 +16,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -538,14 +539,29 @@ function SharePostSheet({
   onClose: () => void;
   colors: any;
 }) {
-  const { users, currentUser, sharePostToDM, shareContentToStory } = useApp();
+  const { users, currentUser, sharePostToDM, shareContentToStory, isRoomMinimized, minimizedRoomId, minimizedRoomName, sendRoomMessage } = useApp();
   const others = users.filter((u) => u.id !== currentUser?.id);
   const [sent, setSent] = useState<string[]>([]);
   const [addedToStory, setAddedToStory] = useState(false);
+  const [sentToRoom, setSentToRoom] = useState(false);
 
   const handleShare = (userId: string) => {
     sharePostToDM(post.id, userId);
     setSent((p) => [...p, userId]);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleShareToRoom = () => {
+    if (!minimizedRoomId) return;
+    const creator = users.find((u) => u.id === post.creatorId);
+    const caption = post.content ? `"${post.content.slice(0, 60)}"` : "";
+    const label = `📌 ${creator?.name || ""} ${caption}`.trim();
+    if (post.mediaUrl) {
+      sendRoomMessage(minimizedRoomId, label || "منشور", "image", post.mediaUrl);
+    } else {
+      sendRoomMessage(minimizedRoomId, label || "منشور");
+    }
+    setSentToRoom(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
@@ -591,6 +607,28 @@ function SharePostSheet({
             )}
           </View>
         </TouchableOpacity>
+
+        {/* Contextual Room Share — shown only when user is in an active room */}
+        {isRoomMinimized && minimizedRoomId && (
+          <TouchableOpacity
+            style={[
+              styles.addToStorySheetBtn,
+              { borderColor: sentToRoom ? "#10B981" : "#7C3AED", backgroundColor: sentToRoom ? "#10B98122" : "#7C3AED22", marginBottom: 8 },
+            ]}
+            onPress={!sentToRoom ? handleShareToRoom : undefined}
+            activeOpacity={0.85}
+          >
+            <Ionicons name={sentToRoom ? "checkmark-circle" : "mic-outline"} size={22} color={sentToRoom ? "#10B981" : "#7C3AED"} />
+            <View>
+              <Text style={[styles.addToStorySheetTitle, { color: sentToRoom ? "#10B981" : "#7C3AED" }]}>
+                {sentToRoom ? "تمت المشاركة في الغرفة" : `مشاركة في ${minimizedRoomName}`}
+              </Text>
+              {!sentToRoom && (
+                <Text style={[styles.addToStorySheetSub, { color: colors.textSecondary }]}>إرسال المنشور للغرفة الحالية</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        )}
 
         <Text style={[styles.shareSectionLabel, { color: colors.textSecondary }]}>إرسال لشخص</Text>
 
@@ -640,6 +678,16 @@ function PostVideoPlayer({ uri }: { uri: string }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = false;
   });
+
+  // Pause video automatically when the user navigates away from this tab
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        player.pause();
+        setPlaying(false);
+      };
+    }, [player])
+  );
 
   const toggle = () => {
     if (playing) {
@@ -934,6 +982,12 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 20 : insets.top;
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 800);
+  }, []);
+
   const feedPosts = getFeedPosts();
   const activeStories = getActiveStories();
 
@@ -1043,6 +1097,14 @@ export default function HomeScreen() {
         keyExtractor={(p) => p.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingTop: topPad + 40 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.tint}
+            colors={["#7C3AED"]}
+          />
+        }
         ListHeaderComponent={
           <ScrollView
             horizontal

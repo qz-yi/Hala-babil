@@ -119,7 +119,7 @@ const mediaStyles = StyleSheet.create({
   videoWrap: { width: "100%", height: "80%", backgroundColor: "#000" },
 });
 
-// ───── Shared Content Preview ─────
+// ───── Shared Content Preview — Full Bleed Card ─────
 function SharedContentPreview({
   sharedContent,
   isMe,
@@ -128,22 +128,19 @@ function SharedContentPreview({
   isMe: boolean;
 }) {
   const { stories } = useApp();
-  const ICONS: Record<string, string> = {
-    post: "image",
-    reel: "play-circle",
-    story: "circle",
-  };
+
   const LABELS: Record<string, string> = {
     post: "منشور",
     reel: "مقطع فيديو",
     story: "قصة",
   };
-  const iconColor = isMe ? "rgba(255,255,255,0.9)" : "#3D91F4";
+
   const handleTap = () => {
     if (sharedContent.type === "post") {
       router.push(`/post/${sharedContent.id}` as any);
     } else if (sharedContent.type === "reel") {
-      router.push("/(tabs)/reels" as any);
+      // Deep link directly to the specific reel so the screen scrolls to it
+      router.push(`/(tabs)/reels?reelId=${sharedContent.id}` as any);
     } else if (sharedContent.type === "story") {
       const story = stories.find((s) => s.id === sharedContent.id);
       if (story && story.expiresAt > Date.now()) {
@@ -152,64 +149,116 @@ function SharedContentPreview({
     }
   };
 
+  // Only show image thumbnail for posts and stories — reel mediaUrl is a video file
+  // which cannot be rendered as a static image, so we show a branded gradient instead.
+  const showImage = sharedContent.mediaUrl && sharedContent.type !== "reel";
+  const isReel = sharedContent.type === "reel";
+
   return (
     <TouchableOpacity
       onPress={handleTap}
-      activeOpacity={0.8}
-      style={[
-        sharedStyles.card,
-        {
-          backgroundColor: isMe ? "rgba(255,255,255,0.18)" : "#1C1C1C",
-          borderColor: isMe ? "rgba(255,255,255,0.3)" : BORDER,
-        },
-      ]}
+      activeOpacity={0.88}
+      style={sharedStyles.card}
     >
-      <View
-        style={[sharedStyles.thumb, { backgroundColor: isMe ? "rgba(255,255,255,0.12)" : "#3D91F422" }]}
-      >
-        {sharedContent.mediaUrl ? (
-          <Image source={{ uri: sharedContent.mediaUrl }} style={StyleSheet.absoluteFill as any} resizeMode="cover" />
-        ) : null}
-        <View style={sharedStyles.thumbOverlay}>
-          <Feather name={ICONS[sharedContent.type] as any} size={22} color={iconColor} strokeWidth={1.5} />
-        </View>
+      {/* Full-bleed media area */}
+      <View style={sharedStyles.mediaArea}>
+        {showImage ? (
+          <Image
+            source={{ uri: sharedContent.mediaUrl! }}
+            style={StyleSheet.absoluteFill as any}
+            resizeMode="cover"
+          />
+        ) : (
+          <LinearGradient
+            colors={isReel ? ["#1a0533", "#4c1d95"] : ["#0d0d1a", "#1e1b4b"]}
+            style={StyleSheet.absoluteFill as any}
+          />
+        )}
+        {/* Icon overlay — centered play button for reels, image icon for others without media */}
+        {(isReel || !showImage) && (
+          <View style={sharedStyles.mediaIconOverlay}>
+            <View style={sharedStyles.playBtnCircle}>
+              <Feather
+                name={isReel ? "play" : "image"}
+                size={isReel ? 20 : 18}
+                color="#fff"
+                strokeWidth={2}
+              />
+            </View>
+          </View>
+        )}
+        {/* Subtle dark gradient at bottom for text legibility */}
+        {showImage && (
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.55)"]}
+            style={sharedStyles.mediaGradient}
+          />
+        )}
       </View>
-      <View style={sharedStyles.info}>
-        <Text style={[sharedStyles.typeLabel, { color: isMe ? "rgba(255,255,255,0.7)" : TEXT2 }]}>
+
+      {/* Info strip */}
+      <View style={[sharedStyles.infoStrip, { backgroundColor: isMe ? "rgba(255,255,255,0.12)" : "#1A1A1A" }]}>
+        <Text style={[sharedStyles.typeChip, { color: isMe ? "rgba(255,255,255,0.55)" : TEXT2 }]}>
           {LABELS[sharedContent.type]}
         </Text>
-        {sharedContent.title ? (
-          <Text style={[sharedStyles.title, { color: isMe ? "#fff" : TEXT }]} numberOfLines={2}>
-            {sharedContent.title}
-          </Text>
-        ) : null}
         {sharedContent.creatorName ? (
-          <Text style={[sharedStyles.creator, { color: isMe ? "rgba(255,255,255,0.65)" : TEXT2 }]}>
+          <Text style={[sharedStyles.creatorName, { color: isMe ? "rgba(255,255,255,0.9)" : TEXT }]} numberOfLines={1}>
             {sharedContent.creatorName}
           </Text>
         ) : null}
+        {sharedContent.title ? (
+          <Text style={[sharedStyles.caption, { color: isMe ? "rgba(255,255,255,0.6)" : TEXT2 }]} numberOfLines={1}>
+            {sharedContent.title}
+          </Text>
+        ) : null}
       </View>
-      <Feather name="chevron-right" size={14} color={isMe ? "rgba(255,255,255,0.5)" : TEXT2} strokeWidth={1.5} />
     </TouchableOpacity>
   );
 }
 
 const sharedStyles = StyleSheet.create({
   card: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderRadius: 14, borderWidth: 1, overflow: "hidden", minWidth: 200,
+    width: 220,
+    borderRadius: 12,
+    overflow: "hidden",
     marginBottom: 4,
   },
-  thumb: { width: 64, height: 64, position: "relative", overflow: "hidden" },
-  thumbOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.25)",
+  mediaArea: {
+    width: "100%",
+    height: 155,
+    backgroundColor: "#111",
+    position: "relative",
   },
-  info: { flex: 1, gap: 2, paddingVertical: 10 },
-  typeLabel: { fontSize: 11, fontFamily: "Inter_500Medium" },
-  title: { fontSize: 13, fontFamily: "Inter_600SemiBold", lineHeight: 18 },
-  creator: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  mediaIconOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playBtnCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mediaGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 48,
+  },
+  infoStrip: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 2,
+  },
+  typeChip: { fontSize: 10, fontFamily: "Inter_500Medium", textTransform: "uppercase", letterSpacing: 0.5 },
+  creatorName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  caption: { fontSize: 11, fontFamily: "Inter_400Regular" },
 });
 
 // ───── Story Reply Reference ─────

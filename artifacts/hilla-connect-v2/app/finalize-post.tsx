@@ -16,9 +16,9 @@
  * Instagram-style UX: scaled-down preview thumbnail + caption input + Share button.
  */
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -35,6 +35,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
+import { consumeBakedMedia, type BakedMediaPayload } from "@/lib/bakedMediaBridge";
 
 const Z_BG = "#000000";
 const Z_PANEL = "#0A0A0A";
@@ -78,21 +79,26 @@ export default function FinalizePostScreen() {
   const { addPost, addReel } = useApp();
   const { showToast } = useToast();
 
-  const params = useLocalSearchParams<{
-    mode?: string;
-    mediaUri?: string;
-    mediaType?: string;
-    filter?: string;
-    mentions?: string;
-  }>();
+  // The baked media is handed off from the editor via an in-memory bridge —
+  // see `lib/bakedMediaBridge.ts` for why we don't pass it through router
+  // params. Consume it once on mount and freeze it in local state for the
+  // lifetime of this screen.
+  const [payload, setPayload] = useState<BakedMediaPayload | null>(null);
+  useEffect(() => {
+    const p = consumeBakedMedia();
+    if (!p) {
+      // No payload means the user landed here directly (deep-link, refresh
+      // on web). Bounce back to the editor.
+      router.replace("/(tabs)" as any);
+      return;
+    }
+    setPayload(p);
+  }, []);
 
-  const mode = (params.mode as "post" | "reel") || "post";
-  const mediaUri = (params.mediaUri as string) || "";
-  const mediaType = ((params.mediaType as string) || "image") as
-    | "image"
-    | "video"
-    | "none";
-  const filter = ((params.filter as string) || "none") as any;
+  const mode = payload?.mode || "post";
+  const mediaUri = payload?.mediaUri || "";
+  const mediaType = payload?.mediaType || "image";
+  const filter = (payload?.filter || "none") as any;
 
   const [caption, setCaption] = useState("");
   const [publishing, setPublishing] = useState(false);

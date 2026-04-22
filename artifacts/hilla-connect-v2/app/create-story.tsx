@@ -32,6 +32,7 @@ import { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { User } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
+import { setBakedMedia } from "@/lib/bakedMediaBridge";
 
 // ────────────────────────────────────────────────────────────────────────────
 // THEME (Strict Zentram Dark)
@@ -280,21 +281,49 @@ async function bakeFilter(uri: string, filter: string): Promise<string> {
 
 /**
  * Capture the bakeable canvas (background image + filter overlay + text overlays)
- * into a single PNG file. Used to "burn" filters and overlays into the published
- * media so the published artifact reflects what the user designed.
+ * into a single image. Returns a data URI (base64 PNG) so the result is
+ * self-contained and renders identically on web, iOS, and Android without
+ * relying on a temporary file path that may be cleaned up by the OS.
  *
- * Returns the captured file URI, or null if capture failed (e.g. on web before
- * onLayout, or for video — caller must fall back to the raw URI in that case).
+ * Returns null if the capture failed or produced an empty image — the caller
+ * MUST treat this as an error (do not silently publish the unedited original,
+ * or the user's filter / text edits will be lost).
  */
-async function captureCanvas(ref: React.RefObject<ViewShot | null>): Promise<string | null> {
+async function captureCanvas(
+  ref: React.RefObject<ViewShot | null>,
+): Promise<string | null> {
   if (!ref.current) return null;
   try {
+    // Wait two animation frames so any pending state changes (e.g. clearing
+    // the active overlay's selection chrome) are committed to the view tree
+    // before we snapshot it.
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+
     const uri = await captureRef(ref as any, {
       format: "png",
       quality: 1,
-      result: "tmpfile",
+      // On native, a tmpfile (file:// URI) is what <Image> wants and avoids
+      // holding several megabytes of base64 in memory. On web, <img> needs a
+      // self-contained data URI because file:// paths don't exist in the
+      // browser sandbox.
+      result: Platform.OS === "web" ? "data-uri" : "tmpfile",
     });
-    return uri || null;
+
+    if (!uri || typeof uri !== "string") {
+      console.warn("[universal-editor] capture returned no URI");
+      return null;
+    }
+    // For data URIs, validate the payload is non-trivial (a 1×1 transparent
+    // PNG is ~120 bytes encoded; real captures are tens of KB+). For tmpfile
+    // URIs we trust the file system path returned by the native module.
+    if (uri.startsWith("data:") && uri.length < 500) {
+      console.warn("[universal-editor] capture produced empty image", {
+        len: uri.length,
+      });
+      return null;
+    }
+    return uri;
   } catch (err) {
     console.warn("[universal-editor] canvas capture failed", err);
     return null;
@@ -1337,18 +1366,31 @@ export default function CreateStoryScreen() {
         : (textBgImage || overlays.length > 0 ? "image" : "none");
 
       if (!isVideo) {
-        // Hide the active selection chrome before capturing (handled by clearing
-        // activeOverlayId — handles/borders are gated on `active`).
+        // Hide the active selection chrome before capturing (handles/borders
+        // are gated on `active`, so this prevents them from leaking into the
+        // baked image).
         setActiveOverlayId(null);
-        // Yield a frame so the UI updates before capture
-        await new Promise((r) => setTimeout(r, 60));
+        // Give React a tick to commit the state change before snapshotting.
+        await new Promise((r) => setTimeout(r, 80));
+
         const captured = await captureCanvas(shotRef);
         if (captured) {
           finalUri = captured;
           bakedMediaType = "image"; // baked output is always an image
-        } else if (mediaUri && mediaType === "image" && selectedFilter !== "none") {
-          // Fallback: at least resize/compress so something is sent
-          finalUri = await bakeFilter(mediaUri, selectedFilter);
+        } else {
+          // If the snapshot failed, refuse to publish a black/empty image.
+          // For an unedited image (no filter, no overlays) we can safely fall
+          // back to the original file. Otherwise it's a real error.
+          const isUnedited =
+            mediaUri &&
+            mediaType === "image" &&
+            selectedFilter === "none" &&
+            overlays.length === 0;
+          if (isUnedited) {
+            finalUri = mediaUri!;
+          } else {
+            throw new Error("فشل تجهيز الصورة، حاول مجدداً");
+          }
         }
       }
 
@@ -1356,19 +1398,17 @@ export default function CreateStoryScreen() {
 
       // ─ Stage 2: PUBLISH or FINALIZE ─────────────────────────────────────
       if (cfg.needsFinalize) {
-        // Posts and reels go through the Finalize screen for caption + mentions.
-        // The finalize screen handles the actual API call.
-        router.replace({
-          pathname: "/finalize-post",
-          params: {
-            mode: editorMode,
-            mediaUri: finalUri,
-            mediaType: bakedMediaType,
-            // For videos we still pass the raw filter so the viewer can apply it.
-            filter: isVideo ? selectedFilter : "none",
-            mentions: mentionsArray.join(","),
-          },
-        } as any);
+        // Posts and reels go through the Finalize screen. Pass the baked
+        // media via an in-memory bridge — the data URI can be multiple MB
+        // on web and would be truncated/rejected as a router param.
+        setBakedMedia({
+          mode: editorMode === "reel" ? "reel" : "post",
+          mediaUri: finalUri,
+          mediaType: bakedMediaType,
+          filter: isVideo ? selectedFilter : "none",
+          mentions: mentionsArray,
+        });
+        router.replace("/finalize-post" as any);
         return;
       }
 
@@ -1422,8 +1462,12 @@ export default function CreateStoryScreen() {
         {/* ════════ Bakeable canvas (captured by ViewShot on publish) ════════ */}
         <ViewShot
           ref={shotRef as any}
-          style={StyleSheet.absoluteFill}
-          options={{ format: "png", quality: 1, result: "tmpfile" }}
+          // Solid background guarantees the captured PNG is never transparent
+          // (which would render as black in some viewers). Explicit flex:1
+          // ensures the ViewShot has measurable dimensions on web — without
+          // this, dom-to-image can capture a 0×0 or near-empty image.
+          style={[StyleSheet.absoluteFill, { backgroundColor: Z_BG }]}
+          options={{ format: "png", quality: 1, result: "data-uri" }}
           {...({ collapsable: false } as any)}
         >
         {/* ════════ Background canvas layer ════════ */}

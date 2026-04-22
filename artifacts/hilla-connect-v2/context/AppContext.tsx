@@ -415,7 +415,7 @@ interface AppContextValue {
   hasUnseenStory: (userId: string) => boolean;
   closeFriendsList: string[];
   updateCloseFriendsList: (ids: string[]) => void;
-  shareContentToStory: (type: "post" | "reel", id: string, mediaUrl?: string, caption?: string, creatorName?: string, creatorId?: string) => void;
+  shareContentToStory: (type: "post" | "reel", id: string, mediaUrl?: string, caption?: string, creatorName?: string, creatorId?: string, mediaType?: "image" | "video") => void;
   // Follows
   followUser: (userId: string) => void;
   unfollowUser: (userId: string) => void;
@@ -3232,14 +3232,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const shareContentToStory = useCallback(
-    (type: "post" | "reel", id: string, mediaUrl?: string, caption?: string, creatorName?: string, creatorId?: string) => {
+    (type: "post" | "reel", id: string, mediaUrl?: string, caption?: string, creatorName?: string, creatorId?: string, mediaType?: "image" | "video") => {
       if (!currentUser) return;
+      // For reels, media is always video. For posts, fallback to image unless explicitly provided.
+      const inferredType = mediaType || (type === "reel" ? "video" : "image");
       router.push({
         pathname: "/create-story",
         params: {
           sharedType: type,
           sharedId: id,
           sharedMediaUrl: mediaUrl || "",
+          sharedMediaType: inferredType,
           sharedCaption: caption || "",
           sharedCreatorName: creatorName || "",
           sharedCreatorId: creatorId || "",

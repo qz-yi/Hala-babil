@@ -555,9 +555,10 @@ function ShareSheet({
     const reel = reels.find((r) => r.id === reelId);
     if (!reel) return;
     const creator = users.find((u) => u.id === reel.creatorId);
-    shareContentToStory("reel", reelId, reel.videoUrl, reel.title, creator?.name, reel.creatorId);
-    setAddedToStory(true);
-    showToast("تمت إضافة المقطع لقصتك!", "success");
+    // Pass mediaType "video" so the reel remains a playable video entity in the story.
+    shareContentToStory("reel", reelId, reel.videoUrl, reel.title, creator?.name, reel.creatorId, "video");
+    onClose();
+    // Note: success toast/state is emitted by the editor only on actual publish, not on cancel.
   };
 
   return (
@@ -791,7 +792,7 @@ export default function ReelsScreen() {
   const [commentReel, setCommentReel] = useState<string | null>(null);
   const [commentReelOwnerId, setCommentReelOwnerId] = useState<string>("");
   const [shareReel, setShareReel] = useState<string | null>(null);
-  const [showPublish, setShowPublish] = useState(false);
+  // Publish flow now lives in the UniversalEditor (/create-story?mode=reel)
   const [refreshing, setRefreshing] = useState(false);
   const [screenFocused, setScreenFocused] = useState(true);
 
@@ -846,15 +847,13 @@ export default function ReelsScreen() {
         <Text style={[styles.emptyDesc, { color: TEXT2 }]}>
           كن أول من ينشر مقطعاً!
         </Text>
-        <TouchableOpacity onPress={() => setShowPublish(true)} style={styles.emptyBtn}>
+        <TouchableOpacity
+          onPress={() => router.push({ pathname: "/create-story", params: { mode: "reel" } } as any)}
+          style={styles.emptyBtn}
+        >
           <Feather name="plus" size={16} color="#fff" strokeWidth={2} />
           <Text style={[styles.emptyBtnText, { color: "#fff" }]}>نشر أول مقطع</Text>
         </TouchableOpacity>
-        <PublishModal
-          visible={showPublish}
-          onClose={() => setShowPublish(false)}
-          insets={insets}
-        />
       </View>
     );
   }
@@ -911,7 +910,7 @@ export default function ReelsScreen() {
           styles.addBtn,
           { top: insets.top + 12, backgroundColor: "rgba(0,0,0,0.5)" },
         ]}
-        onPress={() => setShowPublish(true)}
+        onPress={() => router.push({ pathname: "/create-story", params: { mode: "reel" } } as any)}
       >
         <Feather name="plus" size={24} color="#fff" strokeWidth={2} />
       </TouchableOpacity>
@@ -931,11 +930,7 @@ export default function ReelsScreen() {
           onClose={() => setShareReel(null)}
         />
       )}
-      <PublishModal
-        visible={showPublish}
-        onClose={() => setShowPublish(false)}
-        insets={insets}
-      />
+      {/* Reel publishing now handled by the UniversalEditor at /create-story?mode=reel */}
 
       {/* Custom Dark Delete Reel Modal */}
       <Modal

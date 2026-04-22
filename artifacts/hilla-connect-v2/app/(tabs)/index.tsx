@@ -551,6 +551,7 @@ function SharePostSheet({
 
   const handleAddToStory = () => {
     const creator = users.find((u) => u.id === post.creatorId);
+    const mt: "image" | "video" = post.mediaType === "video" ? "video" : "image";
     shareContentToStory(
       "post",
       post.id,
@@ -558,9 +559,10 @@ function SharePostSheet({
       post.content,
       creator?.name,
       post.creatorId,
+      mt,
     );
-    setAddedToStory(true);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onClose();
+    // Note: no toast or success state here — the editor screen confirms success on actual publish.
   };
 
   return (

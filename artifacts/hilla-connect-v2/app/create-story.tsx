@@ -49,8 +49,15 @@ const Z_INPUT_BG = "rgba(0,0,0,0.55)"; // semi-transparent black
 // ────────────────────────────────────────────────────────────────────────────
 const T = {
   createStory: "إنشاء قصة",
+  createPost: "إنشاء منشور",
+  createReel: "إنشاء مقطع",
+  updateAvatar: "تحديث الصورة الشخصية",
+  updateCover: "تحديث صورة الغلاف",
   photoVideo: "صورة / فيديو",
+  photo: "صورة",
+  video: "فيديو",
   textStory: "قصة نصية",
+  textPost: "منشور نصي",
   edit: "تعديل",
   done: "تم",
   share: "نشر",
@@ -75,9 +82,86 @@ const T = {
   cropImageOnly: "القص يعمل على الصور فقط",
   postedPublic: "تم نشر القصة",
   postedCF: "تم النشر للأصدقاء المقربين",
+  postedPost: "تم نشر المنشور",
+  postedReel: "تم نشر المقطع",
+  postedAvatar: "تم تحديث الصورة الشخصية",
+  postedCover: "تم تحديث صورة الغلاف",
   publishFailed: "فشل النشر",
   needContent: "أضف وسائط أو نصاً",
+  needVideo: "اختر مقطع فيديو",
+  needImage: "اختر صورة",
 };
+
+// ────────────────────────────────────────────────────────────────────────────
+// EDITOR MODES (UniversalEditor)
+// ────────────────────────────────────────────────────────────────────────────
+type EditorMode = "story" | "post" | "reel" | "profile" | "cover";
+
+function modeConfig(mode: EditorMode) {
+  switch (mode) {
+    case "post":
+      return {
+        title: T.createPost,
+        showCloseFriends: false,
+        showAudience: false,
+        allowTextMode: true,
+        allowVideo: true,
+        allowImage: true,
+        landingMediaLabel: T.photoVideo,
+        landingTextLabel: T.textPost,
+        successMsg: T.postedPost,
+      };
+    case "reel":
+      return {
+        title: T.createReel,
+        showCloseFriends: false,
+        showAudience: false,
+        allowTextMode: false,
+        allowVideo: true,
+        allowImage: false,
+        landingMediaLabel: T.video,
+        landingTextLabel: "",
+        successMsg: T.postedReel,
+      };
+    case "profile":
+      return {
+        title: T.updateAvatar,
+        showCloseFriends: false,
+        showAudience: false,
+        allowTextMode: false,
+        allowVideo: false,
+        allowImage: true,
+        landingMediaLabel: T.photo,
+        landingTextLabel: "",
+        successMsg: T.postedAvatar,
+      };
+    case "cover":
+      return {
+        title: T.updateCover,
+        showCloseFriends: false,
+        showAudience: false,
+        allowTextMode: false,
+        allowVideo: false,
+        allowImage: true,
+        landingMediaLabel: T.photo,
+        landingTextLabel: "",
+        successMsg: T.postedCover,
+      };
+    case "story":
+    default:
+      return {
+        title: T.createStory,
+        showCloseFriends: true,
+        showAudience: true,
+        allowTextMode: true,
+        allowVideo: true,
+        allowImage: true,
+        landingMediaLabel: T.photoVideo,
+        landingTextLabel: T.textStory,
+        successMsg: T.postedPublic,
+      };
+  }
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -848,6 +932,7 @@ export default function CreateStoryScreen() {
     sharedId?: string;
     originalStoryId?: string;
     sharedMediaUrl?: string;
+    sharedMediaType?: string;
     sharedCaption?: string;
     sharedCreatorName?: string;
     sharedCreatorId?: string;
@@ -855,14 +940,27 @@ export default function CreateStoryScreen() {
     mode?: string;
   }>();
 
-  const { addStory, users, currentUser, getFollowers, closeFriendsList, updateCloseFriendsList } = useApp();
+  // ─ Universal Editor mode (story | post | reel | profile | cover)
+  const editorMode: EditorMode = (() => {
+    const raw = (params.mode || "").toLowerCase();
+    if (raw === "post" || raw === "reel" || raw === "profile" || raw === "cover") return raw;
+    return "story";
+  })();
+  const cfg = modeConfig(editorMode);
+
+  const {
+    addStory, users, currentUser, getFollowers, closeFriendsList, updateCloseFriendsList,
+    addPost, addReel, updateProfile, updateCoverPhoto,
+  } = useApp();
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
   const topPad = Platform.OS === "web" ? 12 : insets.top;
 
   // ─ State
   const [mediaUri, setMediaUri] = useState<string | null>(null);
-  const [mediaType, setMediaType] = useState<"image" | "video">("image");
+  const [mediaType, setMediaType] = useState<"image" | "video">(
+    params.sharedMediaType === "video" ? "video" : "image",
+  );
   const [textBgIdx, setTextBgIdx] = useState(0);
   const [textBgImage, setTextBgImage] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState("none");
@@ -879,7 +977,7 @@ export default function CreateStoryScreen() {
   const [publishing, setPublishing] = useState(false);
   const [isCloseFriends, setIsCloseFriends] = useState(false);
   const [cfList, setCfList] = useState<string[]>(closeFriendsList);
-  const [textMode, setTextMode] = useState<boolean>(params.mode === "text");
+  const [textMode, setTextMode] = useState<boolean>(false);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const [composerOpen, setComposerOpen] = useState(false);
@@ -972,8 +1070,14 @@ export default function CreateStoryScreen() {
       showToast(T.permissionGallery, "error");
       return;
     }
+    // Constrain media types per editor mode
+    const mt = !cfg.allowVideo
+      ? ImagePicker.MediaTypeOptions.Images
+      : !cfg.allowImage
+        ? ImagePicker.MediaTypeOptions.Videos
+        : ImagePicker.MediaTypeOptions.All;
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      mediaTypes: mt,
       allowsEditing: false,
       quality: 0.85,
       videoMaxDuration: 60,
@@ -985,6 +1089,17 @@ export default function CreateStoryScreen() {
       setTextMode(false);
     }
   };
+
+  // Auto-open the gallery for modes that have no landing chooser (reel/profile/cover)
+  const autoPickedRef = useRef(false);
+  useEffect(() => {
+    if (autoPickedRef.current) return;
+    if (editorMode === "reel" || editorMode === "profile" || editorMode === "cover") {
+      autoPickedRef.current = true;
+      handlePickMedia();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorMode]);
 
   const pickTextBgFromGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -1068,7 +1183,7 @@ export default function CreateStoryScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [textMode]);
 
-  // ─ Sidebar tools (Close Friends added)
+  // ─ Sidebar tools (Close Friends only in story mode)
   type Tool = {
     id: string;
     iconType: "ion" | "mci";
@@ -1077,7 +1192,7 @@ export default function CreateStoryScreen() {
     onPress: () => void;
     arabicLabel: string;
   };
-  const sidebarTools: Tool[] = [
+  const allSidebarTools: Tool[] = [
     {
       id: "crop",
       iconType: "ion",
@@ -1133,39 +1248,79 @@ export default function CreateStoryScreen() {
       onPress: () => setShowCFModal(true),
     },
   ];
+  const sidebarTools: Tool[] = allSidebarTools.filter(
+    (t) => cfg.showCloseFriends || t.id !== "closeFriends",
+  );
 
-  // ─ Publish
+  // ─ Publish (branches by editor mode)
   const handlePublish = async () => {
-    if (!mediaUri && !sharedPost && overlays.length === 0) {
+    // Validate per-mode requirements
+    if (editorMode === "reel") {
+      if (!mediaUri || mediaType !== "video") {
+        showToast(T.needVideo, "error");
+        return;
+      }
+    } else if (editorMode === "profile" || editorMode === "cover") {
+      if (!mediaUri || mediaType !== "image") {
+        showToast(T.needImage, "error");
+        return;
+      }
+    } else if (!mediaUri && !sharedPost && overlays.length === 0) {
       showToast(T.needContent, "error");
       return;
     }
+
     setPublishing(true);
     try {
       let finalUri = mediaUri || sharedPost?.mediaUrl || textBgImage || "";
       if (mediaUri && mediaType === "image" && selectedFilter !== "none") {
         finalUri = await bakeFilter(mediaUri, selectedFilter);
       }
-      const captionFromOverlays = overlays.map((o) => o.text).join("\n").trim() || undefined;
-      if (isCloseFriends) updateCloseFriendsList(cfList);
-
+      // Text overlays exist as INTERACTIVE overlays only — never auto-baked into caption.
+      // Posts/Reels keep the textual content as caption since their schema needs it,
+      // but Stories must NOT carry auto-caption (text only as overlays on media).
+      const overlayText = overlays.map((o) => o.text).join("\n").trim() || undefined;
       const overlayData = overlays.map((o) => ({ text: o.text }));
-      const mentionsArray = parsedMentionUsers.map((u) => u.id); // always an array
+      const mentionsArray = parsedMentionUsers.map((u) => u.id);
 
-      await addStory(
-        finalUri,
-        mediaType,
-        captionFromOverlays,
-        selectedFilter,
-        isCloseFriends,
-        mentionsArray,
-        sharedPost,
-        overlayData,
+      if (editorMode === "post") {
+        // Posts: media+filter or text-only background
+        if (!mediaUri && textBgImage) finalUri = textBgImage;
+        await addPost(
+          overlayText,                             // caption from overlays
+          finalUri || undefined,
+          mediaUri ? mediaType : (textBgImage ? "image" : "none"),
+          (selectedFilter as any),
+        );
+      } else if (editorMode === "reel") {
+        await addReel(finalUri, overlayText || "", "none");
+      } else if (editorMode === "profile") {
+        if (!currentUser) throw new Error("no user");
+        await updateProfile(currentUser.name, currentUser.bio, finalUri);
+      } else if (editorMode === "cover") {
+        await updateCoverPhoto(finalUri);
+      } else {
+        // Default: STORY mode
+        if (isCloseFriends) updateCloseFriendsList(cfList);
+        await addStory(
+          finalUri,
+          mediaType,
+          undefined, // caption removed — text is purely overlay
+          selectedFilter,
+          isCloseFriends,
+          mentionsArray,
+          sharedPost,
+          overlayData,
+        );
+      }
+
+      showToast(
+        editorMode === "story" && isCloseFriends ? T.postedCF : cfg.successMsg,
+        "success",
       );
-      showToast(isCloseFriends ? T.postedCF : T.postedPublic, "success");
       router.back();
     } catch (err: any) {
-      console.error("[create-story] publish failed", err);
+      console.error("[universal-editor] publish failed", err);
       showToast(`${T.publishFailed}: ${err?.message || ""}`, "error");
     } finally {
       setPublishing(false);
@@ -1199,10 +1354,18 @@ export default function CreateStoryScreen() {
             </>
           )
         ) : sharedPost ? (
-          // FULL-SCREEN repost: media fills the screen edge-to-edge
+          // FULL-SCREEN repost: media fills the screen edge-to-edge.
+          // Preserve mediaType — videos remain playable, images render as image.
           <>
             {sharedPost.mediaUrl ? (
-              <Image source={{ uri: sharedPost.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              params.sharedMediaType === "video" || sharedPost.type === "reel" ? (
+                <>
+                  <VideoPreview uri={sharedPost.mediaUrl} filter={selectedFilter} />
+                  <FilterOverlay filter={selectedFilter} />
+                </>
+              ) : (
+                <Image source={{ uri: sharedPost.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              )
             ) : (
               <LinearGradient colors={TEXT_BACKGROUNDS[textBgIdx].colors} style={StyleSheet.absoluteFill} />
             )}
@@ -1339,36 +1502,42 @@ export default function CreateStoryScreen() {
         {/* ════════ Landing chooser ════════ */}
         {showLanding && (
           <View style={st.landing} pointerEvents="box-none">
-            <Text style={st.landingTitle}>{T.createStory}</Text>
+            <Text style={st.landingTitle}>{cfg.title}</Text>
             <View style={st.landingRow}>
               <TouchableOpacity style={[st.landingBtn, { borderColor: Z_BLUE }]} onPress={handlePickMedia} activeOpacity={0.85}>
                 <Ionicons name="images-outline" size={28} color={Z_BLUE} />
-                <Text style={[st.landingBtnText, { color: Z_BLUE }]}>{T.photoVideo}</Text>
+                <Text style={[st.landingBtnText, { color: Z_BLUE }]}>{cfg.landingMediaLabel}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[st.landingBtn, { borderColor: Z_GREEN }]} onPress={() => setTextMode(true)} activeOpacity={0.85}>
-                <Ionicons name="text" size={28} color={Z_GREEN} />
-                <Text style={[st.landingBtnText, { color: Z_GREEN }]}>{T.textStory}</Text>
-              </TouchableOpacity>
+              {cfg.allowTextMode && (
+                <TouchableOpacity style={[st.landingBtn, { borderColor: Z_GREEN }]} onPress={() => setTextMode(true)} activeOpacity={0.85}>
+                  <Ionicons name="text" size={28} color={Z_GREEN} />
+                  <Text style={[st.landingBtnText, { color: Z_GREEN }]}>{cfg.landingTextLabel}</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         )}
 
-        {/* ════════ Bottom bar: Audience pill + Publish ════════ */}
+        {/* ════════ Bottom bar: Audience pill (story only) + Publish ════════ */}
         {(hasMedia || hasShared || inTextMode) && !composerOpen && (
           <View style={[st.bottomBar, { paddingBottom: insets.bottom + 12 }]} pointerEvents="box-none">
-            <TouchableOpacity
-              style={[st.audPill, { borderColor: isCloseFriends ? Z_GREEN : Z_BLUE }]}
-              onPress={() => {
-                const next = !isCloseFriends;
-                setIsCloseFriends(next);
-                if (next && cfList.length === 0) setShowCFModal(true);
-              }}
-            >
-              <Ionicons name={isCloseFriends ? "star" : "globe-outline"} size={16} color={isCloseFriends ? Z_GREEN : Z_BLUE} />
-              <Text style={[st.audPillText, { color: isCloseFriends ? Z_GREEN : Z_BLUE }]}>
-                {isCloseFriends ? T.closeFriends : T.publicLabel}
-              </Text>
-            </TouchableOpacity>
+            {cfg.showAudience ? (
+              <TouchableOpacity
+                style={[st.audPill, { borderColor: isCloseFriends ? Z_GREEN : Z_BLUE }]}
+                onPress={() => {
+                  const next = !isCloseFriends;
+                  setIsCloseFriends(next);
+                  if (next && cfList.length === 0) setShowCFModal(true);
+                }}
+              >
+                <Ionicons name={isCloseFriends ? "star" : "globe-outline"} size={16} color={isCloseFriends ? Z_GREEN : Z_BLUE} />
+                <Text style={[st.audPillText, { color: isCloseFriends ? Z_GREEN : Z_BLUE }]}>
+                  {isCloseFriends ? T.closeFriends : T.publicLabel}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ flex: 1 }} />
+            )}
 
             <TouchableOpacity
               style={[st.publishBtn, { backgroundColor: isCloseFriends ? Z_GREEN : Z_BLUE }]}

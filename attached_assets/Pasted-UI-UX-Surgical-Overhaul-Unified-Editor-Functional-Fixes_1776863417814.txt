@@ -1,0 +1,20 @@
+UI/UX Surgical Overhaul: Unified Editor & Functional Fixes
+​Objective: Standardize the creation flow across Stories, Posts, and Reels using the existing Story Editor engine, and fix critical media handling bugs.
+​1️⃣ Story Mode: Bug Fixes & Refinements
+​Caption Logic: Remove the automatic caption/description from the bottom of the story when text is added. Text should ONLY exist as an interactive overlay on the media.
+​Sharing Logic: Fix the "Added to Story" toast/notification. It must ONLY appear if the process is completed successfully, not if the user cancels.
+​Video/Reels Sharing: When sharing a Reel/Video to a story, it MUST remain a playable video entity, not a static image. Ensure the mediaType is preserved.
+​Duration Update: Change the static image story duration from 25 seconds to 10 seconds.
+​2️⃣ Unified Post Creation (Post = Story Editor)
+​Re-engineer the Post Flow: Replace the current post creation with the Story Editor UI.
+​Features: * User can choose "Image/Video" (Gallery) or "Text Mode" (Backgrounds).
+​Use the exact same Editing Toolbar (Filters, Text Engine with Scale/Rotate, Stickers).
+​Exception: Remove the "Close Friends" logic for regular Posts.
+​Result: Creating a post should feel identical to creating a story, ensuring UI consistency.
+​3️⃣ Reels & Profile Customization
+​Reels Editor: Use the same unified editor for Reels. When a user selects a video from the gallery, they must have access to the Text Engine and Filters before publishing.
+​Profile/Cover Photos: Integrate the Manual Crop & Filter engine when a user updates their Profile Picture or Cover Photo. The user must be able to scale and position the image perfectly.
+​4️⃣ Technical Requirements
+​Code Reuse: Do not rewrite the editor; refactor the StoryEditor component into a reusable UniversalEditor that accepts a mode prop (STORY, POST, REEL, PROFILE).
+​State Management: Ensure that text overlays and filter states are correctly mapped to the final output based on the mode.
+​Arabic Support: Maintain 100% Arabic UI for all new unified components.

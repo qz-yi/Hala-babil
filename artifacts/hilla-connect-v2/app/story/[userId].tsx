@@ -25,7 +25,7 @@ import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { Story } from "@/context/AppContext";
 
-const IMAGE_STORY_DURATION = 25000;
+const IMAGE_STORY_DURATION = 10000;
 
 // ─── Purple rotating frame ───
 function CloseFriendsFrame({ size = 68, children }: { size: number; children: React.ReactNode }) {
@@ -535,12 +535,7 @@ export default function StoryViewerScreen() {
         </View>
       ))}
 
-      {/* Caption */}
-      {currentStory.caption ? (
-        <View style={[styles.captionWrap, { bottom: isMyStory ? 60 : (iAmMentioned ? 200 : 130) }]}>
-          <MentionCaption text={currentStory.caption} users={users} />
-        </View>
-      ) : null}
+      {/* Caption removed — text exists only as interactive overlays on media */}
 
       {/* Mentions display */}
       {mentionedUsers.length > 0 && !isMyStory && (

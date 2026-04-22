@@ -500,19 +500,9 @@ export default function ProfileScreen() {
   const [followersModal, setFollowersModal] = useState(false);
   const [followingModal, setFollowingModal] = useState(false);
 
-  const handlePickCover = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { showToast("يجب السماح بالوصول للصور", "error"); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.85,
-      allowsEditing: false,
-    });
-    if (!result.canceled && result.assets[0]) {
-      await updateCoverPhoto(result.assets[0].uri);
-      showToast("تم تحديث صورة الغلاف", "success");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
+  // Cover photo update routes through the UniversalEditor for manual crop & filter.
+  const handlePickCover = () => {
+    router.push({ pathname: "/create-story", params: { mode: "cover" } } as any);
   };
 
   useEffect(() => {
@@ -536,19 +526,9 @@ export default function ProfileScreen() {
 
   const accentColor = ACCENT_COLORS[currentUser.name.length % ACCENT_COLORS.length];
 
-  const handlePickImage = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { showToast("يجب السماح بالوصول للصور", "error"); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-      allowsEditing: false,
-    });
-    if (!result.canceled && result.assets[0]) {
-      await updateProfile(currentUser!.name, currentUser!.bio, result.assets[0].uri);
-      showToast("تم تحديث الصورة", "success");
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
+  // Profile picture update routes through the UniversalEditor for manual crop & filter.
+  const handlePickImage = () => {
+    router.push({ pathname: "/create-story", params: { mode: "profile" } } as any);
   };
 
   const handleSaveProfile = async () => {

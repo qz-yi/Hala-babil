@@ -1809,18 +1809,30 @@ export default function CreateStoryScreen() {
             </>
           )
         ) : sharedPost ? (
-          // FULL-SCREEN repost: media fills the screen edge-to-edge.
-          // Preserve mediaType — videos remain playable, images render as image.
+          // FULL-SCREEN repost: render static background (image or gradient).
+          // VideoPreview (expo-video) is NOT used here because it does not render
+          // correctly inside ViewShot captures on web, causing a black screen.
+          // For reels/video reposts: use thumbnailUrl if available, otherwise
+          // show a branded gradient with a play icon as a visual cue.
           <>
-            {sharedPost.mediaUrl ? (
-              params.sharedMediaType === "video" || sharedPost.type === "reel" ? (
-                <>
-                  <VideoPreview uri={sharedPost.mediaUrl} filter={selectedFilter} />
-                  <FilterOverlay filter={selectedFilter} />
-                </>
-              ) : (
-                <Image source={{ uri: sharedPost.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-              )
+            {sharedPost.mediaUrl && sharedPost.type !== "reel" ? (
+              <Image
+                source={{ uri: sharedPost.mediaUrl }}
+                style={[StyleSheet.absoluteFill, webFilterCss(selectedFilter)]}
+                resizeMode="cover"
+              />
+            ) : sharedPost.type === "reel" ? (
+              <>
+                <LinearGradient colors={["#1a0533", "#3b0764", "#4c1d95"]} style={StyleSheet.absoluteFill} />
+                <View pointerEvents="none" style={{ ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" }}>
+                  <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="play" size={30} color="#fff" />
+                  </View>
+                  <Text style={{ color: "rgba(255,255,255,0.6)", fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 10 }}>
+                    مقطع فيديو
+                  </Text>
+                </View>
+              </>
             ) : (
               <LinearGradient colors={TEXT_BACKGROUNDS[textBgIdx].colors} style={StyleSheet.absoluteFill} />
             )}

@@ -46,7 +46,7 @@ export interface Message {
   senderId: string;
   senderName: string;
   content: string;
-  type: "text" | "image" | "video" | "gif" | "system";
+  type: "text" | "image" | "video" | "gif" | "system" | "shared";
   mediaUrl?: string;
   timestamp: number;
   reactions?: Record<string, string[]>;
@@ -54,6 +54,7 @@ export interface Message {
   replyToId?: string;
   replyToContent?: string;
   replyToSender?: string;
+  sharedContent?: SharedContent;
 }
 
 export interface Room {
@@ -320,7 +321,7 @@ interface AppContextValue {
   joinRoomPresence: (roomId: string) => void;
   leaveRoomPresence: (roomId: string) => void;
   leaveRoomFull: (roomId: string) => void;
-  sendRoomMessage: (roomId: string, content: string, type?: "text" | "image" | "video" | "gif" | "system", mediaUrl?: string, replyToId?: string, replyToContent?: string, replyToSender?: string) => void;
+  sendRoomMessage: (roomId: string, content: string, type?: "text" | "image" | "video" | "gif" | "system" | "shared", mediaUrl?: string, replyToId?: string, replyToContent?: string, replyToSender?: string, sharedContent?: SharedContent) => void;
   deleteRoomMessage: (roomId: string, msgId: string) => void;
   pinRoomMessage: (roomId: string, msgId: string) => void;
   editRoomMessage: (roomId: string, msgId: string, newContent: string) => void;
@@ -691,8 +692,6 @@ const translations: Record<Language, Record<string, string>> = {
     enteredRoom: "دخل الغرفة",
     leftRoom: "غادر الغرفة",
     seatNo: "مقعد رقم",
-    selectGovernorate: "اختر المحافظة",
-    governorate: "المحافظة",
     allGovernorates: "الكل",
     governorateImages: "صور المحافظات",
     uploadGovernorateImage: "رفع صورة",
@@ -932,8 +931,6 @@ const translations: Record<Language, Record<string, string>> = {
     enteredRoom: "entered the room",
     leftRoom: "left the room",
     seatNo: "Seat No.",
-    selectGovernorate: "Select Governorate",
-    governorate: "Governorate",
     allGovernorates: "All",
     governorateImages: "Governorate Images",
     uploadGovernorateImage: "Upload Image",
@@ -1563,7 +1560,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const sendRoomMessage = useCallback(
-    (roomId: string, content: string, type: "text" | "image" | "video" | "gif" = "text", mediaUrl?: string, replyToId?: string, replyToContent?: string, replyToSender?: string) => {
+    (roomId: string, content: string, type: "text" | "image" | "video" | "gif" | "system" | "shared" = "text", mediaUrl?: string, replyToId?: string, replyToContent?: string, replyToSender?: string, sharedContent?: SharedContent) => {
       if (!currentUser) return;
       const msg: Message = {
         id: generateId(),
@@ -1576,6 +1573,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         replyToId,
         replyToContent,
         replyToSender,
+        sharedContent,
       };
       const updated = rooms.map((r) => {
         if (r.id !== roomId) return r;

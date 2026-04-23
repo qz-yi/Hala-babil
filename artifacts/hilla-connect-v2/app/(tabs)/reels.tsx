@@ -573,8 +573,20 @@ function ShareSheet({
     if (!minimizedRoomId) return;
     const reel = reels.find((r) => r.id === reelId);
     const creator = reel ? users.find((u) => u.id === reel.creatorId) : null;
-    const label = `🎬 ${creator?.name || ""} — ${reel?.title || "مقطع فيديو"}`.trim();
-    sendRoomMessage(minimizedRoomId, label || "مقطع فيديو");
+    sendRoomMessage(
+      minimizedRoomId,
+      "",
+      "shared",
+      undefined,
+      undefined, undefined, undefined,
+      {
+        id: reelId,
+        type: "reel",
+        mediaUrl: reel?.videoUrl,
+        title: reel?.title,
+        creatorName: creator?.name,
+      },
+    );
     setSentToRoom(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };

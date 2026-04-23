@@ -27,7 +27,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp, isUserVerified } from "@/context/AppContext";
-import type { Message, User } from "@/context/AppContext";
+import type { Message, User, SharedContent } from "@/context/AppContext";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { useToast } from "@/components/Toast";
 import UserActionsModal from "@/components/UserActionsModal";
@@ -36,6 +36,70 @@ import GameEngine from "@/components/games/GameEngine";
 const SUPER_ADMIN_PHONE = "07719820537";
 const EMOJI_REACTIONS = ["❤️", "😂", "😮", "😢", "😡", "👍", "🔥", "⭐"];
 const { width: SCREEN_W } = Dimensions.get("window");
+
+// ─── بطاقة المحتوى المشارك (نفس تصميم DMs) ───
+function RoomSharedCard({ sharedContent }: { sharedContent: SharedContent }) {
+  const LABELS: Record<string, string> = { post: "منشور", reel: "مقطع فيديو", story: "قصة" };
+  const isReel = sharedContent.type === "reel";
+  const showImage = !!sharedContent.mediaUrl && !isReel;
+
+  const handleTap = () => {
+    if (sharedContent.type === "post") {
+      router.push(`/post/${sharedContent.id}` as any);
+    } else if (sharedContent.type === "reel") {
+      router.push(`/(tabs)/reels?reelId=${sharedContent.id}` as any);
+    }
+  };
+
+  return (
+    <TouchableOpacity onPress={handleTap} activeOpacity={0.88} style={roomSharedCardStyles.card}>
+      <View style={roomSharedCardStyles.mediaArea}>
+        {showImage ? (
+          <Image source={{ uri: sharedContent.mediaUrl }} style={StyleSheet.absoluteFill as any} resizeMode="cover" />
+        ) : (
+          <LinearGradient
+            colors={isReel ? ["#1a0533", "#4c1d95"] : ["#0d0d1a", "#1e1b4b"]}
+            style={StyleSheet.absoluteFill as any}
+          />
+        )}
+        {(isReel || !showImage) && (
+          <View style={roomSharedCardStyles.iconOverlay}>
+            <View style={roomSharedCardStyles.playCircle}>
+              <Ionicons name={isReel ? "play" : "image-outline"} size={isReel ? 20 : 18} color="#fff" />
+            </View>
+          </View>
+        )}
+        {showImage && (
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.55)"]}
+            style={roomSharedCardStyles.mediaGrad}
+          />
+        )}
+      </View>
+      <View style={roomSharedCardStyles.infoRow}>
+        <Text style={roomSharedCardStyles.typeChip}>{LABELS[sharedContent.type] || "منشور"}</Text>
+        {sharedContent.creatorName ? (
+          <Text style={roomSharedCardStyles.creator} numberOfLines={1}>@{sharedContent.creatorName}</Text>
+        ) : null}
+      </View>
+      {sharedContent.title ? (
+        <Text style={roomSharedCardStyles.caption} numberOfLines={2}>{sharedContent.title}</Text>
+      ) : null}
+    </TouchableOpacity>
+  );
+}
+
+const roomSharedCardStyles = StyleSheet.create({
+  card: { width: 220, borderRadius: 14, overflow: "hidden", backgroundColor: "#111", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
+  mediaArea: { width: 220, height: 160, backgroundColor: "#111" },
+  iconOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
+  playCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" },
+  mediaGrad: { position: "absolute", bottom: 0, left: 0, right: 0, height: 60 },
+  infoRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingTop: 8 },
+  typeChip: { fontSize: 11, color: "rgba(255,255,255,0.5)", fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.4 },
+  creator: { fontSize: 12, color: "rgba(255,255,255,0.75)", fontFamily: "Inter_600SemiBold", flex: 1 },
+  caption: { fontSize: 13, color: "rgba(255,255,255,0.85)", fontFamily: "Inter_400Regular", paddingHorizontal: 10, paddingBottom: 10, paddingTop: 4 },
+});
 
 // ─── تأثير الهالة النارية للمدير ───
 function FieryAura({ size }: { size: number }) {
@@ -433,7 +497,9 @@ function ChatBubble({
               <Text style={styles.pinnedBadgeText}>مثبّت</Text>
             </View>
           )}
-          {msg.type === "image" && msg.mediaUrl ? (
+          {(msg as any).type === "shared" && (msg as any).sharedContent ? (
+            <RoomSharedCard sharedContent={(msg as any).sharedContent} />
+          ) : msg.type === "image" && msg.mediaUrl ? (
             <TouchableOpacity
               onPress={() => onMediaPress(msg.mediaUrl, "image")}
               activeOpacity={0.9}

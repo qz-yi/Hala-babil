@@ -554,13 +554,20 @@ function SharePostSheet({
   const handleShareToRoom = () => {
     if (!minimizedRoomId) return;
     const creator = users.find((u) => u.id === post.creatorId);
-    const caption = post.content ? `"${post.content.slice(0, 60)}"` : "";
-    const label = `📌 ${creator?.name || ""} ${caption}`.trim();
-    if (post.mediaUrl) {
-      sendRoomMessage(minimizedRoomId, label || "منشور", "image", post.mediaUrl);
-    } else {
-      sendRoomMessage(minimizedRoomId, label || "منشور");
-    }
+    sendRoomMessage(
+      minimizedRoomId,
+      "",
+      "shared",
+      undefined,
+      undefined, undefined, undefined,
+      {
+        id: post.id,
+        type: "post",
+        mediaUrl: post.mediaUrl || (post.mediaUrls && post.mediaUrls[0]),
+        title: post.content?.slice(0, 80),
+        creatorName: creator?.name,
+      },
+    );
     setSentToRoom(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
@@ -1103,6 +1110,7 @@ export default function HomeScreen() {
             onRefresh={onRefresh}
             tintColor={colors.tint}
             colors={["#7C3AED"]}
+            progressViewOffset={topPad + 56}
           />
         }
         ListHeaderComponent={

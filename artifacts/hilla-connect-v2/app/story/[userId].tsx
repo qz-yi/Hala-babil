@@ -209,6 +209,7 @@ export default function StoryViewerScreen() {
     users, getUserStories, viewStory, currentUser, theme,
     likeStory, replyToStory, deleteStory,
     shareContentToStory,
+    isStoryEditorOpen,
   } = useApp();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
@@ -277,10 +278,16 @@ export default function StoryViewerScreen() {
 
   useEffect(() => { elapsedRef.current = 0; }, [currentIndex, currentStory?.id]);
 
+  // Effective pause: local pause OR the story editor is open on top.
+  // The editor flag is set by create-story while the user composes a repost
+  // — without this, the underlying viewer's timer keeps running and the
+  // story silently auto-advances or closes behind the editor.
+  const effectivePaused = paused || isStoryEditorOpen;
+
   useEffect(() => {
     if (!currentStory) return;
 
-    if (paused) {
+    if (effectivePaused) {
       animRef.current?.stop();
       pauseStartRef.current = Date.now();
       return;
@@ -309,7 +316,7 @@ export default function StoryViewerScreen() {
       const segmentElapsed = Date.now() - startTime;
       elapsedRef.current = Math.min(storyDuration, elapsedRef.current + segmentElapsed);
     };
-  }, [currentIndex, currentStory?.id, paused]);
+  }, [currentIndex, currentStory?.id, effectivePaused]);
 
   useEffect(() => {
     setReplySent(false);
@@ -434,7 +441,7 @@ export default function StoryViewerScreen() {
       {/* Background media */}
       {currentStory.mediaUrl ? (
         currentStory.mediaType === "video" ? (
-          <StoryVideoPlayer uri={currentStory.mediaUrl} paused={paused} onEnd={handleNext} />
+          <StoryVideoPlayer uri={currentStory.mediaUrl} paused={effectivePaused} onEnd={handleNext} />
         ) : (
           <View style={styles.storyMedia}>
             <Image source={{ uri: currentStory.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />

@@ -27,6 +27,8 @@ export function FloatingRoomWidget() {
     minimizedRoomName,
     minimizedRoomImage,
     expandRoom,
+    floatingRoomPos,
+    setFloatingRoomPos,
   } = useApp();
 
   const pathname = usePathname();
@@ -38,10 +40,20 @@ export function FloatingRoomWidget() {
   const START_X = SW - WIDGET_W - 12;
   const START_Y = SH - 220;
 
-  const posX     = useRef(new Animated.Value(START_X)).current;
-  const posY     = useRef(new Animated.Value(START_Y)).current;
-  const lastPos  = useRef({ x: START_X, y: START_Y });
+  // Restore last persisted position if available, otherwise use the default
+  // anchor in the bottom-right corner. This survives navigation because the
+  // position is held in AppContext (not local state).
+  const initialX = floatingRoomPos?.x ?? START_X;
+  const initialY = floatingRoomPos?.y ?? START_Y;
+
+  const posX     = useRef(new Animated.Value(initialX)).current;
+  const posY     = useRef(new Animated.Value(initialY)).current;
+  const lastPos  = useRef({ x: initialX, y: initialY });
   const isDragging = useRef(false);
+
+  // Stable ref to the persistence setter so the PanResponder closure stays fresh.
+  const persistPosRef = useRef(setFloatingRoomPos);
+  useEffect(() => { persistPosRef.current = setFloatingRoomPos; }, [setFloatingRoomPos]);
 
   /*
    * Keep a ref that always holds the latest minimizedRoomId.
@@ -95,6 +107,10 @@ export function FloatingRoomWidget() {
         lastPos.current = { x: clampedX, y: clampedY };
         posX.setValue(clampedX);
         posY.setValue(clampedY);
+        // Persist so the widget reappears at the same spot after navigation
+        // (the widget mounts once at the root, but its initial pos comes from
+        // context — saving here keeps that source of truth in sync).
+        persistPosRef.current({ x: clampedX, y: clampedY });
 
         if (!isDragging.current) {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -111,9 +127,10 @@ export function FloatingRoomWidget() {
 
   useEffect(() => {
     if (isRoomMinimized) {
-      lastPos.current = { x: START_X, y: START_Y };
-      posX.setValue(START_X);
-      posY.setValue(START_Y);
+      // Do NOT reset position here — that would teleport the widget back to
+      // the bottom-right anchor every time the user re-minimizes a room.
+      // The position lives in AppContext (floatingRoomPos) and is restored
+      // at mount via initialX/initialY above.
 
       Animated.spring(scaleAnim, {
         toValue: 1,

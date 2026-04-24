@@ -1303,7 +1303,17 @@ export default function CreateStoryScreen() {
   const {
     addStory, users, currentUser, getFollowers, closeFriendsList, updateCloseFriendsList,
     addPost, addReel, updateProfile, updateCoverPhoto,
+    setStoryEditorOpen,
   } = useApp();
+
+  // Mark the story editor as open while this screen is mounted so that any
+  // underlying StoryViewer pauses its timer (and the active video). Without
+  // this, sharing a story to your own story silently auto-advances the viewer
+  // behind the editor and the user loses their place.
+  useEffect(() => {
+    setStoryEditorOpen(true);
+    return () => setStoryEditorOpen(false);
+  }, [setStoryEditorOpen]);
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
   const topPad = Platform.OS === "web" ? 12 : insets.top;
@@ -1647,11 +1657,17 @@ export default function CreateStoryScreen() {
       // For images and text-only canvases, capture the live preview to PNG so
       // the filter and text overlays are burned into the published file.
       // For videos we keep the original URI (no client-side video processing).
-      const isVideo = mediaUri && mediaType === "video";
+      // Reposting a reel into a story = treat the original reel video as the
+      // story's main media so the viewer plays the actual video instead of
+      // showing a black gradient with "video" placeholder.
+      const isReelRepost = !mediaUri && sharedPost?.type === "reel" && !!sharedPost.mediaUrl;
+      const isVideo = (mediaUri && mediaType === "video") || isReelRepost;
       let finalUri = mediaUri || sharedPost?.mediaUrl || textBgImage || "";
       let bakedMediaType: "image" | "video" | "none" = mediaUri
         ? mediaType
-        : (textBgImage || overlays.length > 0 ? "image" : "none");
+        : isReelRepost
+          ? "video"
+          : (textBgImage || overlays.length > 0 ? "image" : "none");
 
       if (!isVideo) {
         // Hide the active selection chrome before capturing (handles/borders
@@ -1809,11 +1825,14 @@ export default function CreateStoryScreen() {
             </>
           )
         ) : sharedPost ? (
-          // FULL-SCREEN repost: render static background (image or gradient).
-          // VideoPreview (expo-video) is NOT used here because it does not render
-          // correctly inside ViewShot captures on web, causing a black screen.
-          // For reels/video reposts: use thumbnailUrl if available, otherwise
-          // show a branded gradient with a play icon as a visual cue.
+          // FULL-SCREEN repost: render the original media as the background.
+          // For posts/stories the mediaUrl is an image URL.
+          // For reels the mediaUrl is a video file — we render a dark gradient
+          // INSIDE ViewShot (so the captured PNG isn't black-on-black) and
+          // overlay the live VideoPreview ABOVE the ViewShot tree below so
+          // the user can actually see what they're sharing in the editor.
+          // The published story re-uses the original reel video URL directly
+          // (see handlePublish), so the viewer plays the real video.
           <>
             {sharedPost.mediaUrl && sharedPost.type !== "reel" ? (
               <Image
@@ -1822,17 +1841,7 @@ export default function CreateStoryScreen() {
                 resizeMode="cover"
               />
             ) : sharedPost.type === "reel" ? (
-              <>
-                <LinearGradient colors={["#1a0533", "#3b0764", "#4c1d95"]} style={StyleSheet.absoluteFill} />
-                <View pointerEvents="none" style={{ ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" }}>
-                  <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" }}>
-                    <Ionicons name="play" size={30} color="#fff" />
-                  </View>
-                  <Text style={{ color: "rgba(255,255,255,0.6)", fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 10 }}>
-                    مقطع فيديو
-                  </Text>
-                </View>
-              </>
+              <LinearGradient colors={["#1a0533", "#3b0764", "#4c1d95"]} style={StyleSheet.absoluteFill} />
             ) : (
               <LinearGradient colors={TEXT_BACKGROUNDS[textBgIdx].colors} style={StyleSheet.absoluteFill} />
             )}
@@ -1877,6 +1886,20 @@ export default function CreateStoryScreen() {
         </View>
         </ViewShot>
         {/* End of bakeable canvas */}
+
+        {/* ════════ Live preview overlay for shared reels ════════ */}
+        {/* Rendered OUTSIDE ViewShot (above the gradient placeholder) so the */}
+        {/* user can actually see the reel they're sharing. ViewShot still     */}
+        {/* captures only the gradient + overlays — the published story uses   */}
+        {/* the original reel video URL as its main media (see handlePublish). */}
+        {hasShared && sharedPost?.type === "reel" && sharedPost.mediaUrl && (
+          <View
+            pointerEvents="none"
+            style={StyleSheet.absoluteFill}
+          >
+            <VideoPreview uri={sharedPost.mediaUrl} filter={selectedFilter} />
+          </View>
+        )}
 
         {/* ════════ Top bar: close + Edit pill ════════ */}
         <View style={[st.topBar, { paddingTop: topPad + 6 }]} pointerEvents="box-none">

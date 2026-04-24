@@ -1,0 +1,20 @@
+Red all code first 
+STOP: Critical Refactoring Required for Zentram Core Logic
+1. Story Viewer & Editor Synchronization:
+Logic: When StoryEditor is triggered from the StoryViewer, you must globally pause the StoryTimer.
+Fix: Implement an isPaused state in the Story context. If isEditorOpen is true, the progress bar must freeze. Prevent any goBack or onComplete actions until the editor is explicitly closed by the user.
+2. Shared Media & Black Screen Fix:
+Issue: Shared posts/reels appear black because the media URL isn't being pre-loaded or passed correctly to the Canvas.
+Fix: Implement a MediaResolver that ensures the mediaUrl is fetched and cached before opening the Editor. If the source is a Reel/Video, use a thumbnail fallback during loading to avoid black screens.
+3. Video Processing Pipeline (The "Real" Fix):
+Issue: Video edits are ignored; original files are uploaded.
+Fix: You MUST NOT upload the raw selectedFile. Use a renderVideo function that combines the video source with the Text/Filter overlays (using a canvas-capture approach or backend FFmpeg processing) to generate a NEW blob for the upload.
+4. Navigation & Component Identity:
+Deep Linking: When clicking a shared post in DMs/Stories, use navigation.navigate('PostDetail', { postId }). Stop creating "Miniature" versions of the post; use the original PostCard component within the Feed context.
+5. Room Sharing UI:
+Component Consistency: The Room sharing logic is currently sending raw data. Refactor it to use the UnifiedShareCard used in private DMs. The UI in the Voice Room must display the media preview, not a basic text box.
+6. Floating Room Icon (Interactive UI):
+Feature: Implement PanResponder (or reanimated-gesture-handler) on the Mini-Room icon.
+Logic: Allow the user to drag the icon anywhere on the screen. Save the last position in the local state so it doesn't reset during navigation.
+7. Pull-to-Refresh Layout:
+Fix: Adjust the RefreshControl offset. Set progressViewOffset to be exactly below the Header height. Ensure the zIndex of the header is higher than the RefreshControl.

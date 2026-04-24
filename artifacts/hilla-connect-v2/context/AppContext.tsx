@@ -457,6 +457,12 @@ interface AppContextValue {
   minimizedRoomImage: string | undefined;
   minimizeRoom: (roomId: string, roomName: string, roomImage?: string) => void;
   expandRoom: () => void;
+  // Story editor pause sync — viewer pauses while editor is open on top
+  isStoryEditorOpen: boolean;
+  setStoryEditorOpen: (open: boolean) => void;
+  // Persistent position for the floating mini-room widget (survives navigation)
+  floatingRoomPos: { x: number; y: number } | null;
+  setFloatingRoomPos: (pos: { x: number; y: number }) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -995,6 +1001,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [minimizedRoomId, setMinimizedRoomId] = useState<string | null>(null);
   const [minimizedRoomName, setMinimizedRoomName] = useState<string>("");
   const [minimizedRoomImage, setMinimizedRoomImage] = useState<string | undefined>(undefined);
+  const [isStoryEditorOpen, setStoryEditorOpen] = useState(false);
+  const [floatingRoomPos, setFloatingRoomPos] = useState<{ x: number; y: number } | null>(null);
 
   const minimizeRoom = useCallback((roomId: string, roomName: string, roomImage?: string) => {
     setIsRoomMinimized(true);
@@ -3579,6 +3587,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       savedPosts, savePost, unsavePost, isPostSaved, getSavedPosts,
       t,
       isRoomMinimized, minimizedRoomId, minimizedRoomName, minimizedRoomImage, minimizeRoom, expandRoom,
+      isStoryEditorOpen, setStoryEditorOpen,
+      floatingRoomPos, setFloatingRoomPos,
     }),
     [
       language, theme, currentUser, isSuperAdmin, isManager, isRestaurantOwner, getMyRestaurant,
@@ -3613,6 +3623,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       getFeedPosts, getFeedReels, getLikedReels, getMyComments, getMyPostComments, getLikedPosts,
       getUserPosts, getUserReels, t,
       isRoomMinimized, minimizedRoomId, minimizedRoomName, minimizedRoomImage, minimizeRoom, expandRoom,
+      isStoryEditorOpen, floatingRoomPos,
     ]
   );
 

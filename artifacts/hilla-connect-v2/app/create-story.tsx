@@ -100,6 +100,19 @@ const T = {
 // ────────────────────────────────────────────────────────────────────────────
 type EditorMode = "story" | "post" | "reel" | "profile" | "cover";
 
+// Per-mode aspect-ratio policy for the bakeable canvas:
+//   - "fullscreen": the canvas fills the entire screen (≈9:16 on phones).
+//                   Used for stories where the viewer is full-bleed.
+//   - "square":     the canvas is locked to 1:1 and centered. A circular
+//                   safe-area overlay is painted on top in profile mode so
+//                   the user can see how the avatar will be cropped.
+//   - "wide":       the canvas is locked to 16:9 and centered (cover photo).
+//   - "natural":    the canvas matches the original aspect ratio of the
+//                   uploaded media (post / reel). If the media hasn't loaded
+//                   yet (or is text-only) we fall back to a sensible default
+//                   (4:5 for post, 9:16 for reel).
+type AspectMode = "fullscreen" | "square" | "wide" | "natural";
+
 function modeConfig(mode: EditorMode) {
   switch (mode) {
     case "post":
@@ -114,6 +127,8 @@ function modeConfig(mode: EditorMode) {
         landingTextLabel: T.textPost,
         successMsg: T.postedPost,
         preserveAspect: true,        // posts use original aspect (contain)
+        aspectMode: "natural" as AspectMode,
+        fallbackAspect: 4 / 5,        // Instagram-style portrait when no media yet
         needsFinalize: true,         // posts go through caption/mentions screen
         publishLabel: T.next,
       };
@@ -129,6 +144,8 @@ function modeConfig(mode: EditorMode) {
         landingTextLabel: "",
         successMsg: T.postedReel,
         preserveAspect: false,
+        aspectMode: "natural" as AspectMode,
+        fallbackAspect: 9 / 16,       // reels default to portrait video
         needsFinalize: true,         // reels also get a caption screen
         publishLabel: T.next,
       };
@@ -144,6 +161,8 @@ function modeConfig(mode: EditorMode) {
         landingTextLabel: "",
         successMsg: T.postedAvatar,
         preserveAspect: false,
+        aspectMode: "square" as AspectMode,
+        fallbackAspect: 1,
         needsFinalize: false,
         publishLabel: T.share,
       };
@@ -159,6 +178,8 @@ function modeConfig(mode: EditorMode) {
         landingTextLabel: "",
         successMsg: T.postedCover,
         preserveAspect: false,
+        aspectMode: "wide" as AspectMode,
+        fallbackAspect: 16 / 9,
         needsFinalize: false,
         publishLabel: T.share,
       };
@@ -175,6 +196,8 @@ function modeConfig(mode: EditorMode) {
         landingTextLabel: T.textStory,
         successMsg: T.postedPublic,
         preserveAspect: false,
+        aspectMode: "fullscreen" as AspectMode,
+        fallbackAspect: 9 / 16,
         needsFinalize: false,
         publishLabel: T.share,
       };
@@ -1348,6 +1371,18 @@ export default function CreateStoryScreen() {
   const [mentionQuery, setMentionQuery] = useState("");
   const [composerOpen, setComposerOpen] = useState(false);
   const [kbHeight, setKbHeight] = useState(0);
+  // Natural aspect ratio of the user-picked media (width / height). Lazily
+  // resolved via Image.getSize when the user picks an image. For videos we
+  // currently can't introspect dimensions on RN without an extra package, so
+  // we fall back to the mode's `fallbackAspect`. This drives the "post" /
+  // "reel" canvas sizing.
+  const [mediaNaturalAspect, setMediaNaturalAspect] = useState<number | null>(null);
+  // Tracks whether the SHARED-CONTENT background image (when reposting an
+  // image post / image story) has fully decoded. We block the "publish" /
+  // "Next" button until this is true so the user can never publish while
+  // the canvas is still showing a half-loaded sticker — that is one of the
+  // root causes of the "black on publish" bug.
+  const [sharedMediaReady, setSharedMediaReady] = useState<boolean>(true);
 
   // Instagram-style keyboard tracking — toolbar sticks above keyboard
   useEffect(() => {
@@ -1359,6 +1394,21 @@ export default function CreateStoryScreen() {
     const hideSub = Keyboard.addListener(hideEvt as any, () => setKbHeight(0));
     return () => { showSub.remove(); hideSub.remove(); };
   }, []);
+
+  // ─ Resolve natural aspect ratio of the user-picked image. We use
+  //   Image.getSize because the actual <Image> may not be mounted yet (or
+  //   may be inside a ViewShot whose layout we don't observe directly).
+  useEffect(() => {
+    setMediaNaturalAspect(null);
+    if (!mediaUri || mediaType !== "image") return;
+    let cancelled = false;
+    Image.getSize(
+      mediaUri,
+      (w, h) => { if (!cancelled && h > 0) setMediaNaturalAspect(w / h); },
+      () => { /* ignore — we'll fall back to cfg.fallbackAspect */ },
+    );
+    return () => { cancelled = true; };
+  }, [mediaUri, mediaType]);
 
   // ─ Shared post (repost) — full-screen sticker
   // mediaType is the SOURCE OF TRUTH for picking <VideoView> vs <Image> at
@@ -1392,6 +1442,87 @@ export default function CreateStoryScreen() {
   const hasShared = !!sharedPost;
   const inTextMode = !hasMedia && !hasShared && textMode;
   const showLanding = !hasMedia && !hasShared && !textMode;
+
+  // ─ Track readiness of the shared-content background image. While we're
+  //   showing a repost, we want the user to see the actual image fully
+  //   decoded BEFORE they can publish — otherwise the bake may snapshot
+  //   a black frame and / or the canvas itself looks black to them while
+  //   they're editing on top of it.
+  useEffect(() => {
+    if (!sharedPost?.mediaUrl) {
+      setSharedMediaReady(true);
+      return;
+    }
+    if (sharedPost.mediaType === "video") {
+      // Videos don't go through Image.prefetch — the live <VideoPreview>
+      // overlay handles its own load lifecycle. We treat them as "ready"
+      // so the publish button isn't blocked.
+      setSharedMediaReady(true);
+      return;
+    }
+    setSharedMediaReady(false);
+    let cancelled = false;
+    // Image.prefetch resolves once the asset is fully decoded into the
+    // bitmap cache, which is exactly the signal we want.
+    Image.prefetch(sharedPost.mediaUrl)
+      .then(() => { if (!cancelled) setSharedMediaReady(true); })
+      .catch(() => { if (!cancelled) setSharedMediaReady(true); /* don't trap user */ });
+    // Also try to capture the natural aspect of shared images so a future
+    // "use original aspect" mode can pick it up (no-op for video).
+    Image.getSize(
+      sharedPost.mediaUrl,
+      (w, h) => { if (!cancelled && h > 0) setMediaNaturalAspect((prev) => prev ?? w / h); },
+      () => { /* ignore */ },
+    );
+    return () => { cancelled = true; };
+  }, [sharedPost?.mediaUrl, sharedPost?.mediaType]);
+
+  // ─ Effective aspect ratio applied to the bakeable canvas frame. `null` =
+  //   fullscreen (no aspect constraint, fills the screen — story mode). Any
+  //   numeric value enables an aspect-locked frame centered in the screen
+  //   with letterbox bands. Declared here (after `mediaNaturalAspect` state
+  //   is in scope and after `sharedPost` is known) so the natural-aspect
+  //   path can react to either the user-picked media OR the shared media's
+  //   loaded dimensions.
+  const effectiveAspectRatio: number | null = (() => {
+    switch (cfg.aspectMode) {
+      case "square":
+        return 1;
+      case "wide":
+        return 16 / 9;
+      case "natural":
+        return mediaNaturalAspect ?? cfg.fallbackAspect;
+      case "fullscreen":
+      default:
+        return null;
+    }
+  })();
+
+  // Concrete pixel size for the aspect-locked frame. We compute width/height
+  // explicitly (instead of leaning on the `aspectRatio` style prop) so we
+  // have a single source of truth for both the on-screen layout AND any
+  // future bake pass that needs to know the canvas dimensions, and so we
+  // can cap the height when the requested aspect would overflow the
+  // available screen real estate (e.g. a very tall portrait image inside
+  // a phone screen).
+  const frameSizeStyle: { width: number | "100%"; height: number | "100%" } = (() => {
+    if (!effectiveAspectRatio) {
+      // Fullscreen → fill whatever space the letterbox gives us.
+      return { width: "100%", height: "100%" };
+    }
+    const screenW = SCREEN.width;
+    const screenH = SCREEN.height;
+    // Reserve room for top bar + sidebar/filters + bottom UI. We don't need
+    // exact numbers — just keep the frame from butting against the edges.
+    const maxH = Math.max(240, screenH - 220);
+    let w = screenW;
+    let h = w / effectiveAspectRatio;
+    if (h > maxH) {
+      h = maxH;
+      w = h * effectiveAspectRatio;
+    }
+    return { width: Math.round(w), height: Math.round(h) };
+  })();
 
   // ─ Mention search inside composer
   useEffect(() => {
@@ -1649,6 +1780,13 @@ export default function CreateStoryScreen() {
   //      actual API call. For modes without a caption ("story", "profile",
   //      "cover"), publish directly here.
   const handlePublish = async () => {
+    // ─ Gate: don't allow publish until shared content has fully decoded.
+    //   Without this gate the bake (or even the preview) can capture a
+    //   half-loaded sticker and the published story shows up black.
+    if (sharedPost && !sharedMediaReady) {
+      showToast("جاري تحميل المحتوى المشترك، حاول مرة أخرى بعد قليل", "info");
+      return;
+    }
     // Validate per-mode requirements
     if (editorMode === "reel") {
       if (!mediaUri || mediaType !== "video") {
@@ -1908,6 +2046,20 @@ export default function CreateStoryScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={st.canvas}>
+        {/* ════════ Letterbox: centers the aspect-locked frame ════════ */}
+        {/*
+            The frame INSIDE this letterbox is what gets baked into the
+            published media. Its aspect ratio is mode-driven:
+              • story    → fullscreen (no constraint)
+              • profile  → 1:1  (with circular safe-area overlay)
+              • cover    → 16:9
+              • post/reel→ original aspect of the uploaded media (or
+                            cfg.fallbackAspect while it's still loading)
+            The dark bands around the frame are the screen background and
+            visually communicate the final crop/canvas to the user.
+        */}
+        <View style={st.letterbox}>
+          <View style={[st.aspectFrame, frameSizeStyle]}>
         {/* ════════ Bakeable canvas (captured by ViewShot on publish) ════════ */}
         <ViewShot
           ref={shotRef as any}
@@ -2018,6 +2170,31 @@ export default function CreateStoryScreen() {
             <VideoPreview uri={sharedPost.mediaUrl} filter={selectedFilter} />
           </View>
         )}
+
+        {/* ════════ Profile circular safe-area outline ════════ */}
+        {/* In profile (avatar) mode the canvas is locked to 1:1. We paint a
+            circular outline matching the inscribed circle so the user can
+            see exactly how the avatar will be cropped after publish. */}
+        {editorMode === "profile" && (
+          <View pointerEvents="none" style={st.profileCircleOutline} />
+        )}
+
+          {/* end aspect frame */}
+          </View>
+
+          {/* ════════ Shared-content loading veil ════════ */}
+          {/* Block interaction (and visually communicate progress) until the
+              shared image has fully decoded. Without this gate the user can
+              start editing on top of a still-loading <Image> and end up with
+              a half-baked / black snapshot in the published story. */}
+          {hasShared && !sharedMediaReady && (
+            <View style={st.sharedLoadingOverlay} pointerEvents="auto">
+              <ActivityIndicator size="large" color="#fff" />
+              <Text style={st.sharedLoadingText}>جاري تحميل المحتوى المشترك…</Text>
+            </View>
+          )}
+        {/* end letterbox */}
+        </View>
 
         {/* ════════ Top bar: close + Edit pill ════════ */}
         <View style={[st.topBar, { paddingTop: topPad + 6 }]} pointerEvents="box-none">
@@ -2350,6 +2527,52 @@ export default function CreateStoryScreen() {
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: Z_BG },
   canvas: { flex: 1, backgroundColor: Z_BG, position: "relative", overflow: "hidden" },
+
+  // Container that fills the canvas and centers the aspect-locked frame
+  // inside it. The dark area outside the frame doubles as a "letterbox" so
+  // the user can immediately see what's inside vs outside the published crop.
+  letterbox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    backgroundColor: Z_BG,
+  },
+  // The aspect-locked surface itself. Width / height come from
+  // `frameSizeStyle` and are mode + media driven. We clip overflow so any
+  // nested content (e.g. <Image resizeMode="cover">) doesn't bleed past
+  // the visible frame.
+  aspectFrame: {
+    position: "relative",
+    overflow: "hidden",
+    backgroundColor: Z_BG,
+    alignSelf: "center",
+  },
+  // Circular safe-area outline drawn over the 1:1 profile canvas so the
+  // user can see where the avatar will be cropped after publishing.
+  profileCircleOutline: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 9999,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.85)",
+  },
+  // Veil shown while shared content is still loading. Sits ABOVE the aspect
+  // frame (inside the letterbox) and blocks taps so the user can't start
+  // editing on a half-loaded sticker — that's a common cause of the
+  // "black snapshot" bug at publish time.
+  sharedLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    zIndex: 35,
+  },
+  sharedLoadingText: {
+    color: "#fff",
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+  },
 
   topBar: {
     position: "absolute",

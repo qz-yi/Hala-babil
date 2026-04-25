@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Easing,
@@ -228,6 +229,7 @@ export default function StoryViewerScreen() {
   const [replySent, setReplySent] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [addedToStory, setAddedToStory] = useState(false);
+  const [mediaLoading, setMediaLoading] = useState(false);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -323,7 +325,13 @@ export default function StoryViewerScreen() {
     setReplyText("");
     setLiked(false);
     setAddedToStory(false);
-  }, [currentIndex]);
+    // Reset loading state per story so the spinner shows for each new image
+    if (currentStory?.mediaType === "image" && currentStory.mediaUrl) {
+      setMediaLoading(true);
+    } else {
+      setMediaLoading(false);
+    }
+  }, [currentIndex, currentStory?.id]);
 
   useEffect(() => {
     if (currentStory) viewStory(currentStory.id);
@@ -438,13 +446,33 @@ export default function StoryViewerScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Background media */}
+      {/* Background media — with explicit loading state so the screen never
+          shows pure black while a remote image is decoding. */}
       {currentStory.mediaUrl ? (
         currentStory.mediaType === "video" ? (
           <StoryVideoPlayer uri={currentStory.mediaUrl} paused={effectivePaused} onEnd={handleNext} />
         ) : (
           <View style={styles.storyMedia}>
-            <Image source={{ uri: currentStory.mediaUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            {/* Soft accent gradient sits BEHIND the image so if the image is
+                still loading or fails, the user sees a colored backdrop
+                instead of a black void. */}
+            <LinearGradient
+              colors={[accentColor, "#0A0A14"]}
+              style={StyleSheet.absoluteFill}
+            />
+            <Image
+              source={{ uri: currentStory.mediaUrl }}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+              onLoadStart={() => setMediaLoading(true)}
+              onLoadEnd={() => setMediaLoading(false)}
+              onError={() => setMediaLoading(false)}
+            />
+            {mediaLoading && (
+              <View style={styles.mediaLoadingOverlay}>
+                <ActivityIndicator size="small" color="rgba(255,255,255,0.8)" />
+              </View>
+            )}
             {currentStory.filter && currentStory.filter !== "none" && (() => {
               const filterOverlays: Record<string, string> = {
                 warm: "rgba(255,140,0,0.25)",
@@ -559,11 +587,44 @@ export default function StoryViewerScreen() {
         </TouchableOpacity>
       )}
 
-      {currentStory.overlays?.map((overlay, index) => (
-        <View key={`${overlay.text}-${index}`} style={[styles.viewerOverlayLabel, { top: `${34 + index * 9}%` as any }]}>
-          <Text style={styles.viewerOverlayText}>{overlay.text}</Text>
-        </View>
-      ))}
+      {/* Unbaked overlays (videos on native). Render at the EXACT position
+          the user dragged them to in the editor. Older stored stories don't
+          have x/y so they fall back to a centered stack below the user row. */}
+      {currentStory.overlays?.map((overlay, index) => {
+        const hasPosition =
+          typeof overlay.x === "number" && typeof overlay.y === "number";
+        const transforms: any[] = [];
+        if (hasPosition) {
+          transforms.push({ translateX: overlay.x as number });
+          transforms.push({ translateY: overlay.y as number });
+        }
+        if (overlay.scale && overlay.scale !== 1) transforms.push({ scale: overlay.scale });
+        if (overlay.rotation) transforms.push({ rotate: `${overlay.rotation}rad` });
+
+        if (hasPosition) {
+          return (
+            <View
+              key={`${overlay.text}-${index}`}
+              pointerEvents="none"
+              style={[
+                styles.viewerOverlayPositioned,
+                { transform: transforms },
+              ]}
+            >
+              <Text style={styles.viewerOverlayText}>{overlay.text}</Text>
+            </View>
+          );
+        }
+        // Legacy fallback for older stories without position metadata
+        return (
+          <View
+            key={`${overlay.text}-${index}`}
+            style={[styles.viewerOverlayLabel, { top: `${34 + index * 9}%` as any }]}
+          >
+            <Text style={styles.viewerOverlayText}>{overlay.text}</Text>
+          </View>
+        );
+      })}
 
       {/* Caption removed — text exists only as interactive overlays on media */}
 
@@ -849,7 +910,27 @@ const styles = StyleSheet.create({
   },
   captionMention: { color: "#3D91F4", fontFamily: "Inter_700Bold" },
   viewerOverlayLabel: { position: "absolute", alignSelf: "center", backgroundColor: "rgba(0,0,0,0.42)", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: "rgba(61,145,244,0.55)" },
+  // Positioned overlays use the editor's pixel-space coords. Placing them at
+  // 50%/50% then translating keeps the math identical to DraggableText where
+  // x/y are pre-translation offsets relative to the canvas center.
+  viewerOverlayPositioned: {
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    backgroundColor: "rgba(0,0,0,0.42)",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "rgba(61,145,244,0.55)",
+  },
   viewerOverlayText: { color: "#fff", fontFamily: "Inter_800ExtraBold", fontSize: 22, textAlign: "center", textShadowColor: "rgba(0,0,0,0.75)", textShadowRadius: 8 },
+  mediaLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.18)",
+  },
 
   mentionsRow: {
     position: "absolute", left: 20, right: 20,

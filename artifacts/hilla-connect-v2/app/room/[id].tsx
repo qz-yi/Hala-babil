@@ -44,10 +44,15 @@ function RoomSharedCard({ sharedContent }: { sharedContent: SharedContent }) {
   const showImage = !!sharedContent.mediaUrl && !isReel;
 
   const handleTap = () => {
+    // Use router.navigate (NOT push) so tapping a shared post/reel from the
+    // room chat unwinds to an existing screen instead of stacking a
+    // duplicate copy on top of the room.
     if (sharedContent.type === "post") {
-      router.push(`/post/${sharedContent.id}` as any);
+      router.navigate(`/post/${sharedContent.id}` as any);
     } else if (sharedContent.type === "reel") {
-      router.push(`/(tabs)/reels?reelId=${sharedContent.id}` as any);
+      router.navigate(`/(tabs)/reels?reelId=${sharedContent.id}` as any);
+    } else if (sharedContent.type === "story") {
+      router.navigate(`/story/${sharedContent.id}` as any);
     }
   };
 

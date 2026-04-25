@@ -1657,10 +1657,23 @@ export default function CreateStoryScreen() {
       // For images and text-only canvases, capture the live preview to PNG so
       // the filter and text overlays are burned into the published file.
       // For videos we keep the original URI (no client-side video processing).
-      // Reposting a reel into a story = treat the original reel video as the
-      // story's main media so the viewer plays the actual video instead of
-      // showing a black gradient with "video" placeholder.
+      //
+      // SHARED CONTENT FAST PATH (root cause of "black story" bug):
+      //   When the user re-shares a post / story / reel and adds NO edits
+      //   (no overlays, default filter, no crop), we MUST forward the
+      //   original mediaUrl directly instead of baking. ViewShot snapshots
+      //   pixels at the moment of capture; remote `<Image>` sources are
+      //   asynchronously decoded and frequently haven't painted yet, so the
+      //   capture would otherwise produce a transparent/black PNG that we
+      //   then store as the story's permanent media. Reels already use this
+      //   fast path. Now posts and stories use it too.
       const isReelRepost = !mediaUri && sharedPost?.type === "reel" && !!sharedPost.mediaUrl;
+      const hasUserEdits = overlays.length > 0 || selectedFilter !== "none";
+      const canForwardSharedMedia =
+        !mediaUri &&
+        !!sharedPost?.mediaUrl &&
+        !hasUserEdits;
+
       const isVideo = (mediaUri && mediaType === "video") || isReelRepost;
       let finalUri = mediaUri || sharedPost?.mediaUrl || textBgImage || "";
       let bakedMediaType: "image" | "video" | "none" = mediaUri
@@ -1669,13 +1682,31 @@ export default function CreateStoryScreen() {
           ? "video"
           : (textBgImage || overlays.length > 0 ? "image" : "none");
 
-      if (!isVideo) {
+      if (canForwardSharedMedia) {
+        // No editing → just store the original URL. Viewer renders the real
+        // image/video itself (with its own load state), so no black flash.
+        finalUri = sharedPost!.mediaUrl!;
+        bakedMediaType = sharedPost!.type === "reel" ? "video" : "image";
+      } else if (!isVideo) {
         // Hide the active selection chrome before capturing (handles/borders
         // are gated on `active`, so this prevents them from leaking into the
         // baked image).
         setActiveOverlayId(null);
-        // Give React a tick to commit the state change before snapshotting.
-        await new Promise((r) => setTimeout(r, 80));
+
+        // If we're baking a canvas that includes a remote shared image, make
+        // sure the bitmap has actually been decoded into the Image component
+        // BEFORE ViewShot snapshots — otherwise the capture is empty/black.
+        if (sharedPost?.mediaUrl && sharedPost.type !== "reel") {
+          try {
+            await Image.prefetch(sharedPost.mediaUrl);
+          } catch {
+            /* ignore — fall through to capture */
+          }
+        }
+
+        // Give React a tick to commit the state change AND give the Image a
+        // frame to paint the prefetched bitmap before snapshotting.
+        await new Promise((r) => setTimeout(r, 200));
 
         const captured = await captureCanvas(shotRef);
         if (captured) {
@@ -1692,6 +1723,11 @@ export default function CreateStoryScreen() {
             overlays.length === 0;
           if (isUnedited) {
             finalUri = mediaUri!;
+          } else if (sharedPost?.mediaUrl) {
+            // Final safety net: shared content with edits where capture failed
+            // — fall back to the original URL so we never publish black.
+            finalUri = sharedPost.mediaUrl;
+            bakedMediaType = sharedPost.type === "reel" ? "video" : "image";
           } else {
             throw new Error("فشل تجهيز الصورة، حاول مجدداً");
           }
@@ -1760,8 +1796,20 @@ export default function CreateStoryScreen() {
         if (isCloseFriends) updateCloseFriendsList(cfList);
         // Overlays are now baked into the image — pass empty overlayData so the
         // viewer doesn't double-render them on top of the captured PNG. Videos
-        // still rely on overlay metadata since they cannot be baked.
-        const overlayData = isVideo ? overlays.map((o) => ({ text: o.text })) : [];
+        // on native still rely on overlay metadata since they cannot be baked
+        // — pass FULL position info so the viewer renders text exactly where
+        // the user placed it (not stacked at fixed Y positions).
+        const overlayData = isVideo
+          ? overlays.map((o) => ({
+              text: o.text,
+              x: o.x,
+              y: o.y,
+              scale: o.scale,
+              rotation: o.rotation,
+              highlight: o.highlight,
+              align: o.align,
+            }))
+          : [];
         await addStory(
           finalUri,
           bakedMediaType === "none" ? "image" : (bakedMediaType as "image" | "video"),

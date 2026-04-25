@@ -4,14 +4,23 @@ import { router, usePathname } from "expo-router";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useRef } from "react";
 import {
-  Animated,
   Dimensions,
   Image,
-  PanResponder,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import Animated, {
+  Easing,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 import { useApp } from "@/context/AppContext";
 
@@ -19,6 +28,12 @@ const { width: SW, height: SH } = Dimensions.get("window");
 const BTN_SIZE = 60;
 const WIDGET_W = 90;
 const WIDGET_H = 110;
+
+// Margins keep the widget away from edges/header/tab bar so it never overlaps
+// system UI when we clamp on release.
+const EDGE_MARGIN_X = 8;
+const EDGE_MARGIN_TOP = 60;
+const EDGE_MARGIN_BOTTOM = 60;
 
 export function FloatingRoomWidget() {
   const {
@@ -33,195 +48,173 @@ export function FloatingRoomWidget() {
 
   const pathname = usePathname();
 
-  const scaleAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const glowAnim  = useRef(new Animated.Value(0)).current;
-
   const START_X = SW - WIDGET_W - 12;
   const START_Y = SH - 220;
 
-  // Restore last persisted position if available, otherwise use the default
-  // anchor in the bottom-right corner. This survives navigation because the
-  // position is held in AppContext (not local state).
   const initialX = floatingRoomPos?.x ?? START_X;
   const initialY = floatingRoomPos?.y ?? START_Y;
 
-  const posX     = useRef(new Animated.Value(initialX)).current;
-  const posY     = useRef(new Animated.Value(initialY)).current;
-  const lastPos  = useRef({ x: initialX, y: initialY });
-  const isDragging = useRef(false);
+  // ── REANIMATED SHARED VALUES (live on UI thread, no JS bridge per frame) ──
+  // x/y track the current widget position. start{X,Y} snapshot the position
+  // at gesture begin so onUpdate can write absolute positions cheaply. The
+  // dragging flag distinguishes a tap from a pan inside the gesture worklet.
+  const x = useSharedValue(initialX);
+  const y = useSharedValue(initialY);
+  const startX = useSharedValue(initialX);
+  const startY = useSharedValue(initialY);
+  const dragging = useSharedValue(false);
 
-  // Stable ref to the persistence setter so the PanResponder closure stays fresh.
+  const scale = useSharedValue(0);
+  const pulse = useSharedValue(1);
+  const glow = useSharedValue(0);
+
+  // Refs that the gesture worklet calls into via runOnJS — kept fresh by
+  // useEffect so the worklet always sees the latest functions / room id.
   const persistPosRef = useRef(setFloatingRoomPos);
-  useEffect(() => { persistPosRef.current = setFloatingRoomPos; }, [setFloatingRoomPos]);
-
-  /*
-   * Keep a ref that always holds the latest minimizedRoomId.
-   * The PanResponder is created once (via useRef), so its callbacks would
-   * otherwise capture a stale closure where minimizedRoomId is null.
-   * Reading from this ref inside onPanResponderRelease ensures we always
-   * navigate to the correct room.
-   */
   const roomIdRef = useRef<string | null>(minimizedRoomId);
-  useEffect(() => {
-    roomIdRef.current = minimizedRoomId;
-  }, [minimizedRoomId]);
-
-  /*
-   * Same pattern for expandRoom — keep a stable ref so the PanResponder
-   * always calls the latest version of the function.
-   */
   const expandRoomRef = useRef(expandRoom);
-  useEffect(() => {
-    expandRoomRef.current = expandRoom;
-  }, [expandRoom]);
+  useEffect(() => { persistPosRef.current = setFloatingRoomPos; }, [setFloatingRoomPos]);
+  useEffect(() => { roomIdRef.current = minimizedRoomId; }, [minimizedRoomId]);
+  useEffect(() => { expandRoomRef.current = expandRoom; }, [expandRoom]);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder:  () => true,
+  // JS-thread helpers invoked from worklets via runOnJS.
+  const persistPos = (nx: number, ny: number) => {
+    persistPosRef.current({ x: nx, y: ny });
+  };
+  const handleTap = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const targetRoomId = roomIdRef.current;
+    if (!targetRoomId) return;
+    expandRoomRef.current();
+    router.push(`/room/${targetRoomId}` as any);
+  };
 
-      onPanResponderGrant: () => {
-        isDragging.current = false;
-        posX.setOffset(lastPos.current.x);
-        posY.setOffset(lastPos.current.y);
-        posX.setValue(0);
-        posY.setValue(0);
-      },
-
-      onPanResponderMove: (_, g) => {
-        if (Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5) isDragging.current = true;
-        posX.setValue(g.dx);
-        posY.setValue(g.dy);
-      },
-
-      onPanResponderRelease: (_, g) => {
-        posX.flattenOffset();
-        posY.flattenOffset();
-
-        const rawX    = lastPos.current.x + g.dx;
-        const rawY    = lastPos.current.y + g.dy;
-        const clampedX = Math.max(8, Math.min(SW - WIDGET_W - 8, rawX));
-        const clampedY = Math.max(60, Math.min(SH - WIDGET_H - 60, rawY));
-
-        lastPos.current = { x: clampedX, y: clampedY };
-        posX.setValue(clampedX);
-        posY.setValue(clampedY);
-        // Persist so the widget reappears at the same spot after navigation
-        // (the widget mounts once at the root, but its initial pos comes from
-        // context — saving here keeps that source of truth in sync).
-        persistPosRef.current({ x: clampedX, y: clampedY });
-
-        if (!isDragging.current) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-          const targetRoomId = roomIdRef.current;
-          if (!targetRoomId) return;
-
-          expandRoomRef.current();
-          router.push(`/room/${targetRoomId}` as any);
-        }
-      },
+  // ── GESTURES (worklets — run entirely on the UI thread) ──
+  // Pan: 1:1 finger tracking. We write absolute positions to x/y so the
+  // animated style picks them up directly without any layout pass on the JS
+  // side. On release we clamp inside the screen and persist.
+  const pan = Gesture.Pan()
+    .minDistance(2)
+    .onStart(() => {
+      'worklet';
+      startX.value = x.value;
+      startY.value = y.value;
+      dragging.value = true;
     })
-  ).current;
+    .onUpdate((e) => {
+      'worklet';
+      x.value = startX.value + e.translationX;
+      y.value = startY.value + e.translationY;
+    })
+    .onEnd(() => {
+      'worklet';
+      const clampedX = Math.max(EDGE_MARGIN_X, Math.min(SW - WIDGET_W - EDGE_MARGIN_X, x.value));
+      const clampedY = Math.max(EDGE_MARGIN_TOP, Math.min(SH - WIDGET_H - EDGE_MARGIN_BOTTOM, y.value));
+      // Spring snap to the clamped final position for a polished feel.
+      x.value = withSpring(clampedX, { damping: 18, stiffness: 220, mass: 0.7 });
+      y.value = withSpring(clampedY, { damping: 18, stiffness: 220, mass: 0.7 });
+      dragging.value = false;
+      runOnJS(persistPos)(clampedX, clampedY);
+    });
 
+  // Tap: only fires when not dragging. Race with pan so the first one wins.
+  const tap = Gesture.Tap()
+    .maxDuration(250)
+    .onEnd((_e, success) => {
+      'worklet';
+      if (success && !dragging.value) {
+        runOnJS(handleTap)();
+      }
+    });
+
+  const composed = Gesture.Race(tap, pan);
+
+  // ── Animated styles (read shared values directly on UI thread) ──
+  const containerStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: x.value },
+      { translateY: y.value },
+      { scale: scale.value },
+    ],
+  }));
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }],
+  }));
+
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: 0.4 + glow.value * 0.5,
+    transform: [{ scale: pulse.value }],
+  }));
+
+  // ── Lifecycle: drive entrance/exit + pulse/glow loops via worklets ──
   useEffect(() => {
     if (isRoomMinimized) {
-      // Do NOT reset position here — that would teleport the widget back to
-      // the bottom-right anchor every time the user re-minimizes a room.
-      // The position lives in AppContext (floatingRoomPos) and is restored
-      // at mount via initialX/initialY above.
-
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 60,
-        friction: 8,
-      }).start();
-
-      const pulse = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.08, duration: 900, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1,    duration: 900, useNativeDriver: true }),
-        ])
+      scale.value = withSpring(1, { damping: 14, stiffness: 180 });
+      pulse.value = withRepeat(
+        withSequence(
+          withTiming(1.08, { duration: 900, easing: Easing.inOut(Easing.quad) }),
+          withTiming(1, { duration: 900, easing: Easing.inOut(Easing.quad) }),
+        ),
+        -1,
+        false,
       );
-      pulse.start();
-
-      const glow = Animated.loop(
-        Animated.sequence([
-          Animated.timing(glowAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
-          Animated.timing(glowAnim, { toValue: 0, duration: 1200, useNativeDriver: true }),
-        ])
+      glow.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.quad) }),
+          withTiming(0, { duration: 1200, easing: Easing.inOut(Easing.quad) }),
+        ),
+        -1,
+        false,
       );
-      glow.start();
-
-      return () => { pulse.stop(); glow.stop(); };
     } else {
-      Animated.timing(scaleAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+      scale.value = withTiming(0, { duration: 200 });
     }
   }, [isRoomMinimized]);
 
-  /*
-   * Visibility rules:
-   *  1. Widget is not minimized  → hide
-   *  2. No room ID stored        → hide
-   *  3. User is already viewing the room screen for this room → hide
-   */
+  // Visibility rules
   const isOnRoomScreen = minimizedRoomId
     ? pathname === `/room/${minimizedRoomId}`
     : false;
 
   if (!isRoomMinimized || !minimizedRoomId || isOnRoomScreen) return null;
 
-  const glowOpacity = glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] });
-
   return (
-    <Animated.View
-      {...panResponder.panHandlers}
-      style={[
-        styles.container,
-        {
-          left: posX,
-          top:  posY,
-          transform: [{ scale: scaleAnim }],
-        },
-      ]}
-    >
-      <Animated.View
-        style={[
-          styles.glowRing,
-          { opacity: glowOpacity, transform: [{ scale: pulseAnim }] },
-        ]}
-      />
+    <GestureDetector gesture={composed}>
+      <Animated.View style={[styles.container, containerStyle]}>
+        <Animated.View style={[styles.glowRing, glowStyle]} />
 
-      <Animated.View style={[styles.btn, { transform: [{ scale: pulseAnim }] }]}>
-        <LinearGradient colors={["#6366F1", "#4F46E5"]} style={styles.btnGradient}>
-          {minimizedRoomImage ? (
-            <Image source={{ uri: minimizedRoomImage }} style={styles.roomImg} />
-          ) : (
-            <Text style={styles.micIcon}>🎙️</Text>
-          )}
-        </LinearGradient>
+        <Animated.View style={[styles.btn, pulseStyle]}>
+          <LinearGradient colors={["#6366F1", "#4F46E5"]} style={styles.btnGradient}>
+            {minimizedRoomImage ? (
+              <Image source={{ uri: minimizedRoomImage }} style={styles.roomImg} />
+            ) : (
+              <Text style={styles.micIcon}>🎙️</Text>
+            )}
+          </LinearGradient>
 
-        <View style={styles.liveBadge}>
-          <View style={styles.liveDot} />
-          <Text style={styles.liveText}>مباشر</Text>
+          <View style={styles.liveBadge}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>مباشر</Text>
+          </View>
+        </Animated.View>
+
+        <View style={styles.tooltip}>
+          <Ionicons name="mic" size={10} color="#6366F1" />
+          <Text style={styles.tooltipText} numberOfLines={1}>
+            {minimizedRoomName || "الغرفة"}
+          </Text>
         </View>
       </Animated.View>
-
-      <View style={styles.tooltip}>
-        <Ionicons name="mic" size={10} color="#6366F1" />
-        <Text style={styles.tooltipText} numberOfLines={1}>
-          {minimizedRoomName || "الغرفة"}
-        </Text>
-      </View>
-    </Animated.View>
+    </GestureDetector>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
+    top: 0,
+    left: 0,
     zIndex: 9999,
     elevation: 9999,
     alignItems: "center",

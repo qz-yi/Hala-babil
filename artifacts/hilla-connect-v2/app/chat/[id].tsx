@@ -136,15 +136,19 @@ function SharedContentPreview({
   };
 
   const handleTap = () => {
+    // Use router.navigate (NOT push) so tapping a shared post/reel/story
+    // unwinds back to its existing screen if one is already in the stack
+    // instead of layering a duplicate "new copy" on top. For reels this
+    // reuses the reels tab and just updates the deep-link param.
     if (sharedContent.type === "post") {
-      router.push(`/post/${sharedContent.id}` as any);
+      router.navigate(`/post/${sharedContent.id}` as any);
     } else if (sharedContent.type === "reel") {
       // Deep link directly to the specific reel so the screen scrolls to it
-      router.push(`/(tabs)/reels?reelId=${sharedContent.id}` as any);
+      router.navigate(`/(tabs)/reels?reelId=${sharedContent.id}` as any);
     } else if (sharedContent.type === "story") {
       const story = stories.find((s) => s.id === sharedContent.id);
       if (story && story.expiresAt > Date.now()) {
-        router.push(`/story/${story.creatorId}?storyId=${story.id}` as any);
+        router.navigate(`/story/${story.creatorId}?storyId=${story.id}` as any);
       }
     }
   };

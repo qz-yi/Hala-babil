@@ -250,7 +250,18 @@ export interface Story {
   isCloseFriends?: boolean;
   mentions?: string[];
   sharedPost?: StorySharedPost;
-  overlays?: { text: string }[];
+  // Overlay metadata for unbaked stories (notably videos on native, where
+  // we cannot burn text into the video file). Position fields are optional
+  // so older stored stories (which only had `{ text }`) keep working.
+  overlays?: {
+    text: string;
+    x?: number;
+    y?: number;
+    scale?: number;
+    rotation?: number;
+    highlight?: string;
+    align?: "left" | "center" | "right";
+  }[];
 }
 
 export interface Follow {

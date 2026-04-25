@@ -1,0 +1,34 @@
+أنت الآن Senior UI/UX Architect و Lead Frontend Developer. هدفك هو بناء نظام ثيمات متطور (Theme Engine) يتجاوز "Light/Dark" التقليدي، مع التركيز على الأداء العالي (60fps) وتجربة مستخدم فاخرة (Pixel Perfect).
+​المطلوب الأول: إعادة هيكلة الـ Theme Provider:
+​التحكم: استبدل الـ Toggle الحالي بـ ThemePicker احترافي (Bottom Sheet) يحتوي على أيقونات ومعاينة لكل ثيم.
+​إدارة الحالة: أنشئ نظام Context مركزي لإدارة الـ activeTheme وضمان حفظ خيار المستخدم في الـ Local Storage أو AsyncStorage.
+​الديناميكية: ممنوع استخدام ألوان صلبة (Hardcoded)؛ يجب تحويل كافة الألوان في التطبيق إلى Dynamic Variables (مثل CSS Variables أو StyleSheet مركزي).
+​المطلوب الثاني: تنفيذ المودات بدقة تقنية:
+​Dynamic Theme (Material You):
+​استخرج الألوان الأساسية من "صورة المستخدم" باستخدام مكتبة (Vibrant/ColorThief).
+​قم بتوليد لوحة ألوان متناسقة (Primary, Accent, Background).
+​قاعدة ذهبية: يجب وجود Fallback (ثيم افتراضي أنيق) في حال كانت الصورة غير صالحة أو الألوان باهتة لضمان مقروئية النص.
+​Color Themes (Presets):
+​Neon: خلفية سوداء OLED (#000000) مع Border ونصوص بـ Glow Effect (Cyan/Pink).
+​Blue Ocean: تدرجات Deep Blue مع نصوص ثلجية.
+​Gold Luxury: خلفية Matte Black مع تفاصيل بـ (Golden Gradient/Matte Gold).
+​Purple Night: بنفسجي غامق جداً مع لمسات Lavender نيون.
+​Red Hacker: خلفية سوداء، نصوص Monospace خضراء، وأزرار حمراء حادة.
+​Cinematic Mode (Premium):
+​تطبيق Backdrop Blur مكثف على القوائم.
+​استخدام ظلال (Soft Shadows) عميقة جداً وزوايا منحنية (Border Radius) أكبر.
+​انتقالات الشاشات يجب أن تكون بنمط (Slow Ease-in-out).
+​Transparent / Glass Mode:
+​تطبيق تأثير Glassmorphism باستخدام BlurView أو Saturation متوازن.
+​الأداء: طبق هذا المود فقط على الـ Header والـ Tab Bar لضمان عدم تعليق الواجهة.
+​Motion Mode (Living UI):
+​إضافة تأثير Parallax عند التفاعل أو السحب.
+​استخدام Native Driver للحركات لضمان عدم استهلاك البطارية.
+​تفعيل Micro-interactions (ردود فعل حركية عند الضغط).
+​Creator Mode:
+​رفع التباين (Contrast) لخدمة صناع المحتوى.
+​تصغير العناصر الهامشية لتركيز العين على الصور والفيديوهات.
+​التعليمات التقنية الصارمة (Technical Constraints):
+​Performance: استخدم Memoization لمنع الـ Re-renders غير الضرورية عند تغيير الثيم.
+​No Flicker: تأكد من أن الانتقال بين المودات سلس ولا يسبب وميضاً أبيض (Flicker).
+​Scalability: يجب أن يكون الكود منظماً بحيث يسهل إضافة ثيم سابع أو ثامن مستقبلاً.

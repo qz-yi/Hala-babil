@@ -13,7 +13,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -21,11 +20,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import Colors, { ACCENT_COLORS, STORY_GRADIENT_COLORS } from "@/constants/colors";
+import Colors, { ACCENT_COLORS, STORY_GRADIENT_COLORS, THEME_LABELS_AR } from "@/constants/colors";
 import { useApp, isUserVerified } from "@/context/AppContext";
-import type { AccountType, Post, Reel } from "@/context/AppContext";
+import type { AccountType, Post, Reel, Theme } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 import { VerifiedBadge, VerifiedAvatarFrame } from "@/components/VerifiedBadge";
+import { ThemePicker } from "@/components/ThemePicker";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_ITEM_SIZE = (SCREEN_WIDTH - 3) / 3;
@@ -141,7 +141,7 @@ function ProfileDrawer({
 }) {
   const {
     t,
-    toggleTheme,
+    setThemeId,
     setLanguage,
     getFollowRequests,
     acceptFollowRequest,
@@ -158,6 +158,7 @@ function ProfileDrawer({
   const isExpired = currentUser?.verifiedUntil && !verified;
   const MANAGER_WHATSAPP = "07719820537";
   const [page, setPage] = useState<DrawerPage>("settings");
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
   const followRequests = getFollowRequests();
   const likedReels = getLikedReels();
   const myPostComments = getMyPostComments();
@@ -202,18 +203,19 @@ function ProfileDrawer({
                 <Feather name="chevron-right" size={16} color={colors.textSecondary} strokeWidth={1.5} />
               </TouchableOpacity>
 
-              <View style={[styles.drawerItem, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+              <TouchableOpacity
+                onPress={() => setThemePickerOpen(true)}
+                style={[styles.drawerItem, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
+              >
                 <View style={[styles.drawerItemIcon, { backgroundColor: "#3D91F422" }]}>
-                  <Feather name={theme === "dark" ? "moon" : "sun"} size={18} color="#3D91F4" strokeWidth={1.5} />
+                  <Feather name="droplet" size={18} color="#3D91F4" strokeWidth={1.5} />
                 </View>
-                <Text style={[styles.drawerItemText, { color: colors.text }]}>{theme === "dark" ? t("darkMode") : t("lightMode")}</Text>
-                <Switch
-                  value={theme === "dark"}
-                  onValueChange={toggleTheme}
-                  trackColor={{ false: "#333", true: "#3D91F4" }}
-                  thumbColor="#fff"
-                />
-              </View>
+                <Text style={[styles.drawerItemText, { color: colors.text }]}>المظهر</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 13, fontFamily: "Inter_600SemiBold", marginRight: 6 }}>
+                  {THEME_LABELS_AR[theme as Theme] ?? theme}
+                </Text>
+                <Feather name="chevron-right" size={16} color={colors.textSecondary} strokeWidth={1.5} />
+              </TouchableOpacity>
 
               <View style={[styles.drawerItem, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
                 <View style={[styles.drawerItemIcon, { backgroundColor: "#34D39922" }]}>
@@ -407,6 +409,17 @@ function ProfileDrawer({
           )}
         </ScrollView>
       </View>
+
+      {/* Theme picker — sits inside the drawer Modal so it stacks above it */}
+      <ThemePicker
+        visible={themePickerOpen}
+        activeTheme={theme as Theme}
+        onSelect={(id) => {
+          setThemeId(id);
+          setThemePickerOpen(false);
+        }}
+        onClose={() => setThemePickerOpen(false)}
+      />
     </Modal>
   );
 }

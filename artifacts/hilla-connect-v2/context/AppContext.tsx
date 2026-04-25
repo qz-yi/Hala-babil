@@ -10,7 +10,12 @@ import React, {
 import { router } from "expo-router";
 
 export type Language = "ar" | "en";
-export type Theme = "light" | "dark";
+// Theme is now any of the IDs declared in `constants/colors.ts` (light, dark,
+// neon, blueOcean, goldLuxury, purpleNight, redHacker, cinematic, glass,
+// motion, creator). Adding a new palette there automatically extends this
+// union — no code changes required here.
+import type { ThemeId } from "@/constants/colors";
+export type Theme = ThemeId;
 export type ReelFilter = "none" | "grayscale" | "warm" | "cool" | "vintage";
 export type AccountType = "public" | "private";
 export type PostFilter = "none" | "grayscale" | "warm" | "cool" | "vintage";
@@ -297,6 +302,7 @@ interface AppContextValue {
   setLanguage: (lang: Language) => void;
   theme: Theme;
   toggleTheme: () => void;
+  setThemeId: (id: Theme) => void;
   currentUser: User | null;
   isAuthenticated: boolean;
   isSuperAdmin: boolean;
@@ -1136,11 +1142,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toggleTheme = useCallback(() => {
+    // Backward-compat: kept for any caller that still toggles a binary
+    // light/dark switch. Cycles between "light" and "dark" only — to switch
+    // to one of the new palettes (neon, goldLuxury, etc.) callers should
+    // use `setThemeId` instead.
     setTheme((prev) => {
-      const next = prev === "light" ? "dark" : "light";
+      const next: Theme = prev === "light" ? "dark" : "light";
       AsyncStorage.setItem("theme", next);
       return next;
     });
+  }, []);
+
+  const setThemeId = useCallback((id: Theme) => {
+    setTheme(id);
+    AsyncStorage.setItem("theme", id);
   }, []);
 
   const isSuperAdmin = currentUser?.phone === SUPER_ADMIN_PHONE || currentUser?.role === "MANAGER";
@@ -3567,7 +3582,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo(
     () => ({
-      language, setLanguage, theme, toggleTheme, currentUser, isAuthenticated: !!currentUser,
+      language, setLanguage, theme, toggleTheme, setThemeId, currentUser, isAuthenticated: !!currentUser,
       isSuperAdmin, isManager, isRestaurantOwner, getMyRestaurant,
       users, rooms, conversations, restaurants, reels, reelLikes, reelComments,
       posts, postLikes, postComments, stories, follows, notifications,

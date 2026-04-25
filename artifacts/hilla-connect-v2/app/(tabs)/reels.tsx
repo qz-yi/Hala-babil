@@ -233,34 +233,6 @@ function ReelPlayerItem({
         <Ionicons name="expand-outline" size={20} color="#fff" />
       </TouchableOpacity>
 
-      {/* Seek bar — sits just above the bottom meta/actions row. */}
-      <View
-        style={[styles.reelSeekRow, { bottom: insets.bottom + 78 }]}
-        pointerEvents="box-none"
-      >
-        <Text style={styles.reelSeekTime}>{fmt(currentTime)}</Text>
-        <Pressable
-          style={styles.reelSeekTrack}
-          onLayout={(e) => setSeekBarWidth(e.nativeEvent.layout.width)}
-          onPressIn={(e) => {
-            seekingRef.current = true;
-            seekTo(e.nativeEvent.locationX);
-          }}
-          onPressOut={() => {
-            seekingRef.current = false;
-          }}
-          onTouchMove={(e) => {
-            if (!seekingRef.current) return;
-            seekTo(e.nativeEvent.locationX);
-          }}
-        >
-          <View style={styles.reelSeekFill} />
-          <View style={[styles.reelSeekProgress, { width: `${progressRatio * 100}%` }]} />
-          <View style={[styles.reelSeekKnob, { left: `${progressRatio * 100}%` }]} />
-        </Pressable>
-        <Text style={styles.reelSeekTime}>{fmt(duration)}</Text>
-      </View>
-
       {/* Fullscreen modal — same player instance keeps position synced. */}
       <Modal
         visible={showFullscreen}

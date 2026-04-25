@@ -680,13 +680,20 @@ function SharePostSheet({
 }
 
 // ───── Post Video Player ─────
+// Tap the video itself to enter native fullscreen. We use expo-video's
+// imperative `enterFullscreen()` on a single VideoView instead of mounting
+// a second VideoView in a Modal. Mounting two VideoViews on the same player
+// causes the second one to render BLACK (only one VideoView can present a
+// given player at a time), and tearing the modal down was producing freeze
+// / lag from the duplicate surface lifecycle. Using the native fullscreen
+// transition on the same VideoView avoids both bugs entirely.
 function PostVideoPlayer({ uri }: { uri: string }) {
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [showFullscreen, setShowFullscreen] = useState(false);
   const [barWidth, setBarWidth] = useState(SCREEN_WIDTH - 24);
   const seekingRef = useRef(false);
+  const videoViewRef = useRef<VideoView>(null);
 
   const player = useVideoPlayer(uri, (p) => {
     p.loop = false;
@@ -724,9 +731,20 @@ function PostVideoPlayer({ uri }: { uri: string }) {
     };
   }, [player]);
 
-  const toggle = () => {
-    if (playing) player.pause();
-    else player.play();
+  const handleVideoPress = async () => {
+    // Single tap on the video itself opens native fullscreen and starts
+    // playback. expo-video presents the fullscreen overlay using the SAME
+    // VideoView, so the source/ref is guaranteed to be in sync — no black
+    // screen, no second player to tear down on exit.
+    try {
+      if (!playing) player.play();
+      await videoViewRef.current?.enterFullscreen();
+    } catch (err) {
+      console.warn("[post-video] enterFullscreen failed", err);
+      // Fallback: just toggle play if fullscreen isn't available
+      if (playing) player.pause();
+      else player.play();
+    }
   };
 
   const seekTo = (clientX: number) => {
@@ -751,12 +769,23 @@ function PostVideoPlayer({ uri }: { uri: string }) {
 
   return (
     <View style={{ position: "relative" }}>
-      <TouchableOpacity onPress={toggle} activeOpacity={0.95}>
+      <TouchableOpacity onPress={handleVideoPress} activeOpacity={0.95}>
         <VideoView
+          ref={videoViewRef}
           player={player}
           style={{ width: SCREEN_WIDTH, aspectRatio: 16 / 9, backgroundColor: "#000" }}
           contentFit="contain"
           nativeControls={false}
+          allowsFullscreen
+          onFullscreenExit={() => {
+            // When the user exits native fullscreen, pause the inline player
+            // so we don't keep audio playing in the background of the feed.
+            try {
+              player.pause();
+            } catch {
+              /* ignore */
+            }
+          }}
         />
         {!playing && (
           <View style={styles.videoPlayOverlay} pointerEvents="none">
@@ -765,15 +794,6 @@ function PostVideoPlayer({ uri }: { uri: string }) {
             </View>
           </View>
         )}
-      </TouchableOpacity>
-
-      {/* Fullscreen toggle (tap to open modal w/ native controls) */}
-      <TouchableOpacity
-        onPress={() => setShowFullscreen(true)}
-        style={styles.fsBtn}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-      >
-        <Ionicons name="expand-outline" size={18} color="#fff" />
       </TouchableOpacity>
 
       {/* Seek bar */}
@@ -800,32 +820,6 @@ function PostVideoPlayer({ uri }: { uri: string }) {
         </Pressable>
         <Text style={styles.seekTime}>{fmt(duration)}</Text>
       </View>
-
-      {/* Fullscreen modal — mounts a separate VideoView with native controls
-          on the SAME player instance so playback position is shared. */}
-      <Modal
-        visible={showFullscreen}
-        animationType="fade"
-        onRequestClose={() => setShowFullscreen(false)}
-        supportedOrientations={["portrait", "landscape"]}
-      >
-        <View style={styles.fsModal}>
-          <VideoView
-            player={player}
-            style={{ flex: 1, backgroundColor: "#000" }}
-            contentFit="contain"
-            nativeControls
-            allowsFullscreen
-          />
-          <TouchableOpacity
-            onPress={() => setShowFullscreen(false)}
-            style={styles.fsCloseBtn}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Ionicons name="close" size={28} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -1592,17 +1586,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingLeft: 4,
   },
-  fsBtn: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
   seekRow: {
     position: "absolute",
     left: 8,
@@ -1650,20 +1633,5 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: "#fff",
     marginLeft: -5,
-  },
-  fsModal: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  fsCloseBtn: {
-    position: "absolute",
-    top: 40,
-    right: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

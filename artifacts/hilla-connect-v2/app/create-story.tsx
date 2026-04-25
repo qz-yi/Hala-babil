@@ -1688,11 +1688,10 @@ export default function CreateStoryScreen() {
         !!sharedPost && sharedPost.mediaType === "video" && !!sharedPost.mediaUrl;
       const sharedIsImage =
         !!sharedPost && sharedPost.mediaType === "image" && !!sharedPost.mediaUrl;
+      const sharedIsTextOnly = !!sharedPost && !sharedPost.mediaUrl;
       // Legacy alias preserved so logs/comments referencing reel reposts
       // still make sense — the behavior is now symmetric for any shared video.
       const isReelRepost = sharedIsVideo;
-      const hasUserEdits = overlays.length > 0 || selectedFilter !== "none";
-      const canForwardSharedImage = !mediaUri && sharedIsImage && !hasUserEdits;
 
       const isVideo = (mediaUri && mediaType === "video") || sharedIsVideo;
       let finalUri = mediaUri || sharedPost?.mediaUrl || textBgImage || "";
@@ -1704,16 +1703,37 @@ export default function CreateStoryScreen() {
             ? "image"
             : (textBgImage || overlays.length > 0 ? "image" : "none");
 
+      // ─ FORWARD-ALWAYS RULE FOR RE-SHARES ────────────────────────────────
+      // Any time the user is re-sharing existing content (post / reel /
+      // story — including stories where they were mentioned), we DO NOT try
+      // to bake the canvas through ViewShot. Two reasons:
+      //   1. ViewShot routinely captures `expo-linear-gradient` and remote
+      //      `<Image>` content as solid black on Android, which is the
+      //      "black story" symptom the user reported.
+      //   2. The story viewer ALREADY renders `currentStory.sharedPost` as
+      //      a tap-through sticker on top of the background. So forwarding
+      //      the original media URL (or none, for text-only reposts) gives
+      //      the viewer everything it needs to render the original content
+      //      faithfully — image, video, or text-with-sticker.
+      // The price is that user-added overlays / filters don't get burned
+      // into the re-shared media. That is a deliberate, safe trade.
       if (sharedIsVideo) {
-        // Always forward the original video URL — never try to bake video
-        // through ViewShot (it would silently produce a black PNG).
+        // Forward the original video URL — never try to bake video through
+        // ViewShot (it would silently produce a black PNG).
         finalUri = sharedPost!.mediaUrl!;
         bakedMediaType = "video";
-      } else if (canForwardSharedImage) {
-        // No editing on a shared image → store the original URL. Viewer
-        // renders the real image itself (with its own load state).
+      } else if (sharedIsImage) {
+        // Forward the original image URL directly. Viewer renders the real
+        // image itself (with its own load state) so it never goes black.
         finalUri = sharedPost!.mediaUrl!;
         bakedMediaType = "image";
+      } else if (sharedIsTextOnly) {
+        // Re-sharing a text-only post (or a story / mention with no media):
+        // publish a story with no media. The viewer falls back to the
+        // accent gradient + sharedPost sticker, so the original post
+        // attribution is preserved instead of a black canvas.
+        finalUri = "";
+        bakedMediaType = "none";
       } else if (!isVideo) {
         // Hide the active selection chrome before capturing (handles/borders
         // are gated on `active`, so this prevents them from leaking into the
@@ -1804,7 +1824,12 @@ export default function CreateStoryScreen() {
       // publish and tell the user — they can always retry.
       const isPureTextStory =
         editorMode === "story" && bakedMediaType === "none" && overlays.length > 0;
-      if (!isPureTextStory && !finalUri) {
+      // Re-sharing a text-only post / mention story produces an empty
+      // finalUri on purpose — the viewer will render the accent gradient
+      // plus the sharedPost sticker, so this is NOT a black-story bug.
+      const isSharedTextRepost =
+        editorMode === "story" && sharedIsTextOnly && bakedMediaType === "none";
+      if (!isPureTextStory && !isSharedTextRepost && !finalUri) {
         throw new Error("لا توجد وسائط للنشر");
       }
 

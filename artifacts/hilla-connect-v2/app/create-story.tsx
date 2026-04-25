@@ -1361,11 +1361,25 @@ export default function CreateStoryScreen() {
   }, []);
 
   // ─ Shared post (repost) — full-screen sticker
+  // mediaType is the SOURCE OF TRUTH for picking <VideoView> vs <Image> at
+  // both edit time and viewer time. We default reels to "video" and posts
+  // to "image"; stories must always pass an explicit `sharedMediaType` from
+  // the caller (the share-to-my-story handler in StoryViewer).
+  const sharedMediaType: "image" | "video" =
+    params.sharedMediaType === "video"
+      ? "video"
+      : params.sharedMediaType === "image"
+        ? "image"
+        : params.sharedType === "reel"
+          ? "video"
+          : "image";
+
   const sharedPost = params.sharedId
     ? {
         id: params.sharedId,
         type: (params.sharedType as "post" | "reel" | "story") || "post",
         mediaUrl: params.sharedMediaUrl,
+        mediaType: sharedMediaType,
         caption: params.sharedCaption,
         creatorName: params.sharedCreatorName,
         creatorId: params.sharedCreatorId,
@@ -1659,34 +1673,47 @@ export default function CreateStoryScreen() {
       // For videos we keep the original URI (no client-side video processing).
       //
       // SHARED CONTENT FAST PATH (root cause of "black story" bug):
-      //   When the user re-shares a post / story / reel and adds NO edits
-      //   (no overlays, default filter, no crop), we MUST forward the
-      //   original mediaUrl directly instead of baking. ViewShot snapshots
-      //   pixels at the moment of capture; remote `<Image>` sources are
-      //   asynchronously decoded and frequently haven't painted yet, so the
-      //   capture would otherwise produce a transparent/black PNG that we
-      //   then store as the story's permanent media. Reels already use this
-      //   fast path. Now posts and stories use it too.
-      const isReelRepost = !mediaUri && sharedPost?.type === "reel" && !!sharedPost.mediaUrl;
+      //   When the user re-shares a post / story / reel we treat the shared
+      //   media as a first-class source. Two rules:
+      //     (1) If the shared media is VIDEO (reel, or a video story), we
+      //         NEVER bake — videos can't be captured with ViewShot at all.
+      //         We forward the original video URL and store overlays as
+      //         metadata so the viewer can render them on top.
+      //     (2) If the shared media is IMAGE and the user added no edits
+      //         (no overlays, default filter), we forward the original URL.
+      //         Otherwise we bake the canvas to PNG, but only AFTER making
+      //         sure the remote image is fully decoded (Image.prefetch +
+      //         a frame) so the snapshot doesn't capture a black/empty bg.
+      const sharedIsVideo =
+        !!sharedPost && sharedPost.mediaType === "video" && !!sharedPost.mediaUrl;
+      const sharedIsImage =
+        !!sharedPost && sharedPost.mediaType === "image" && !!sharedPost.mediaUrl;
+      // Legacy alias preserved so logs/comments referencing reel reposts
+      // still make sense — the behavior is now symmetric for any shared video.
+      const isReelRepost = sharedIsVideo;
       const hasUserEdits = overlays.length > 0 || selectedFilter !== "none";
-      const canForwardSharedMedia =
-        !mediaUri &&
-        !!sharedPost?.mediaUrl &&
-        !hasUserEdits;
+      const canForwardSharedImage = !mediaUri && sharedIsImage && !hasUserEdits;
 
-      const isVideo = (mediaUri && mediaType === "video") || isReelRepost;
+      const isVideo = (mediaUri && mediaType === "video") || sharedIsVideo;
       let finalUri = mediaUri || sharedPost?.mediaUrl || textBgImage || "";
       let bakedMediaType: "image" | "video" | "none" = mediaUri
         ? mediaType
-        : isReelRepost
+        : sharedIsVideo
           ? "video"
-          : (textBgImage || overlays.length > 0 ? "image" : "none");
+          : sharedIsImage
+            ? "image"
+            : (textBgImage || overlays.length > 0 ? "image" : "none");
 
-      if (canForwardSharedMedia) {
-        // No editing → just store the original URL. Viewer renders the real
-        // image/video itself (with its own load state), so no black flash.
+      if (sharedIsVideo) {
+        // Always forward the original video URL — never try to bake video
+        // through ViewShot (it would silently produce a black PNG).
         finalUri = sharedPost!.mediaUrl!;
-        bakedMediaType = sharedPost!.type === "reel" ? "video" : "image";
+        bakedMediaType = "video";
+      } else if (canForwardSharedImage) {
+        // No editing on a shared image → store the original URL. Viewer
+        // renders the real image itself (with its own load state).
+        finalUri = sharedPost!.mediaUrl!;
+        bakedMediaType = "image";
       } else if (!isVideo) {
         // Hide the active selection chrome before capturing (handles/borders
         // are gated on `active`, so this prevents them from leaking into the
@@ -1727,7 +1754,7 @@ export default function CreateStoryScreen() {
             // Final safety net: shared content with edits where capture failed
             // — fall back to the original URL so we never publish black.
             finalUri = sharedPost.mediaUrl;
-            bakedMediaType = sharedPost.type === "reel" ? "video" : "image";
+            bakedMediaType = sharedPost.mediaType === "video" ? "video" : "image";
           } else {
             throw new Error("فشل تجهيز الصورة، حاول مجدداً");
           }
@@ -1768,6 +1795,18 @@ export default function CreateStoryScreen() {
       }
 
       const mentionsArray = parsedMentionUsers.map((u) => u.id);
+
+      // ── HARD GUARD: never publish empty media. ─────────────────────────
+      // The viewer falls back to a black/gradient background whenever
+      // mediaUrl is empty, which is exactly what the user reports as the
+      // "black story" symptom. If we somehow reached this point with no
+      // URI (e.g. canvas was blank AND there's no shared media), refuse to
+      // publish and tell the user — they can always retry.
+      const isPureTextStory =
+        editorMode === "story" && bakedMediaType === "none" && overlays.length > 0;
+      if (!isPureTextStory && !finalUri) {
+        throw new Error("لا توجد وسائط للنشر");
+      }
 
       // ─ Stage 2: PUBLISH or FINALIZE ─────────────────────────────────────
       if (cfg.needsFinalize) {
@@ -1882,14 +1921,20 @@ export default function CreateStoryScreen() {
           // The published story re-uses the original reel video URL directly
           // (see handlePublish), so the viewer plays the real video.
           <>
-            {sharedPost.mediaUrl && sharedPost.type !== "reel" ? (
+            {/* Decide background by mediaType, not by `type`. A shared video
+                story (or a reel) MUST render a placeholder gradient inside
+                ViewShot — videos can't be captured by ViewShot at all and
+                trying to <Image> a video URL would just show a black box.
+                The live <VideoPreview> is rendered ABOVE the ViewShot tree
+                below so the user actually sees what they're sharing. */}
+            {sharedPost.mediaType === "video" && sharedPost.mediaUrl ? (
+              <LinearGradient colors={["#1a0533", "#3b0764", "#4c1d95"]} style={StyleSheet.absoluteFill} />
+            ) : sharedPost.mediaUrl ? (
               <Image
                 source={{ uri: sharedPost.mediaUrl }}
                 style={[StyleSheet.absoluteFill, webFilterCss(selectedFilter)]}
                 resizeMode="cover"
               />
-            ) : sharedPost.type === "reel" ? (
-              <LinearGradient colors={["#1a0533", "#3b0764", "#4c1d95"]} style={StyleSheet.absoluteFill} />
             ) : (
               <LinearGradient colors={TEXT_BACKGROUNDS[textBgIdx].colors} style={StyleSheet.absoluteFill} />
             )}
@@ -1935,12 +1980,12 @@ export default function CreateStoryScreen() {
         </ViewShot>
         {/* End of bakeable canvas */}
 
-        {/* ════════ Live preview overlay for shared reels ════════ */}
+        {/* ════════ Live preview overlay for ANY shared video ════════ */}
         {/* Rendered OUTSIDE ViewShot (above the gradient placeholder) so the */}
-        {/* user can actually see the reel they're sharing. ViewShot still     */}
-        {/* captures only the gradient + overlays — the published story uses   */}
-        {/* the original reel video URL as its main media (see handlePublish). */}
-        {hasShared && sharedPost?.type === "reel" && sharedPost.mediaUrl && (
+        {/* user can actually see the reel / video story they're sharing.    */}
+        {/* ViewShot still captures only the gradient + overlays — the       */}
+        {/* published story re-uses the original video URL as its main media. */}
+        {hasShared && sharedPost?.mediaType === "video" && sharedPost.mediaUrl && (
           <View
             pointerEvents="none"
             style={StyleSheet.absoluteFill}

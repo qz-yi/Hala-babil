@@ -394,6 +394,11 @@ export default function StoryViewerScreen() {
         sharedId: currentStory.id,
         originalStoryId: chainedOriginalStoryId,
         sharedMediaUrl: currentStory.mediaUrl,
+        // CRITICAL: forward the actual media kind so the editor and viewer
+        // know whether to use <VideoView> or <Image>. Without this, a video
+        // story re-shared to "my story" would default to "image" and either
+        // appear as a black/static frame or fail to render entirely.
+        sharedMediaType: currentStory.mediaType,
         sharedCaption: currentStory.caption || "",
         sharedCreatorName: user?.username || user?.name || "",
         sharedCreatorId: userId,

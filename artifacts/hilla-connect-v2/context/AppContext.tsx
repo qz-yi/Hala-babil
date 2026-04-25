@@ -230,6 +230,10 @@ export interface StorySharedPost {
   id: string;
   type: "post" | "reel" | "story";
   mediaUrl?: string;
+  // Explicit kind of the underlying media so re-shared content (especially
+  // video stories or reels) renders with the right component (<VideoView>
+  // vs <Image>) instead of guessing from `type` alone.
+  mediaType?: "image" | "video";
   caption?: string;
   creatorName?: string;
   creatorId?: string;

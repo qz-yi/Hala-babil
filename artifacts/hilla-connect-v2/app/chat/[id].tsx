@@ -141,7 +141,11 @@ function SharedContentPreview({
     // instead of layering a duplicate "new copy" on top. For reels this
     // reuses the reels tab and just updates the deep-link param.
     if (sharedContent.type === "post") {
-      router.navigate(`/post/${sharedContent.id}` as any);
+      // Deep link to the home feed and scroll to the original post in place
+      // instead of opening a separate /post/X screen. This matches the user's
+      // expectation that tapping a shared post in chat focuses it inside the
+      // existing feed (Instagram/TikTok behavior).
+      router.navigate(`/(tabs)/?postId=${sharedContent.id}` as any);
     } else if (sharedContent.type === "reel") {
       // Deep link directly to the specific reel so the screen scrolls to it
       router.navigate(`/(tabs)/reels?reelId=${sharedContent.id}` as any);

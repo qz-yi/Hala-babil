@@ -124,9 +124,15 @@ function ReelPlayerItem({
   insets: any;
 }) {
   const [paused, setPaused] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [showFullscreen, setShowFullscreen] = useState(false);
+  const [seekBarWidth, setSeekBarWidth] = useState(1);
+  const seekingRef = useRef(false);
 
   const player = useVideoPlayer(reel.videoUrl, (p) => {
     p.loop = true;
+    p.timeUpdateEventInterval = 0.25;
     if (isActive) p.play();
   });
 
@@ -138,11 +144,45 @@ function ReelPlayerItem({
     }
   }, [isActive, paused]);
 
+  // Track playback position + duration for the seek bar.
+  React.useEffect(() => {
+    const subTime = player.addListener("timeUpdate", (payload: any) => {
+      if (seekingRef.current) return;
+      const t = typeof payload?.currentTime === "number" ? payload.currentTime : player.currentTime;
+      if (typeof t === "number" && Number.isFinite(t)) setCurrentTime(t);
+      const d = player.duration;
+      if (typeof d === "number" && Number.isFinite(d) && d > 0) setDuration(d);
+    });
+    return () => {
+      subTime?.remove?.();
+    };
+  }, [player]);
+
   const overlay = getFilterOverlay(reel.filter);
   const accentColor = ACCENT_COLORS[reel.id.length % ACCENT_COLORS.length];
 
   const togglePause = () => {
     setPaused((p) => !p);
+  };
+
+  const seekTo = (clientX: number) => {
+    if (!duration || seekBarWidth <= 0) return;
+    const ratio = Math.max(0, Math.min(1, clientX / seekBarWidth));
+    const target = ratio * duration;
+    setCurrentTime(target);
+    try {
+      player.currentTime = target;
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const progressRatio = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+  const fmt = (s: number) => {
+    if (!Number.isFinite(s) || s < 0) s = 0;
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
   };
 
   return (
@@ -183,6 +223,68 @@ function ReelPlayerItem({
         style={styles.reelGradient}
         pointerEvents="none"
       />
+
+      {/* Fullscreen toggle (top-right). Sits above all overlays. */}
+      <TouchableOpacity
+        onPress={() => setShowFullscreen(true)}
+        style={[styles.reelFsBtn, { top: insets.top + 12 }]}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons name="expand-outline" size={20} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Seek bar — sits just above the bottom meta/actions row. */}
+      <View
+        style={[styles.reelSeekRow, { bottom: insets.bottom + 78 }]}
+        pointerEvents="box-none"
+      >
+        <Text style={styles.reelSeekTime}>{fmt(currentTime)}</Text>
+        <Pressable
+          style={styles.reelSeekTrack}
+          onLayout={(e) => setSeekBarWidth(e.nativeEvent.layout.width)}
+          onPressIn={(e) => {
+            seekingRef.current = true;
+            seekTo(e.nativeEvent.locationX);
+          }}
+          onPressOut={() => {
+            seekingRef.current = false;
+          }}
+          onTouchMove={(e) => {
+            if (!seekingRef.current) return;
+            seekTo(e.nativeEvent.locationX);
+          }}
+        >
+          <View style={styles.reelSeekFill} />
+          <View style={[styles.reelSeekProgress, { width: `${progressRatio * 100}%` }]} />
+          <View style={[styles.reelSeekKnob, { left: `${progressRatio * 100}%` }]} />
+        </Pressable>
+        <Text style={styles.reelSeekTime}>{fmt(duration)}</Text>
+      </View>
+
+      {/* Fullscreen modal — same player instance keeps position synced. */}
+      <Modal
+        visible={showFullscreen}
+        animationType="fade"
+        onRequestClose={() => setShowFullscreen(false)}
+        supportedOrientations={["portrait", "landscape"]}
+      >
+        <View style={{ flex: 1, backgroundColor: "#000" }}>
+          <VideoView
+            player={player}
+            style={{ flex: 1, backgroundColor: "#000" }}
+            contentFit="contain"
+            nativeControls
+            allowsFullscreen
+          />
+          <TouchableOpacity
+            onPress={() => setShowFullscreen(false)}
+            style={[styles.reelFsCloseBtn, { top: insets.top + 12 }]}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons name="close" size={28} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </Modal>
 
       <View style={[styles.reelMeta, { paddingBottom: insets.bottom + 80 }]}>
         <TouchableOpacity
@@ -1068,6 +1170,73 @@ const styles = StyleSheet.create({
     width: 80, height: 80, borderRadius: 40,
     backgroundColor: "rgba(0,0,0,0.5)",
     alignItems: "center", justifyContent: "center",
+  },
+  reelFsBtn: {
+    position: "absolute",
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reelFsCloseBtn: {
+    position: "absolute",
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reelSeekRow: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  reelSeekTime: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
+    minWidth: 32,
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.7)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  reelSeekTrack: {
+    flex: 1,
+    height: 18,
+    justifyContent: "center",
+  },
+  reelSeekFill: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.35)",
+  },
+  reelSeekProgress: {
+    position: "absolute",
+    left: 0,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#fff",
+  },
+  reelSeekKnob: {
+    position: "absolute",
+    top: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#fff",
+    marginLeft: -5,
   },
   reelMeta: { position: "absolute", bottom: 0, left: 16, right: 72, gap: 8 },
   creatorRow: { flexDirection: "row", alignItems: "center", gap: 10 },

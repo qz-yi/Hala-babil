@@ -48,7 +48,9 @@ function RoomSharedCard({ sharedContent }: { sharedContent: SharedContent }) {
     // room chat unwinds to an existing screen instead of stacking a
     // duplicate copy on top of the room.
     if (sharedContent.type === "post") {
-      router.navigate(`/post/${sharedContent.id}` as any);
+      // Deep link to the home feed and scroll to the original post in place
+      // (matches chat behavior).
+      router.navigate(`/(tabs)/?postId=${sharedContent.id}` as any);
     } else if (sharedContent.type === "reel") {
       router.navigate(`/(tabs)/reels?reelId=${sharedContent.id}` as any);
     } else if (sharedContent.type === "story") {

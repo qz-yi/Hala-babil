@@ -2,7 +2,7 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -682,11 +682,18 @@ function SharePostSheet({
 // ───── Post Video Player ─────
 function PostVideoPlayer({ uri }: { uri: string }) {
   const [playing, setPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [showFullscreen, setShowFullscreen] = useState(false);
+  const [barWidth, setBarWidth] = useState(SCREEN_WIDTH - 24);
+  const seekingRef = useRef(false);
+
   const player = useVideoPlayer(uri, (p) => {
     p.loop = false;
+    p.timeUpdateEventInterval = 0.25;
   });
 
-  // Pause video automatically when the user navigates away from this tab
+  // Pause when leaving the tab
   useFocusEffect(
     useCallback(() => {
       return () => {
@@ -696,36 +703,135 @@ function PostVideoPlayer({ uri }: { uri: string }) {
     }, [player])
   );
 
+  // Subscribe to playback time + duration. We avoid polling — expo-video v3
+  // emits `timeUpdate` (gated by timeUpdateEventInterval), `playingChange`,
+  // and surfaces `duration` once the asset's metadata is loaded.
+  useEffect(() => {
+    const subTime = player.addListener("timeUpdate", (payload: any) => {
+      if (seekingRef.current) return;
+      const t = typeof payload?.currentTime === "number" ? payload.currentTime : player.currentTime;
+      if (typeof t === "number" && Number.isFinite(t)) setCurrentTime(t);
+      const d = player.duration;
+      if (typeof d === "number" && Number.isFinite(d) && d > 0) setDuration(d);
+    });
+    const subPlaying = player.addListener("playingChange", (payload: any) => {
+      const isPlaying = typeof payload?.isPlaying === "boolean" ? payload.isPlaying : payload;
+      if (typeof isPlaying === "boolean") setPlaying(isPlaying);
+    });
+    return () => {
+      subTime?.remove?.();
+      subPlaying?.remove?.();
+    };
+  }, [player]);
+
   const toggle = () => {
-    if (playing) {
-      player.pause();
-    } else {
-      player.play();
+    if (playing) player.pause();
+    else player.play();
+  };
+
+  const seekTo = (clientX: number) => {
+    if (!duration || barWidth <= 0) return;
+    const ratio = Math.max(0, Math.min(1, clientX / barWidth));
+    const target = ratio * duration;
+    setCurrentTime(target);
+    try {
+      player.currentTime = target;
+    } catch {
+      /* ignore */
     }
-    setPlaying((v) => !v);
+  };
+
+  const progressRatio = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+  const fmt = (s: number) => {
+    if (!Number.isFinite(s) || s < 0) s = 0;
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
   };
 
   return (
-    <TouchableOpacity onPress={toggle} activeOpacity={0.95} style={{ position: "relative" }}>
-      <VideoView
-        player={player}
-        style={{ width: SCREEN_WIDTH, aspectRatio: 16 / 9, backgroundColor: "#000" }}
-        contentFit="contain"
-        nativeControls={false}
-      />
-      {!playing && (
-        <View style={styles.videoPlayOverlay}>
-          <View style={styles.videoPlayBtn}>
-            <Ionicons name="play" size={32} color="#fff" />
+    <View style={{ position: "relative" }}>
+      <TouchableOpacity onPress={toggle} activeOpacity={0.95}>
+        <VideoView
+          player={player}
+          style={{ width: SCREEN_WIDTH, aspectRatio: 16 / 9, backgroundColor: "#000" }}
+          contentFit="contain"
+          nativeControls={false}
+        />
+        {!playing && (
+          <View style={styles.videoPlayOverlay} pointerEvents="none">
+            <View style={styles.videoPlayBtn}>
+              <Ionicons name="play" size={32} color="#fff" />
+            </View>
           </View>
+        )}
+      </TouchableOpacity>
+
+      {/* Fullscreen toggle (tap to open modal w/ native controls) */}
+      <TouchableOpacity
+        onPress={() => setShowFullscreen(true)}
+        style={styles.fsBtn}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons name="expand-outline" size={18} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Seek bar */}
+      <View style={styles.seekRow} pointerEvents="box-none">
+        <Text style={styles.seekTime}>{fmt(currentTime)}</Text>
+        <Pressable
+          style={styles.seekTrack}
+          onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
+          onPressIn={(e) => {
+            seekingRef.current = true;
+            seekTo(e.nativeEvent.locationX);
+          }}
+          onPressOut={() => {
+            seekingRef.current = false;
+          }}
+          onTouchMove={(e) => {
+            if (!seekingRef.current) return;
+            seekTo(e.nativeEvent.locationX);
+          }}
+        >
+          <View style={styles.seekFill} />
+          <View style={[styles.seekProgress, { width: `${progressRatio * 100}%` }]} />
+          <View style={[styles.seekKnob, { left: `${progressRatio * 100}%` }]} />
+        </Pressable>
+        <Text style={styles.seekTime}>{fmt(duration)}</Text>
+      </View>
+
+      {/* Fullscreen modal — mounts a separate VideoView with native controls
+          on the SAME player instance so playback position is shared. */}
+      <Modal
+        visible={showFullscreen}
+        animationType="fade"
+        onRequestClose={() => setShowFullscreen(false)}
+        supportedOrientations={["portrait", "landscape"]}
+      >
+        <View style={styles.fsModal}>
+          <VideoView
+            player={player}
+            style={{ flex: 1, backgroundColor: "#000" }}
+            contentFit="contain"
+            nativeControls
+            allowsFullscreen
+          />
+          <TouchableOpacity
+            onPress={() => setShowFullscreen(false)}
+            style={styles.fsCloseBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons name="close" size={28} color="#fff" />
+          </TouchableOpacity>
         </View>
-      )}
-    </TouchableOpacity>
+      </Modal>
+    </View>
   );
 }
 
 // ───── Post Card (Instagram-style) ─────
-function PostCard({ post, colors }: { post: Post; colors: any }) {
+function PostCard({ post, colors, highlighted }: { post: Post; colors: any; highlighted?: boolean }) {
   const { users, currentUser, isPostLiked, likePost, getPostLikesCount, getPostComments, deletePost, isPostSaved, savePost, unsavePost } = useApp();
   const creator = users.find((u) => u.id === post.creatorId);
   const liked = isPostLiked(post.id);
@@ -790,7 +896,17 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
   };
 
   return (
-    <View style={[styles.postCard, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.postCard,
+        { backgroundColor: colors.background },
+        highlighted && {
+          backgroundColor: "rgba(94,26,140,0.12)",
+          borderLeftWidth: 3,
+          borderLeftColor: "#5e1a8c",
+        },
+      ]}
+    >
       {/* ── Header ── */}
       <TouchableOpacity
         style={styles.postHeader}
@@ -996,6 +1112,35 @@ export default function HomeScreen() {
   }, []);
 
   const feedPosts = getFeedPosts();
+
+  // ── Deep link to a specific post ────────────────────────────────────────
+  // When the user taps a shared post card in chat (or any other "navigate
+  // to original" entry point), we navigate to /(tabs)/?postId=X instead of
+  // pushing a new isolated /post/X screen. This effect resolves the post in
+  // the current feed and scrolls the FlatList to it. The post is also
+  // briefly highlighted to confirm the jump.
+  const { postId: deepLinkPostId } = useLocalSearchParams<{ postId?: string }>();
+  const feedListRef = useRef<FlatList<Post>>(null);
+  const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!deepLinkPostId) return;
+    const idx = feedPosts.findIndex((p) => p.id === deepLinkPostId);
+    if (idx < 0) return;
+    setHighlightedPostId(deepLinkPostId);
+    // Defer to next frame so the FlatList has rendered enough rows; on
+    // failure (e.g. row not yet measured) FlatList will snap to the closest
+    // offset thanks to onScrollToIndexFailed below.
+    requestAnimationFrame(() => {
+      try {
+        feedListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.1 });
+      } catch {
+        /* swallowed — handled by onScrollToIndexFailed */
+      }
+    });
+    const t = setTimeout(() => setHighlightedPostId(null), 1800);
+    return () => clearTimeout(t);
+  }, [deepLinkPostId, feedPosts.length]);
   const activeStories = getActiveStories();
 
   // Build story tray users list:
@@ -1100,10 +1245,26 @@ export default function HomeScreen() {
       </View>
 
       <FlatList
+        ref={feedListRef}
         data={feedPosts}
         keyExtractor={(p) => p.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingTop: topPad + 40 }}
+        onScrollToIndexFailed={(info) => {
+          // Row hasn't been measured yet — fall back to a rough offset and
+          // retry the precise scroll once Android/iOS finishes layout.
+          feedListRef.current?.scrollToOffset({
+            offset: info.averageItemLength * info.index,
+            animated: false,
+          });
+          setTimeout(() => {
+            try {
+              feedListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.1 });
+            } catch {
+              /* give up silently */
+            }
+          }, 100);
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1167,7 +1328,13 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         }
-        renderItem={({ item }) => <PostCard post={item} colors={colors} />}
+        renderItem={({ item }) => (
+          <PostCard
+            post={item}
+            colors={colors}
+            highlighted={highlightedPostId === item.id}
+          />
+        )}
       />
     </View>
   );
@@ -1424,5 +1591,79 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingLeft: 4,
+  },
+  fsBtn: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  seekRow: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    bottom: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  seekTime: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
+    minWidth: 32,
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.7)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  seekTrack: {
+    flex: 1,
+    height: 18,
+    justifyContent: "center",
+  },
+  seekFill: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.35)",
+  },
+  seekProgress: {
+    position: "absolute",
+    left: 0,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#fff",
+  },
+  seekKnob: {
+    position: "absolute",
+    top: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#fff",
+    marginLeft: -5,
+  },
+  fsModal: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  fsCloseBtn: {
+    position: "absolute",
+    top: 40,
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

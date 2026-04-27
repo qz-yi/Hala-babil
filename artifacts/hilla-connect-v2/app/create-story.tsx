@@ -33,6 +33,10 @@ import { useApp } from "@/context/AppContext";
 import type { User } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 import { setBakedMedia } from "@/lib/bakedMediaBridge";
+import {
+  consumeSharedContent,
+  type SharedContentPayload,
+} from "@/lib/sharedContentBridge";
 
 // ────────────────────────────────────────────────────────────────────────────
 // THEME (Strict Zentram Dark)
@@ -1384,6 +1388,19 @@ export default function CreateStoryScreen() {
   // root causes of the "black on publish" bug.
   const [sharedMediaReady, setSharedMediaReady] = useState<boolean>(true);
 
+  // ─ Bridge-delivered shared content (preferred over router params).
+  //   Source screens (feed share-sheet, reels, story viewer) stash the full
+  //   share payload via `setSharedContent(...)` and navigate here with just
+  //   `?sharedFromBridge=1`. We consume the bridge exactly once on mount
+  //   (`consumeSharedContent` clears the slot) and freeze the result in
+  //   local state for the lifetime of the editor. Router params are kept
+  //   as a fallback for any caller that hasn't been migrated yet.
+  const [bridgePayload, setBridgePayload] = useState<SharedContentPayload | null>(null);
+  useEffect(() => {
+    const p = consumeSharedContent();
+    if (p) setBridgePayload(p);
+  }, []);
+
   // Instagram-style keyboard tracking — toolbar sticks above keyboard
   useEffect(() => {
     const showEvt = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -1411,12 +1428,22 @@ export default function CreateStoryScreen() {
   }, [mediaUri, mediaType]);
 
   // ─ Shared post (repost) — full-screen sticker
-  // mediaType is the SOURCE OF TRUTH for picking <VideoView> vs <Image> at
-  // both edit time and viewer time. We default reels to "video" and posts
-  // to "image"; stories must always pass an explicit `sharedMediaType` from
-  // the caller (the share-to-my-story handler in StoryViewer).
-  const sharedMediaType: "image" | "video" =
-    params.sharedMediaType === "video"
+  //
+  //   Prefer the in-memory bridge payload (`bridgePayload`) over router
+  //   params. The bridge guarantees we get the FULL `mediaUrl` byte-for-byte
+  //   even when it is a multi-MB `data:` URI or a long `file://` path that
+  //   would otherwise be truncated/garbled by Expo Router's URL serializer.
+  //   A truncated mediaUrl was the root cause of the "black story when
+  //   sharing" bug: the editor rendered nothing in the canvas and then
+  //   published an empty story.
+  //
+  //   mediaType is the SOURCE OF TRUTH for picking <VideoView> vs <Image>
+  //   at both edit time and viewer time. We default reels to "video" and
+  //   posts to "image"; stories pass an explicit `mediaType` from the
+  //   share-to-my-story handler in StoryViewer.
+  const sharedMediaType: "image" | "video" = bridgePayload
+    ? bridgePayload.mediaType
+    : params.sharedMediaType === "video"
       ? "video"
       : params.sharedMediaType === "image"
         ? "image"
@@ -1424,19 +1451,31 @@ export default function CreateStoryScreen() {
           ? "video"
           : "image";
 
-  const sharedPost = params.sharedId
+  const sharedPost = bridgePayload
     ? {
-        id: params.sharedId,
-        type: (params.sharedType as "post" | "reel" | "story") || "post",
-        mediaUrl: params.sharedMediaUrl,
+        id: bridgePayload.id,
+        type: bridgePayload.type,
+        mediaUrl: bridgePayload.mediaUrl,
         mediaType: sharedMediaType,
-        caption: params.sharedCaption,
-        creatorName: params.sharedCreatorName,
-        creatorId: params.sharedCreatorId,
-        creatorAvatar: params.sharedCreatorAvatar,
-        originalStoryId: params.originalStoryId,
+        caption: bridgePayload.caption,
+        creatorName: bridgePayload.creatorName,
+        creatorId: bridgePayload.creatorId,
+        creatorAvatar: bridgePayload.creatorAvatar,
+        originalStoryId: bridgePayload.originalStoryId,
       }
-    : undefined;
+    : params.sharedId
+      ? {
+          id: params.sharedId,
+          type: (params.sharedType as "post" | "reel" | "story") || "post",
+          mediaUrl: params.sharedMediaUrl,
+          mediaType: sharedMediaType,
+          caption: params.sharedCaption,
+          creatorName: params.sharedCreatorName,
+          creatorId: params.sharedCreatorId,
+          creatorAvatar: params.sharedCreatorAvatar,
+          originalStoryId: params.originalStoryId,
+        }
+      : undefined;
 
   const hasMedia = !!mediaUri;
   const hasShared = !!sharedPost;

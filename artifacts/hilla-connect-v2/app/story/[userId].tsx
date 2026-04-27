@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { Story } from "@/context/AppContext";
+import { setSharedContent } from "@/lib/sharedContentBridge";
 
 const IMAGE_STORY_DURATION = 10000;
 
@@ -387,23 +388,30 @@ export default function StoryViewerScreen() {
     // originalStoryId; otherwise use the current story's id.
     const chainedOriginalStoryId =
       currentStory.sharedPost?.originalStoryId || currentStory.id;
+    // Stash the share payload through the in-memory bridge instead of router
+    // params. Story `mediaUrl` values are remote HTTPS URLs from the API and
+    // typically fit in router params, but baked content from a freshly
+    // published story can be a multi-MB `data:` URI on web — and even a
+    // long `file://` path on native is unreliable. The bridge is the single
+    // source of truth for the editor regardless of size.
+    setSharedContent({
+      type: "story",
+      id: currentStory.id,
+      originalStoryId: chainedOriginalStoryId,
+      mediaUrl: currentStory.mediaUrl,
+      // CRITICAL: forward the actual media kind so the editor and viewer
+      // know whether to use <VideoView> or <Image>. Without this, a video
+      // story re-shared to "my story" would default to "image" and either
+      // appear as a black/static frame or fail to render entirely.
+      mediaType: currentStory.mediaType,
+      caption: currentStory.caption || "",
+      creatorName: user?.username || user?.name || "",
+      creatorId: userId,
+      creatorAvatar: user?.avatar || "",
+    });
     router.push({
       pathname: "/create-story",
-      params: {
-        sharedType: "story",
-        sharedId: currentStory.id,
-        originalStoryId: chainedOriginalStoryId,
-        sharedMediaUrl: currentStory.mediaUrl,
-        // CRITICAL: forward the actual media kind so the editor and viewer
-        // know whether to use <VideoView> or <Image>. Without this, a video
-        // story re-shared to "my story" would default to "image" and either
-        // appear as a black/static frame or fail to render entirely.
-        sharedMediaType: currentStory.mediaType,
-        sharedCaption: currentStory.caption || "",
-        sharedCreatorName: user?.username || user?.name || "",
-        sharedCreatorId: userId,
-        sharedCreatorAvatar: user?.avatar || "",
-      },
+      params: { sharedFromBridge: "1" },
     } as any);
   };
 

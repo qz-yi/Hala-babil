@@ -8,6 +8,7 @@ import React, {
   useState,
 } from "react";
 import { router } from "expo-router";
+import { setSharedContent } from "@/lib/sharedContentBridge";
 
 export type Language = "ar" | "en";
 export type Theme = "light" | "dark";
@@ -3257,17 +3258,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!currentUser) return;
       // For reels, media is always video. For posts, fallback to image unless explicitly provided.
       const inferredType = mediaType || (type === "reel" ? "video" : "image");
+      // ─ Hand the payload to the editor through the in-memory bridge instead
+      //   of router params. The mediaUrl can be a multi-MB `data:` URI (web
+      //   bake output) or a long `file://` path (native) — neither fits
+      //   reliably through Expo Router params, which serialize into a URL
+      //   on web and into navigation state on native. Truncated/garbage
+      //   URLs were the root cause of the "black story when sharing" bug:
+      //   the editor received an empty sharedMediaUrl, rendered nothing,
+      //   and on publish the story was saved with no media.
+      setSharedContent({
+        type,
+        id,
+        mediaUrl: mediaUrl || "",
+        mediaType: inferredType,
+        caption: caption || "",
+        creatorName: creatorName || "",
+        creatorId: creatorId || "",
+      });
       router.push({
         pathname: "/create-story",
-        params: {
-          sharedType: type,
-          sharedId: id,
-          sharedMediaUrl: mediaUrl || "",
-          sharedMediaType: inferredType,
-          sharedCaption: caption || "",
-          sharedCreatorName: creatorName || "",
-          sharedCreatorId: creatorId || "",
-        },
+        params: { sharedFromBridge: "1" },
       } as any);
     },
     [currentUser]

@@ -112,14 +112,22 @@ function DeleteConvoModal({
 }
 
 export default function MessagesScreen() {
-  const { conversations, users, currentUser, getConversation, deleteConversation, t, theme } = useApp();
+  const {
+    conversations, users, currentUser, getConversation, deleteConversation,
+    archiveConversation, unarchiveConversation, t, theme,
+  } = useApp();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
   const [showPicker, setShowPicker] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
+  // Partition once so the archived collapsible header and the visible list
+  // both share the same source of truth.
   const myConvos = conversations.filter((c) => c.participants.includes(currentUser?.id || ""));
+  const activeConvos = myConvos.filter((c) => !(c as any).archived);
+  const archivedConvos = myConvos.filter((c) => (c as any).archived);
 
   const handleSelectUser = (user: User) => {
     const convo = getConversation(user.id);
@@ -135,9 +143,12 @@ export default function MessagesScreen() {
     return `${d.getHours()}:${d.getMinutes().toString().padStart(2, "0")}`;
   };
 
+  // Long-press now opens an action sheet with both archive/unarchive and
+  // delete instead of going straight to delete confirm.
+  const [actionTarget, setActionTarget] = useState<Conversation | null>(null);
   const handleLongPress = (convo: Conversation) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setDeleteTarget(convo);
+    setActionTarget(convo);
   };
 
   const handleConfirmDelete = () => {
@@ -147,6 +158,16 @@ export default function MessagesScreen() {
       setDeleteTarget(null);
     }
   };
+
+  // The list flips to "archived view" when the user taps the header chip.
+  // We never lose the unread count from the chip — it always reflects the
+  // archived-but-unread total even while the user is browsing the active
+  // list.
+  const visibleConvos = showArchived ? archivedConvos : activeConvos;
+  const archivedUnread = archivedConvos.reduce(
+    (acc, c) => acc + (c.messages?.filter((m: any) => m.receiverId === currentUser?.id && !m.read).length || 0),
+    0,
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -177,7 +198,61 @@ export default function MessagesScreen() {
         </View>
       ) : (
         <FlatList
-          data={[...myConvos].sort((a, b) => b.updatedAt - a.updatedAt)}
+          data={[...visibleConvos].sort((a, b) => b.updatedAt - a.updatedAt)}
+          ListHeaderComponent={
+            <>
+              {/* Archived chip — sits above the active conversations list and
+                  taps through to the archived view; in archived view we show a
+                  back chip so the user can return to the main list. */}
+              {showArchived ? (
+                <TouchableOpacity
+                  style={[styles.archivedHeader, { borderBottomColor: colors.border }]}
+                  onPress={() => setShowArchived(false)}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.archivedIcon, { backgroundColor: "#F59E0B22" }]}>
+                    <Feather name="arrow-right" size={18} color="#F59E0B" strokeWidth={1.5} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.archivedTitle, { color: colors.text }]}>المحادثات المؤرشفة</Text>
+                    <Text style={[styles.archivedSub, { color: colors.textSecondary }]}>
+                      {archivedConvos.length} محادثة
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : archivedConvos.length > 0 ? (
+                <TouchableOpacity
+                  style={[styles.archivedHeader, { borderBottomColor: colors.border }]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowArchived(true);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.archivedIcon, { backgroundColor: "#F59E0B22" }]}>
+                    <Feather name="archive" size={18} color="#F59E0B" strokeWidth={1.5} />
+                  </View>
+                  <Text style={[styles.archivedTitle, { color: colors.text, flex: 1 }]}>
+                    مؤرشف
+                  </Text>
+                  {archivedUnread > 0 && (
+                    <View style={styles.archivedBadge}>
+                      <Text style={styles.archivedBadgeText}>{archivedUnread}</Text>
+                    </View>
+                  )}
+                  <Feather name="chevron-left" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+              ) : null}
+            </>
+          }
+          ListEmptyComponent={
+            showArchived ? (
+              <View style={styles.emptyState}>
+                <Feather name="archive" size={48} color={colors.border} strokeWidth={1} />
+                <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>لا توجد محادثات مؤرشفة</Text>
+              </View>
+            ) : null
+          }
           keyExtractor={(c) => c.id}
           contentContainerStyle={{ paddingBottom: insets.bottom + 90, paddingTop: 8 }}
           showsVerticalScrollIndicator={false}
@@ -261,6 +336,55 @@ export default function MessagesScreen() {
         onCancel={() => setDeleteTarget(null)}
         colors={colors}
       />
+
+      {/* Long-press action sheet — archive toggle + delete entry. Delete still
+          flows through DeleteConvoModal for the destructive confirmation. */}
+      <Modal
+        visible={!!actionTarget}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActionTarget(null)}
+      >
+        <Pressable style={styles.deleteBg} onPress={() => setActionTarget(null)} />
+        <View style={[styles.actionSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+          <TouchableOpacity
+            style={styles.actionRow}
+            onPress={() => {
+              if (!actionTarget) return;
+              const target = actionTarget;
+              setActionTarget(null);
+              if ((target as any).archived) unarchiveConversation(target.id);
+              else archiveConversation(target.id);
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: "#F59E0B22" }]}>
+              <Feather name="archive" size={18} color="#F59E0B" strokeWidth={1.5} />
+            </View>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>
+              {actionTarget && (actionTarget as any).archived ? "إلغاء الأرشفة" : "أرشفة"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionRow}
+            onPress={() => { const t = actionTarget; setActionTarget(null); setDeleteTarget(t); }}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: "#FF3B5C22" }]}>
+              <Feather name="trash-2" size={18} color="#FF3B5C" strokeWidth={1.5} />
+            </View>
+            <Text style={[styles.actionLabel, { color: "#FF3B5C" }]}>حذف المحادثة</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setActionTarget(null)}
+            style={[styles.deleteCancel, { backgroundColor: colors.backgroundTertiary ?? colors.card, marginTop: 8 }]}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.deleteCancelText, { color: colors.textSecondary }]}>إلغاء</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -372,4 +496,45 @@ const styles = StyleSheet.create({
     width: "100%", borderRadius: 20, paddingVertical: 16, alignItems: "center",
   },
   deleteCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+
+  // Archived chip — sits at the top of the active conversations list and
+  // doubles as the "back" header while in archived view.
+  archivedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 0.5,
+  },
+  archivedIcon: {
+    width: 38, height: 38, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+  },
+  archivedTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  archivedSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  archivedBadge: {
+    minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11,
+    backgroundColor: "#3D91F4", alignItems: "center", justifyContent: "center",
+    marginRight: 6,
+  },
+  archivedBadgeText: { color: "#fff", fontSize: 12, fontFamily: "Inter_700Bold" },
+
+  // Long-press action sheet — slim sheet with two action rows + cancel.
+  actionSheet: {
+    position: "absolute",
+    bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderTopWidth: 1,
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32,
+  },
+  actionRow: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    paddingVertical: 14, paddingHorizontal: 4,
+  },
+  actionIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+  },
+  actionLabel: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });

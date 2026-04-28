@@ -130,9 +130,9 @@ function modeConfig(mode: EditorMode) {
         landingMediaLabel: T.photoVideo,
         landingTextLabel: T.textPost,
         successMsg: T.postedPost,
-        preserveAspect: true,        // posts use original aspect (contain)
-        aspectMode: "natural" as AspectMode,
-        fallbackAspect: 4 / 5,        // Instagram-style portrait when no media yet
+        preserveAspect: false,       // posts are square — cover-fit any media
+        aspectMode: "square" as AspectMode,
+        fallbackAspect: 1,            // 1:1 square posts (Instagram-style)
         needsFinalize: true,         // posts go through caption/mentions screen
         publishLabel: T.next,
       };
@@ -971,15 +971,32 @@ function CropModal({
   uri,
   onClose,
   onApply,
+  aspect,
 }: {
   visible: boolean;
   uri: string | null;
   onClose: () => void;
   onApply: (newUri: string) => void;
+  /**
+   * Width / height of the crop frame. 1 = square, 9/16 = portrait video,
+   * 16/9 = landscape, etc. Defaults to 9:16 to preserve legacy story behavior.
+   */
+  aspect?: number;
 }) {
   const insets = useSafeAreaInsets();
+  // `imgUri` is the EXIF-normalized version of `uri`. Many camera-roll images
+  // carry a rotation flag (orientation 6/8) — `Image.getSize` returns the raw
+  // pixel dimensions BEFORE the flag is applied while the rendered <Image>
+  // applies the flag automatically. The mismatch caused the captured crop to
+  // be in the wrong region of the source ("random" crop). Normalizing once
+  // up-front bakes the rotation into the pixels and removes the discrepancy.
+  const [imgUri, setImgUri] = useState<string | null>(null);
   const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Aspect ratio of the crop frame (W/H). Stable across renders so the
+  // PanResponder closures don't drift.
+  const ar = aspect && aspect > 0 ? aspect : 9 / 16;
 
   // Display container fits screen with padding
   const PAD = 20;
@@ -1000,31 +1017,52 @@ function CropModal({
 
   useEffect(() => {
     if (!visible || !uri) return;
-    Image.getSize(
-      uri,
-      (w, h) => {
-        setImgSize({ w, h });
-        // Initial crop: 9:16 centered within image area
-        const fs = Math.min(containerW / w, containerH / h);
-        const dW = w * fs;
-        const dH = h * fs;
-        const il = (containerW - dW) / 2;
-        const it = (containerH - dH) / 2;
-        const targetH = dH;
-        const targetW = (targetH * 9) / 16;
-        const finalW = Math.min(dW, targetW);
-        const finalH = (finalW * 16) / 9;
-        setCrop({
-          x: il + (dW - finalW) / 2,
-          y: it + (dH - finalH) / 2,
-          w: finalW,
-          h: finalH,
+    let cancelled = false;
+    setImgUri(null);
+    setImgSize(null);
+    (async () => {
+      try {
+        // Pass-through manipulate to bake EXIF rotation into the pixels.
+        const normalized = await ImageManipulator.manipulateAsync(uri, [], {
+          compress: 1,
+          format: ImageManipulator.SaveFormat.JPEG,
         });
-      },
-      () => setImgSize(null),
-    );
+        if (cancelled) return;
+        setImgUri(normalized.uri);
+        Image.getSize(
+          normalized.uri,
+          (w, h) => {
+            if (cancelled) return;
+            setImgSize({ w, h });
+            // Initial crop: aspect-locked, centered within image area
+            const fs = Math.min(containerW / w, containerH / h);
+            const dW = w * fs;
+            const dH = h * fs;
+            const il = (containerW - dW) / 2;
+            const it = (containerH - dH) / 2;
+            // Pick the largest aspect-ratio rect that fits the displayed image
+            let finalW = dW;
+            let finalH = finalW / ar;
+            if (finalH > dH) {
+              finalH = dH;
+              finalW = finalH * ar;
+            }
+            setCrop({
+              x: il + (dW - finalW) / 2,
+              y: it + (dH - finalH) / 2,
+              w: finalW,
+              h: finalH,
+            });
+          },
+          () => setImgSize(null),
+        );
+      } catch {
+        if (!cancelled) onClose();
+      }
+    })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, uri]);
+  }, [visible, uri, ar]);
 
   const cropRef = useRef(crop);
   useEffect(() => { cropRef.current = crop; }, [crop]);
@@ -1037,10 +1075,10 @@ function CropModal({
     const maxY = imgTop + dispH;
     let { x, y, w, h } = c;
     w = Math.max(60, Math.min(maxX - minX, w));
-    h = (w * 16) / 9;
+    h = w / ar;
     if (h > maxY - minY) {
       h = maxY - minY;
-      w = (h * 9) / 16;
+      w = h * ar;
     }
     x = Math.max(minX, Math.min(maxX - w, x));
     y = Math.max(minY, Math.min(maxY - h, y));
@@ -1066,7 +1104,7 @@ function CropModal({
     }),
   ).current;
 
-  // ─ Corner resize (maintains 9:16) ─
+  // ─ Corner resize (maintains aspect) ─
   const cornerStart = useRef<CropRect>(crop);
   const makeCornerResp = (corner: "tl" | "tr" | "bl" | "br") =>
     PanResponder.create({
@@ -1074,7 +1112,7 @@ function CropModal({
       onPanResponderGrant: () => { cornerStart.current = cropRef.current; },
       onPanResponderMove: (_, g) => {
         const s = cornerStart.current;
-        let dx = g.dx;
+        const dx = g.dx;
         // For each corner, compute new w (and y/x adjusted) maintaining ratio
         let nx = s.x, ny = s.y, nw = s.w;
         switch (corner) {
@@ -1083,7 +1121,7 @@ function CropModal({
             break;
           case "tr":
             nw = s.w + dx;
-            ny = s.y - ((nw - s.w) * 16) / 9;
+            ny = s.y - (nw - s.w) / ar;
             break;
           case "bl":
             nw = s.w - dx;
@@ -1092,10 +1130,10 @@ function CropModal({
           case "tl":
             nw = s.w - dx;
             nx = s.x + (s.w - nw);
-            ny = s.y - ((nw - s.w) * 16) / 9;
+            ny = s.y - (nw - s.w) / ar;
             break;
         }
-        const nh = (nw * 16) / 9;
+        const nh = nw / ar;
         setCrop(clampCrop({ x: nx, y: ny, w: nw, h: nh }));
       },
     });
@@ -1106,20 +1144,23 @@ function CropModal({
   const cornerBR = useRef(makeCornerResp("br")).current;
 
   const apply = async () => {
-    if (!uri || !imgSize) return onClose();
+    const sourceUri = imgUri || uri;
+    if (!sourceUri || !imgSize) return onClose();
     setBusy(true);
     try {
-      // Convert crop (display coords relative to container) to source pixels
+      // Convert crop (display coords relative to container) to source pixels.
+      // imgSize is in pixels of the EXIF-normalized image, matching what's
+      // on screen, so this conversion is now lossless.
       const localX = (crop.x - imgLeft) / fitScale;
       const localY = (crop.y - imgTop) / fitScale;
       const localW = crop.w / fitScale;
       const localH = crop.h / fitScale;
-      const sx = Math.max(0, localX);
-      const sy = Math.max(0, localY);
-      const sw = Math.min(imgSize.w - sx, localW);
-      const sh = Math.min(imgSize.h - sy, localH);
+      const sx = Math.max(0, Math.round(localX));
+      const sy = Math.max(0, Math.round(localY));
+      const sw = Math.max(1, Math.min(imgSize.w - sx, Math.round(localW)));
+      const sh = Math.max(1, Math.min(imgSize.h - sy, Math.round(localH)));
       const result = await ImageManipulator.manipulateAsync(
-        uri,
+        sourceUri,
         [{ crop: { originX: sx, originY: sy, width: sw, height: sh } }],
         { compress: 0.92, format: ImageManipulator.SaveFormat.JPEG },
       );
@@ -1149,9 +1190,9 @@ function CropModal({
         </View>
 
         <View style={[st.cropContainer, { width: containerW, height: containerH }]}>
-          {uri && imgSize && (
+          {imgUri && imgSize ? (
             <Image
-              source={{ uri }}
+              source={{ uri: imgUri }}
               style={{
                 position: "absolute",
                 left: imgLeft,
@@ -1161,6 +1202,10 @@ function CropModal({
               }}
               resizeMode="contain"
             />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
+              <ActivityIndicator size="large" color="#fff" />
+            </View>
           )}
 
           {/* Dark overlays outside crop */}
@@ -2210,13 +2255,10 @@ export default function CreateStoryScreen() {
           </View>
         )}
 
-        {/* ════════ Profile circular safe-area outline ════════ */}
-        {/* In profile (avatar) mode the canvas is locked to 1:1. We paint a
-            circular outline matching the inscribed circle so the user can
-            see exactly how the avatar will be cropped after publish. */}
-        {editorMode === "profile" && (
-          <View pointerEvents="none" style={st.profileCircleOutline} />
-        )}
+        {/* Profile circular outline removed per design — the square frame
+            already communicates the crop, and a faint outline above the
+            avatar caused a confusing white preview ring on the captured
+            PNG. We rely on the surrounding letterbox bands instead. */}
 
           {/* end aspect frame */}
           </View>
@@ -2502,9 +2544,12 @@ export default function CreateStoryScreen() {
       )}
 
       {/* ════════ Crop modal (images) ════════ */}
+      {/* The crop frame's aspect mirrors the editor's bakeable canvas so the
+          user can never select a region that contradicts the final aspect. */}
       <CropModal
         visible={showCrop}
         uri={mediaUri}
+        aspect={effectiveAspectRatio ?? 9 / 16}
         onClose={() => setShowCrop(false)}
         onApply={(uri) => { setMediaUri(uri); setShowCrop(false); }}
       />
@@ -2586,14 +2631,6 @@ const st = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: Z_BG,
     alignSelf: "center",
-  },
-  // Circular safe-area outline drawn over the 1:1 profile canvas so the
-  // user can see where the avatar will be cropped after publishing.
-  profileCircleOutline: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 9999,
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.85)",
   },
   // Veil shown while shared content is still loading. Sits ABOVE the aspect
   // frame (inside the letterbox) and blocks taps so the user can't start

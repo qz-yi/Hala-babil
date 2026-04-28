@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { PrivateMessage, User } from "@/context/AppContext";
+import { AudioBubble } from "@/components/AudioBubble";
 
 const BG = "#000000";
 const CARD = "#121212";
@@ -278,21 +279,19 @@ export default function ChatInfoScreen() {
               audioItems.map((item) => {
                 const isMine = item.senderId === currentUser?.id;
                 return (
-                  <View key={item.id} style={[s.audioRow, { borderBottomColor: BORDER }]}>
-                    <View style={[s.audioIcon, { backgroundColor: `${accentColor}22` }]}>
-                      <Feather name="mic" size={18} color={accentColor} strokeWidth={1.5} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[s.audioSender, { color: TEXT }]}>
+                  <View key={item.id} style={[s.audioRow, { borderBottomColor: BORDER, flexDirection: "column", alignItems: "stretch", gap: 8 }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View style={[s.audioIcon, { backgroundColor: `${accentColor}22` }]}>
+                        <Feather name="mic" size={16} color={accentColor} strokeWidth={1.5} />
+                      </View>
+                      <Text style={[s.audioSender, { color: TEXT, flex: 1 }]}>
                         {isMine ? "أنت" : otherUser.name}
                       </Text>
-                      {item.duration != null && (
-                        <Text style={[s.audioDur, { color: TEXT2 }]}>
-                          {Math.floor(item.duration / 60)}:{(item.duration % 60).toString().padStart(2, "0")} ث
-                        </Text>
-                      )}
+                      <Text style={[s.audioDate, { color: TEXT2 }]}>{formatTime(item.timestamp)}</Text>
                     </View>
-                    <Text style={[s.audioDate, { color: TEXT2 }]}>{formatTime(item.timestamp)}</Text>
+                    {/* In-place player — same component as the chat bubble so seek
+                        + drag gestures behave identically here. */}
+                    <AudioBubble msg={item} isMe={isMine} tone="light" />
                   </View>
                 );
               })

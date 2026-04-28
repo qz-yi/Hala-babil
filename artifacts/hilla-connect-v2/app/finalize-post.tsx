@@ -217,9 +217,12 @@ const styles = StyleSheet.create({
   iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   title: { flex: 1, color: Z_TEXT, fontFamily: "Inter_700Bold", fontSize: 17, textAlign: "center" },
   row: { flexDirection: "row-reverse", gap: 12, alignItems: "flex-start" },
+  // Square preview to mirror the new 1:1 post canvas. The surrounding
+  // screen stays full-screen — only the media tile is square so the user
+  // sees an accurate thumbnail of what will appear in their feed.
   thumb: {
-    width: 90,
-    height: 120,
+    width: 100,
+    height: 100,
     borderRadius: 10,
     overflow: "hidden",
     backgroundColor: Z_PANEL,

@@ -117,6 +117,9 @@ export interface Conversation {
   messages?: PrivateMessage[];
   lastMessage?: PrivateMessage;
   updatedAt: number;
+  archived?: boolean;
+  themeColor?: string;
+  wallpaper?: string;
 }
 
 export const IRAQI_GOVERNORATES = [
@@ -362,6 +365,10 @@ interface AppContextValue {
   unblockUser: (userId: string) => void;
   isBlocked: (userId: string) => boolean;
   deleteConversation: (conversationId: string) => void;
+  markConversationRead: (conversationId: string) => void;
+  archiveConversation: (conversationId: string) => void;
+  unarchiveConversation: (conversationId: string) => void;
+  setConversationTheme: (conversationId: string, themeColor?: string, wallpaper?: string) => void;
   governorateImages: GovernorateImage[];
   setGovernorateImage: (name: string, image: string) => void;
   isManager: boolean;
@@ -2011,6 +2018,63 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [conversations]
   );
 
+  const markConversationRead = useCallback(
+    (conversationId: string) => {
+      if (!currentUser) return;
+      let changed = false;
+      const updated = conversations.map((c) => {
+        if (c.id !== conversationId) return c;
+        const msgs = (c.messages || []).map((m) => {
+          if (m.receiverId === currentUser.id && !m.read) {
+            changed = true;
+            return { ...m, read: true };
+          }
+          return m;
+        });
+        const lastMessage = c.lastMessage && c.lastMessage.receiverId === currentUser.id && !c.lastMessage.read
+          ? { ...c.lastMessage, read: true }
+          : c.lastMessage;
+        return { ...c, messages: msgs, lastMessage };
+      });
+      if (changed) saveConversations(updated);
+    },
+    [currentUser, conversations]
+  );
+
+  const archiveConversation = useCallback(
+    (conversationId: string) => {
+      const updated = conversations.map((c) =>
+        c.id === conversationId ? { ...c, archived: true } : c
+      );
+      saveConversations(updated);
+    },
+    [conversations]
+  );
+
+  const unarchiveConversation = useCallback(
+    (conversationId: string) => {
+      const updated = conversations.map((c) =>
+        c.id === conversationId ? { ...c, archived: false } : c
+      );
+      saveConversations(updated);
+    },
+    [conversations]
+  );
+
+  const setConversationTheme = useCallback(
+    (conversationId: string, themeColor?: string, wallpaper?: string) => {
+      const updated = conversations.map((c) => {
+        if (c.id !== conversationId) return c;
+        const next: Conversation = { ...c };
+        if (themeColor !== undefined) next.themeColor = themeColor;
+        if (wallpaper !== undefined) next.wallpaper = wallpaper;
+        return next;
+      });
+      saveConversations(updated);
+    },
+    [conversations]
+  );
+
   const setGovernorateImage = useCallback(
     (name: string, image: string) => {
       const existing = governorateImages.find((g) => g.name === name);
@@ -3590,6 +3654,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, lockSeatsInRoom, shareRoomToDM, searchRoomByCode,
       getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
+      markConversationRead, archiveConversation, unarchiveConversation, setConversationTheme,
       governorateImages, setGovernorateImage,
       createOwnerAccount, setOwnerActive, setCommissionRate, clearDues,
       addMenuItemToRestaurant, updateMenuItemInRestaurant, deleteMenuItemFromRestaurant, toggleMenuItemVisibility,
@@ -3628,6 +3693,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, lockSeatsInRoom, shareRoomToDM, searchRoomByCode,
       getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
+      markConversationRead, archiveConversation, unarchiveConversation, setConversationTheme,
       governorateImages, setGovernorateImage,
       createOwnerAccount, setOwnerActive, setCommissionRate, clearDues,
       addMenuItemToRestaurant, updateMenuItemInRestaurant, deleteMenuItemFromRestaurant, toggleMenuItemVisibility,

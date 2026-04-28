@@ -13,6 +13,7 @@ import React, {
   useState,
 } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   FlatList,
@@ -41,6 +42,7 @@ import type {
   User,
 } from "@/context/AppContext";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { AudioBubble } from "@/components/AudioBubble";
 
 const BG = "#000000";
 const CARD = "#121212";
@@ -410,69 +412,6 @@ const locStyles = StyleSheet.create({
   label: { fontSize: 12, fontFamily: "Inter_600SemiBold", flex: 1 },
   coords: { fontSize: 10, fontFamily: "Inter_400Regular" },
 });
-
-// ───── Audio Bubble ─────
-function AudioBubble({ msg, isMe }: { msg: PrivateMessage; isMe: boolean }) {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    return () => { sound?.unloadAsync(); };
-  }, [sound]);
-
-  const handleTogglePlay = async () => {
-    if (!msg.mediaUrl) { Alert.alert("", "ملف الصوت غير متاح"); return; }
-    if (playing) { await sound?.pauseAsync(); setPlaying(false); return; }
-    if (sound) { await sound.playAsync(); setPlaying(true); return; }
-    try {
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-      const { sound: newSound } = await Audio.Sound.createAsync({ uri: msg.mediaUrl });
-      setSound(newSound);
-      newSound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.isLoaded) {
-          const prog = status.durationMillis ? status.positionMillis / status.durationMillis : 0;
-          setProgress(prog);
-          if (status.didJustFinish) { setPlaying(false); setProgress(0); }
-        }
-      });
-      await newSound.playAsync();
-      setPlaying(true);
-    } catch { Alert.alert("", "تعذر تشغيل الرسالة الصوتية"); }
-  };
-
-  const waveHeights = [4, 8, 12, 6, 14, 8, 10, 5, 12, 7, 9, 4, 11, 6, 8];
-
-  return (
-    <TouchableOpacity style={styles.audioMsg} onPress={handleTogglePlay} activeOpacity={0.8}>
-      <View style={[styles.audioPlayBtn, { backgroundColor: isMe ? "rgba(255,255,255,0.25)" : "#3D91F422" }]}>
-        <Feather name={playing ? "pause" : "play"} size={13} color={isMe ? "#fff" : "#3D91F4"} strokeWidth={1.5} />
-      </View>
-      <View style={styles.audioWave}>
-        {waveHeights.map((h, i) => (
-          <View
-            key={i}
-            style={[
-              styles.audioBar,
-              {
-                height: h,
-                backgroundColor:
-                  progress > i / waveHeights.length
-                    ? isMe ? "#fff" : "#3D91F4"
-                    : isMe ? "rgba(255,255,255,0.4)" : "#3D91F455",
-              },
-            ]}
-          />
-        ))}
-      </View>
-      {msg.duration != null ? (
-        <Text style={[styles.audioDuration, { color: isMe ? "rgba(255,255,255,0.8)" : TEXT2 }]}>
-          {Math.floor(msg.duration / 60)}:{(msg.duration % 60).toString().padStart(2, "0")}
-        </Text>
-      ) : null}
-    </TouchableOpacity>
-  );
-}
 
 // ───── Reaction Bar Modal ─────
 function ReactionModal({
@@ -896,7 +835,7 @@ function MessageBubble({
 
             <Text style={[styles.bubbleTime, { color: isMe ? "rgba(255,255,255,0.6)" : TEXT2 }]}>
               {formatTime(msg.timestamp)}
-              {isMe && <Text> {msg.read ? "✓✓" : "✓"}</Text>}
+              {isMe && <DeliveryStatus msg={msg} onLightBg={!isMe} />}
             </Text>
           </View>
 
@@ -916,6 +855,37 @@ function MessageBubble({
   );
 }
 
+/**
+ * DeliveryStatus
+ * ──────────────
+ * Renders the WhatsApp-style delivery indicator next to the timestamp on
+ * outgoing messages:
+ *   • spinner — message just sent (<1.5s old) and not yet acknowledged
+ *   • single grey ✓ — delivered, not yet read
+ *   • double green ✓✓ — read by the recipient
+ * Re-renders every 500ms while the spinner is showing so the transition
+ * happens even if no new context update arrives.
+ */
+function DeliveryStatus({ msg, onLightBg }: { msg: PrivateMessage; onLightBg: boolean }) {
+  const [now, setNow] = useState(() => Date.now());
+  const sending = !msg.read && (now - msg.timestamp < 1500);
+  useEffect(() => {
+    if (!sending) return;
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, [sending]);
+
+  if (sending) {
+    return (
+      <Text> <ActivityIndicator size="small" color={onLightBg ? TEXT2 : "rgba(255,255,255,0.7)"} /></Text>
+    );
+  }
+  if (msg.read) {
+    return <Text style={{ color: "#34D399" }}> ✓✓</Text>;
+  }
+  return <Text style={{ color: onLightBg ? TEXT2 : "rgba(255,255,255,0.6)" }}> ✓</Text>;
+}
+
 // ───── Chat Screen ─────
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -923,6 +893,8 @@ export default function ChatScreen() {
     conversations, currentUser, sendPrivateMessage,
     blockUser, unblockUser, isBlocked, t, theme,
     deleteMessage, pinMessage, addReaction,
+    deleteConversation, markConversationRead,
+    archiveConversation, unarchiveConversation, setConversationTheme,
   } = useApp();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
@@ -955,14 +927,22 @@ export default function ChatScreen() {
   const [showForward, setShowForward] = useState(false);
   const [forwardMsg, setForwardMsg] = useState<PrivateMessage | null>(null);
 
-  // Block modal
-  const [showBlockModal, setShowBlockModal] = useState(false);
+  // Three-dots overflow menu (replaces the old block-only modal). Holds the
+  // sub-modal state for the destructive confirmations as well.
+  const [showMenu, setShowMenu] = useState(false);
+  const [menuConfirm, setMenuConfirm] = useState<null | "block" | "delete">(null);
+  const [showThemePicker, setShowThemePicker] = useState(false);
 
   // GPS loading
   const [locLoading, setLocLoading] = useState(false);
 
+  // Mark this conversation as read whenever the screen gains focus AND on
+  // every incoming-message arrival while focused. The double trigger handles
+  // the WhatsApp-style "open chat → unread badge clears immediately" UX even
+  // for messages that stream in via WebSocket while the screen is open.
   useFocusEffect(
     useCallback(() => {
+      if (id) markConversationRead(id);
       return () => {
         if (recordingRef.current) {
           recordingRef.current.stopAndUnloadAsync().catch(() => {});
@@ -973,7 +953,7 @@ export default function ChatScreen() {
         setRecordingDuration(0);
         Audio.setAudioModeAsync({ allowsRecordingIOS: false }).catch(() => {});
       };
-    }, [])
+    }, [id, markConversationRead])
   );
 
   const convo = conversations.find((c) => c.id === id) as any;
@@ -981,7 +961,21 @@ export default function ChatScreen() {
   const otherUser: User | undefined = convo?.participantUsers?.find(
     (u: User) => u.id !== currentUser?.id
   );
-  const accentColor = ACCENT_COLORS[(otherUser?.name?.length || 0) % ACCENT_COLORS.length];
+  // The user's per-conversation override (set via the menu sheet) takes
+  // priority; fall back to a stable color derived from the other user's name.
+  const accentColor =
+    convo?.themeColor ?? ACCENT_COLORS[(otherUser?.name?.length || 0) % ACCENT_COLORS.length];
+
+  // Re-mark as read whenever an unread incoming message appears while the
+  // screen is mounted (covers messages streamed in over the WebSocket while
+  // the user is already viewing the chat).
+  const lastIncomingTs = allMessages.reduce<number>((acc, m) => {
+    if (m.senderId !== currentUser?.id && !m.read && m.timestamp > acc) return m.timestamp;
+    return acc;
+  }, 0);
+  useEffect(() => {
+    if (id && lastIncomingTs > 0) markConversationRead(id);
+  }, [id, lastIncomingTs, markConversationRead]);
 
   // Filter out deleted messages
   const messages = allMessages.filter((m) => {
@@ -1226,7 +1220,7 @@ export default function ChatScreen() {
               <Feather name="video" size={18} color={accentColor} strokeWidth={1.5} />
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => setShowBlockModal(true)}
+              onPress={() => setShowMenu(true)}
               style={[styles.callBtn, { backgroundColor: "#1C1C1C" }]}
             >
               <Feather name="more-vertical" size={18} color={TEXT2} strokeWidth={1.5} />
@@ -1449,12 +1443,166 @@ export default function ChatScreen() {
         onClose={() => setShowForward(false)}
       />
 
-      {/* Block Modal */}
-      <Modal visible={showBlockModal} transparent animationType="fade" onRequestClose={() => setShowBlockModal(false)}>
-        <Pressable style={blockModalStyles.backdrop} onPress={() => setShowBlockModal(false)} />
+      {/* ───── Overflow Menu (three-dots) ───── */}
+      {/* The single sheet now hosts: chat-color picker entry, archive toggle,
+          delete chat, block / unblock. Destructive actions hand off to a
+          separate confirmation modal so the user can't fat-finger them. */}
+      <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
+        <Pressable style={blockModalStyles.backdrop} onPress={() => setShowMenu(false)} />
+        <View style={[menuStyles.sheet, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View style={[blockModalStyles.handle, { backgroundColor: BORDER }]} />
+          <Text style={[menuStyles.heading, { color: TEXT }]}>{otherUser?.name}</Text>
+
+          <TouchableOpacity
+            style={menuStyles.row}
+            onPress={() => { setShowMenu(false); setShowThemePicker(true); }}
+            activeOpacity={0.7}
+          >
+            <View style={[menuStyles.iconWrap, { backgroundColor: `${accentColor}22` }]}>
+              <Feather name="droplet" size={18} color={accentColor} strokeWidth={1.5} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[menuStyles.rowTitle, { color: TEXT }]}>لون المحادثة</Text>
+              <Text style={[menuStyles.rowSub, { color: TEXT2 }]}>اختر لون مميز للخلفية</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={menuStyles.row}
+            onPress={() => {
+              setShowMenu(false);
+              if (!convo) return;
+              if (convo.archived) unarchiveConversation(id);
+              else archiveConversation(id);
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={[menuStyles.iconWrap, { backgroundColor: "#F59E0B22" }]}>
+              <Feather name="archive" size={18} color="#F59E0B" strokeWidth={1.5} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[menuStyles.rowTitle, { color: TEXT }]}>
+                {convo?.archived ? "إلغاء الأرشفة" : "أرشفة المحادثة"}
+              </Text>
+              <Text style={[menuStyles.rowSub, { color: TEXT2 }]}>
+                {convo?.archived ? "إعادة المحادثة إلى القائمة الرئيسية" : "إخفاء المحادثة من القائمة الرئيسية"}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={menuStyles.row}
+            onPress={() => { setShowMenu(false); setMenuConfirm("delete"); }}
+            activeOpacity={0.7}
+          >
+            <View style={[menuStyles.iconWrap, { backgroundColor: "#FF3B5C22" }]}>
+              <Feather name="trash-2" size={18} color="#FF3B5C" strokeWidth={1.5} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[menuStyles.rowTitle, { color: TEXT }]}>حذف المحادثة</Text>
+              <Text style={[menuStyles.rowSub, { color: TEXT2 }]}>سيتم حذف الرسائل لديك فقط</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={menuStyles.row}
+            onPress={() => { setShowMenu(false); setMenuConfirm("block"); }}
+            activeOpacity={0.7}
+          >
+            <View style={[menuStyles.iconWrap, { backgroundColor: otherUser && isBlocked(otherUser.id) ? "#10B98122" : "#FF3B5C22" }]}>
+              <Feather
+                name={otherUser && isBlocked(otherUser.id) ? "user-check" : "slash"}
+                size={18}
+                color={otherUser && isBlocked(otherUser.id) ? "#10B981" : "#FF3B5C"}
+                strokeWidth={1.5}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[menuStyles.rowTitle, { color: TEXT }]}>
+                {otherUser && isBlocked(otherUser.id) ? "إلغاء حظر المستخدم" : "حظر المستخدم"}
+              </Text>
+              <Text style={[menuStyles.rowSub, { color: TEXT2 }]}>
+                {otherUser && isBlocked(otherUser.id) ? "السماح بالرسائل مرة أخرى" : "لن تتلقى رسائل أو مكالمات منه"}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setShowMenu(false)}
+            style={[blockModalStyles.cancelBtn, { backgroundColor: "#1C1C1C", marginTop: 8 }]}
+          >
+            <Text style={[blockModalStyles.cancelText, { color: TEXT2 }]}>إلغاء</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* ───── Theme color picker ───── */}
+      {/* A simple swatch grid persisting `themeColor` on the conversation;
+          the chat header gradient picks it up on next render via accentColor. */}
+      <Modal visible={showThemePicker} transparent animationType="fade" onRequestClose={() => setShowThemePicker(false)}>
+        <Pressable style={blockModalStyles.backdrop} onPress={() => setShowThemePicker(false)} />
+        <View style={[menuStyles.sheet, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View style={[blockModalStyles.handle, { backgroundColor: BORDER }]} />
+          <Text style={[menuStyles.heading, { color: TEXT }]}>اختر لون المحادثة</Text>
+          <View style={menuStyles.swatchGrid}>
+            {ACCENT_COLORS.map((c) => (
+              <TouchableOpacity
+                key={c}
+                onPress={() => { setConversationTheme(id, c); setShowThemePicker(false); }}
+                style={[
+                  menuStyles.swatch,
+                  { backgroundColor: c, borderColor: convo?.themeColor === c ? "#fff" : "transparent" },
+                ]}
+              />
+            ))}
+            {/* Reset swatch */}
+            <TouchableOpacity
+              onPress={() => { setConversationTheme(id, undefined); setShowThemePicker(false); }}
+              style={[
+                menuStyles.swatch,
+                { backgroundColor: "#2C2C2E", borderColor: !convo?.themeColor ? "#fff" : "transparent",
+                  alignItems: "center", justifyContent: "center" },
+              ]}
+            >
+              <Feather name="x" size={18} color={TEXT2} strokeWidth={1.5} />
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            onPress={() => setShowThemePicker(false)}
+            style={[blockModalStyles.cancelBtn, { backgroundColor: "#1C1C1C", marginTop: 8 }]}
+          >
+            <Text style={[blockModalStyles.cancelText, { color: TEXT2 }]}>إلغاء</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* ───── Destructive confirm (block / delete) ───── */}
+      <Modal
+        visible={menuConfirm !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuConfirm(null)}
+      >
+        <Pressable style={blockModalStyles.backdrop} onPress={() => setMenuConfirm(null)} />
         <View style={[blockModalStyles.sheet, { backgroundColor: CARD, borderColor: BORDER }]}>
           <View style={[blockModalStyles.handle, { backgroundColor: BORDER }]} />
-          {otherUser && isBlocked(otherUser.id) ? (
+          {menuConfirm === "delete" ? (
+            <>
+              <View style={blockModalStyles.iconWrap}>
+                <Feather name="trash-2" size={36} color="#FF3B5C" strokeWidth={1.5} />
+              </View>
+              <Text style={[blockModalStyles.title, { color: TEXT }]}>حذف المحادثة</Text>
+              <Text style={[blockModalStyles.subtitle, { color: TEXT2 }]}>
+                هل أنت متأكد من حذف المحادثة مع {otherUser?.name}؟ لا يمكن التراجع.
+              </Text>
+              <TouchableOpacity
+                onPress={() => { setMenuConfirm(null); deleteConversation(id); router.back(); }}
+                style={blockModalStyles.blockBtn}
+              >
+                <Text style={blockModalStyles.blockBtnText}>نعم، احذف المحادثة</Text>
+              </TouchableOpacity>
+            </>
+          ) : otherUser && isBlocked(otherUser.id) ? (
             <>
               <View style={[blockModalStyles.iconWrap, { backgroundColor: "#10B98122" }]}>
                 <Feather name="user-check" size={36} color="#10B981" strokeWidth={1.5} />
@@ -1464,7 +1612,7 @@ export default function ChatScreen() {
                 {otherUser?.name} محظور حالياً. هل تريد إلغاء الحظر؟
               </Text>
               <TouchableOpacity
-                onPress={() => { setShowBlockModal(false); if (otherUser) unblockUser(otherUser.id); }}
+                onPress={() => { setMenuConfirm(null); if (otherUser) unblockUser(otherUser.id); }}
                 style={[blockModalStyles.blockBtn, { backgroundColor: "#10B981" }]}
               >
                 <Text style={blockModalStyles.blockBtnText}>نعم، إلغاء الحظر</Text>
@@ -1481,7 +1629,7 @@ export default function ChatScreen() {
               </Text>
               <TouchableOpacity
                 onPress={() => {
-                  setShowBlockModal(false);
+                  setMenuConfirm(null);
                   if (otherUser) blockUser(otherUser.id);
                   router.back();
                 }}
@@ -1492,7 +1640,7 @@ export default function ChatScreen() {
             </>
           )}
           <TouchableOpacity
-            onPress={() => setShowBlockModal(false)}
+            onPress={() => setMenuConfirm(null)}
             style={[blockModalStyles.cancelBtn, { backgroundColor: "#1C1C1C" }]}
           >
             <Text style={[blockModalStyles.cancelText, { color: TEXT2 }]}>إلغاء</Text>
@@ -1541,6 +1689,36 @@ const blockModalStyles = StyleSheet.create({
   blockBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },
   cancelBtn: { width: "100%", borderRadius: 20, paddingVertical: 16, alignItems: "center" },
   cancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+});
+
+// Overflow / theme picker sheet — uses a denser layout with action rows and
+// a leading icon, distinct from the centered destructive `blockModalStyles`.
+const menuStyles = StyleSheet.create({
+  sheet: {
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderWidth: 1, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32,
+  },
+  heading: {
+    fontSize: 16, fontFamily: "Inter_700Bold",
+    textAlign: "center", marginBottom: 12, marginTop: 4,
+  },
+  row: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    paddingVertical: 12, paddingHorizontal: 4,
+  },
+  iconWrap: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+  },
+  rowTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  rowSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  swatchGrid: {
+    flexDirection: "row", flexWrap: "wrap", gap: 12,
+    justifyContent: "center", paddingVertical: 8,
+  },
+  swatch: {
+    width: 44, height: 44, borderRadius: 22, borderWidth: 2,
+  },
 });
 
 const styles = StyleSheet.create({

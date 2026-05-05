@@ -923,7 +923,7 @@ export default function ProfileScreen() {
               <TextInput
                 style={[styles.modalInputField, { color: colors.text }]}
                 value={editUsername}
-                onChangeText={(v) => setEditUsername(v.replace(/\s/g, "").toLowerCase())}
+                onChangeText={(v) => setEditUsername(v.replace(/[^a-zA-Z0-9]/g, "").toLowerCase())}
                 placeholder="اسم المستخدم"
                 placeholderTextColor={colors.textSecondary}
                 autoCapitalize="none"

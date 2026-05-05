@@ -1,0 +1,28 @@
+PROMPT: The Zentram Core Update - Groups & Logic 🚀
+​Objective: Implement a professional Group Chat system, strict username validation, and navigation fixes.
+​1. Strict Username Validation (Security & ID)
+​Logic: Modify the Signup and ProfileUpdate forms.
+​Regex: The username field MUST ONLY accept English letters (a-z, A-Z) and numbers (0-1). No spaces, no Arabic characters, no special symbols.
+​Validation: Use: /^[a-zA-Z0-9]+$/. If the user types anything else, show an error in Arabic: "اسم المستخدم يجب أن يحتوي على أحرف إنجليزية وأرقام فقط".
+​2. Navigation Fix (DM Screen)
+​Fix: In the MessagesList screen (the main inbox), add a "Back Arrow" (سهم العودة) in the top header.
+​Action: When clicked, it should navigate back to the Home feed screen.
+​3. Advanced Group Chat System (The Architecture)
+​A. Creation Flow:
+​Update "Create New Chat" to show two options: "إنشاء محادثة جديدة" and "إنشاء مجموعة جديدة".
+​Step 1: Enter Group Name, Photo, ID (Unique), and Privacy Type (Public/Private).
+​Step 2: Select members from "Followers". Add a search bar to find users by username.
+​Constraint: A group cannot be created unless at least TWO members (other than the owner) are selected.
+​B. Group Privacy:
+​Public (عامة): Searchable by Group ID/Name.
+​Private (خاصة): Hidden from search. Members join ONLY via direct invite or sharing the Group ID.
+​C. Group UI & Features:
+​Design: Same as private chat but REMOVE the Video/Voice call buttons.
+​Member Options (Three Dots): Mute notifications, Leave group, Delete own messages.
+​Owner/Admin Panel:
+​Owner (صاحب المجموعة): Can delete ANY message, kick members (permanent ban), mute/unmute members (Muted members can only see, not write/send voice). Can promote members to "Admin" (مشرف) or demote them.
+​Admins: Have all owner rights except kicking or demoting the Owner.
+​D. Group Info Screen (Detail View):
+​Clicking the Group Name opens a new screen:
+​For Members: View members list (click to view profile), Search members, Mute, Leave, Delete Chat.
+​For Owner: "Edit Group" (Change Name/Photo/ID/Privacy). Manage Roles.

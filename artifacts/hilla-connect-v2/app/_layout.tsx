@@ -225,6 +225,28 @@ function RootLayoutNav() {
             animation: "slide_from_right",
           }}
         />
+        <Stack.Screen
+          name="group/[id]"
+          options={{
+            headerShown: false,
+            animation: "slide_from_right",
+          }}
+        />
+        <Stack.Screen
+          name="group/info/[id]"
+          options={{
+            headerShown: false,
+            animation: "slide_from_right",
+          }}
+        />
+        <Stack.Screen
+          name="group/create"
+          options={{
+            headerShown: false,
+            animation: "slide_from_bottom",
+            presentation: "modal",
+          }}
+        />
       </Stack>
       <FloatingRoomWidget />
     </View>

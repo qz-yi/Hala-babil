@@ -122,6 +122,43 @@ export interface Conversation {
   wallpaper?: string;
 }
 
+export type GroupMemberRole = "owner" | "admin" | "member";
+
+export interface GroupMember {
+  userId: string;
+  role: GroupMemberRole;
+  isMuted?: boolean;
+}
+
+export interface GroupMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string;
+  content: string;
+  type: "text" | "image" | "system";
+  mediaUrl?: string;
+  timestamp: number;
+  deletedForAll?: boolean;
+  reactions?: Record<string, string[]>;
+  replyToId?: string;
+}
+
+export interface GroupChat {
+  id: string;
+  name: string;
+  photo?: string;
+  groupId: string;
+  privacy: "public" | "private";
+  ownerId: string;
+  members: GroupMember[];
+  bannedMembers: string[];
+  messages: GroupMessage[];
+  lastMessage?: GroupMessage;
+  updatedAt: number;
+  createdAt: number;
+}
+
 export const IRAQI_GOVERNORATES = [
   "بغداد", "البصرة", "نينوى", "أربيل", "النجف", "كربلاء",
   "بابل", "ديالى", "الأنبار", "واسط", "ذي قار", "المثنى",
@@ -486,6 +523,25 @@ interface AppContextValue {
   // Persistent position for the floating mini-room widget (survives navigation)
   floatingRoomPos: { x: number; y: number } | null;
   setFloatingRoomPos: (pos: { x: number; y: number }) => void;
+  // Group Chats
+  groups: GroupChat[];
+  createGroup: (name: string, photo: string | undefined, groupId: string, privacy: "public" | "private", memberIds: string[]) => Promise<GroupChat | null>;
+  sendGroupMessage: (groupChatId: string, content: string, type?: "text" | "image", mediaUrl?: string, replyToId?: string) => void;
+  deleteGroupMessage: (groupChatId: string, msgId: string, forAll: boolean) => void;
+  kickGroupMember: (groupChatId: string, userId: string) => void;
+  banGroupMember: (groupChatId: string, userId: string) => void;
+  muteGroupMember: (groupChatId: string, userId: string) => void;
+  unmuteGroupMember: (groupChatId: string, userId: string) => void;
+  promoteToAdmin: (groupChatId: string, userId: string) => void;
+  demoteAdmin: (groupChatId: string, userId: string) => void;
+  leaveGroup: (groupChatId: string) => void;
+  editGroup: (groupChatId: string, name: string, photo?: string, privacy?: "public" | "private") => void;
+  searchGroupByPublicId: (groupId: string) => GroupChat | null;
+  getMyGroups: () => GroupChat[];
+  getGroupMemberRole: (groupChatId: string, userId: string) => GroupMemberRole | null;
+  isGroupMuted: (groupChatId: string) => boolean;
+  joinGroup: (groupChatId: string) => void;
+  addGroupReaction: (groupChatId: string, msgId: string, emoji: string) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -1026,6 +1082,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [minimizedRoomImage, setMinimizedRoomImage] = useState<string | undefined>(undefined);
   const [isStoryEditorOpen, setStoryEditorOpen] = useState(false);
   const [floatingRoomPos, setFloatingRoomPos] = useState<{ x: number; y: number } | null>(null);
+  const [groups, setGroups] = useState<GroupChat[]>([]);
 
   const minimizeRoom = useCallback((roomId: string, roomName: string, roomImage?: string) => {
     setIsRoomMinimized(true);
@@ -1052,6 +1109,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         "restaurants", "passwords", "blockedUsers", "reels", "reelLikes",
         "reelComments", "posts", "postLikes", "postComments", "stories",
         "closeFriendsLists", "follows", "notifications", "savedPosts", "governorateImages",
+        "groupChats",
       ];
       const values = await AsyncStorage.multiGet(keys);
       const data = Object.fromEntries(values.map(([k, v]) => [k, v]));
@@ -1097,6 +1155,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.notifications) setNotifications(JSON.parse(data.notifications));
       if (data.savedPosts) setSavedPostsState(JSON.parse(data.savedPosts));
       if (data.governorateImages) setGovernorateImagesState(JSON.parse(data.governorateImages));
+      if (data.groupChats) setGroups(JSON.parse(data.groupChats));
     } catch (e) {}
   };
 
@@ -1116,6 +1175,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const saveNotifications = (n: AppNotification[]) => { setNotifications(n); AsyncStorage.setItem("notifications", JSON.stringify(n)); };
   const saveSavedPostsData = (s: string[]) => { setSavedPostsState(s); AsyncStorage.setItem("savedPosts", JSON.stringify(s)); };
   const saveGovernorateImagesData = (g: GovernorateImage[]) => { setGovernorateImagesState(g); AsyncStorage.setItem("governorateImages", JSON.stringify(g)); };
+  const saveGroups = (g: GroupChat[]) => { setGroups(g); AsyncStorage.setItem("groupChats", JSON.stringify(g)); };
 
   const savePost = useCallback((postId: string) => {
     setSavedPostsState((prev) => {
@@ -3639,6 +3699,271 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [language]
   );
 
+  // ───── Group Chat Functions ─────
+  const createGroup = useCallback(
+    async (name: string, photo: string | undefined, groupId: string, privacy: "public" | "private", memberIds: string[]): Promise<GroupChat | null> => {
+      if (!currentUser) return null;
+      const existing = groups.find((g) => g.groupId === groupId.trim());
+      if (existing) return null;
+      const now = Date.now();
+      const newGroup: GroupChat = {
+        id: generateId(),
+        name: name.trim(),
+        photo,
+        groupId: groupId.trim(),
+        privacy,
+        ownerId: currentUser.id,
+        members: [
+          { userId: currentUser.id, role: "owner" },
+          ...memberIds.map((uid) => ({ userId: uid, role: "member" as GroupMemberRole })),
+        ],
+        bannedMembers: [],
+        messages: [],
+        updatedAt: now,
+        createdAt: now,
+      };
+      saveGroups([...groups, newGroup]);
+      return newGroup;
+    },
+    [currentUser, groups]
+  );
+
+  const sendGroupMessage = useCallback(
+    (groupChatId: string, content: string, type: "text" | "image" = "text", mediaUrl?: string, replyToId?: string) => {
+      if (!currentUser) return;
+      const group = groups.find((g) => g.id === groupChatId);
+      if (!group) return;
+      const member = group.members.find((m) => m.userId === currentUser.id);
+      if (!member || member.isMuted) return;
+      const msg: GroupMessage = {
+        id: generateId(),
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderAvatar: currentUser.avatar,
+        content,
+        type,
+        mediaUrl,
+        timestamp: Date.now(),
+        replyToId,
+      };
+      const updated = groups.map((g) =>
+        g.id === groupChatId
+          ? { ...g, messages: [...g.messages, msg], lastMessage: msg, updatedAt: Date.now() }
+          : g
+      );
+      saveGroups(updated);
+    },
+    [currentUser, groups]
+  );
+
+  const deleteGroupMessage = useCallback(
+    (groupChatId: string, msgId: string, forAll: boolean) => {
+      if (!currentUser) return;
+      const updated = groups.map((g) => {
+        if (g.id !== groupChatId) return g;
+        const msgs = g.messages.map((m) => {
+          if (m.id !== msgId) return m;
+          if (forAll) return { ...m, deletedForAll: true, content: "", mediaUrl: undefined };
+          return m;
+        }).filter((m) => !forAll || m.id !== msgId ? true : false);
+        return { ...g, messages: forAll ? g.messages.map((m) => m.id === msgId ? { ...m, deletedForAll: true, content: "" } : m) : g.messages.filter((m) => m.id !== msgId) };
+      });
+      saveGroups(updated);
+    },
+    [currentUser, groups]
+  );
+
+  const kickGroupMember = useCallback(
+    (groupChatId: string, userId: string) => {
+      if (!currentUser) return;
+      const updated = groups.map((g) => {
+        if (g.id !== groupChatId) return g;
+        const myRole = g.members.find((m) => m.userId === currentUser.id)?.role;
+        if (myRole !== "owner" && myRole !== "admin") return g;
+        return { ...g, members: g.members.filter((m) => m.userId !== userId) };
+      });
+      saveGroups(updated);
+    },
+    [currentUser, groups]
+  );
+
+  const banGroupMember = useCallback(
+    (groupChatId: string, userId: string) => {
+      if (!currentUser) return;
+      const updated = groups.map((g) => {
+        if (g.id !== groupChatId) return g;
+        const myRole = g.members.find((m) => m.userId === currentUser.id)?.role;
+        if (myRole !== "owner" && myRole !== "admin") return g;
+        return {
+          ...g,
+          members: g.members.filter((m) => m.userId !== userId),
+          bannedMembers: [...g.bannedMembers, userId],
+        };
+      });
+      saveGroups(updated);
+    },
+    [currentUser, groups]
+  );
+
+  const muteGroupMember = useCallback(
+    (groupChatId: string, userId: string) => {
+      if (!currentUser) return;
+      const updated = groups.map((g) => {
+        if (g.id !== groupChatId) return g;
+        const myRole = g.members.find((m) => m.userId === currentUser.id)?.role;
+        if (myRole !== "owner" && myRole !== "admin") return g;
+        return { ...g, members: g.members.map((m) => m.userId === userId ? { ...m, isMuted: true } : m) };
+      });
+      saveGroups(updated);
+    },
+    [currentUser, groups]
+  );
+
+  const unmuteGroupMember = useCallback(
+    (groupChatId: string, userId: string) => {
+      if (!currentUser) return;
+      const updated = groups.map((g) => {
+        if (g.id !== groupChatId) return g;
+        const myRole = g.members.find((m) => m.userId === currentUser.id)?.role;
+        if (myRole !== "owner" && myRole !== "admin") return g;
+        return { ...g, members: g.members.map((m) => m.userId === userId ? { ...m, isMuted: false } : m) };
+      });
+      saveGroups(updated);
+    },
+    [currentUser, groups]
+  );
+
+  const promoteToAdmin = useCallback(
+    (groupChatId: string, userId: string) => {
+      if (!currentUser) return;
+      const updated = groups.map((g) => {
+        if (g.id !== groupChatId) return g;
+        if (g.ownerId !== currentUser.id) return g;
+        return { ...g, members: g.members.map((m) => m.userId === userId ? { ...m, role: "admin" as GroupMemberRole } : m) };
+      });
+      saveGroups(updated);
+    },
+    [currentUser, groups]
+  );
+
+  const demoteAdmin = useCallback(
+    (groupChatId: string, userId: string) => {
+      if (!currentUser) return;
+      const updated = groups.map((g) => {
+        if (g.id !== groupChatId) return g;
+        if (g.ownerId !== currentUser.id) return g;
+        return { ...g, members: g.members.map((m) => m.userId === userId ? { ...m, role: "member" as GroupMemberRole } : m) };
+      });
+      saveGroups(updated);
+    },
+    [currentUser, groups]
+  );
+
+  const leaveGroup = useCallback(
+    (groupChatId: string) => {
+      if (!currentUser) return;
+      const updated = groups.map((g) => {
+        if (g.id !== groupChatId) return g;
+        if (g.ownerId === currentUser.id) return g;
+        return { ...g, members: g.members.filter((m) => m.userId !== currentUser.id) };
+      });
+      saveGroups(updated);
+    },
+    [currentUser, groups]
+  );
+
+  const editGroup = useCallback(
+    (groupChatId: string, name: string, photo?: string, privacy?: "public" | "private") => {
+      if (!currentUser) return;
+      const updated = groups.map((g) => {
+        if (g.id !== groupChatId) return g;
+        const myRole = g.members.find((m) => m.userId === currentUser.id)?.role;
+        if (myRole !== "owner" && myRole !== "admin") return g;
+        return {
+          ...g,
+          name: name.trim() || g.name,
+          photo: photo !== undefined ? photo : g.photo,
+          privacy: privacy ?? g.privacy,
+        };
+      });
+      saveGroups(updated);
+    },
+    [currentUser, groups]
+  );
+
+  const searchGroupByPublicId = useCallback(
+    (groupId: string): GroupChat | null => {
+      return groups.find((g) => g.groupId === groupId.trim() && g.privacy === "public") ?? null;
+    },
+    [groups]
+  );
+
+  const getMyGroups = useCallback(
+    (): GroupChat[] => {
+      if (!currentUser) return [];
+      return groups.filter((g) => g.members.some((m) => m.userId === currentUser.id));
+    },
+    [currentUser, groups]
+  );
+
+  const getGroupMemberRole = useCallback(
+    (groupChatId: string, userId: string): GroupMemberRole | null => {
+      const g = groups.find((gr) => gr.id === groupChatId);
+      if (!g) return null;
+      return g.members.find((m) => m.userId === userId)?.role ?? null;
+    },
+    [groups]
+  );
+
+  const isGroupMuted = useCallback(
+    (groupChatId: string): boolean => {
+      if (!currentUser) return false;
+      const g = groups.find((gr) => gr.id === groupChatId);
+      if (!g) return false;
+      return g.members.find((m) => m.userId === currentUser.id)?.isMuted ?? false;
+    },
+    [currentUser, groups]
+  );
+
+  const joinGroup = useCallback(
+    (groupChatId: string) => {
+      if (!currentUser) return;
+      const updated = groups.map((g) => {
+        if (g.id !== groupChatId) return g;
+        if (g.privacy !== "public") return g;
+        if (g.bannedMembers.includes(currentUser.id)) return g;
+        if (g.members.some((m) => m.userId === currentUser.id)) return g;
+        return { ...g, members: [...g.members, { userId: currentUser.id, role: "member" as GroupMemberRole }] };
+      });
+      saveGroups(updated);
+    },
+    [currentUser, groups]
+  );
+
+  const addGroupReaction = useCallback(
+    (groupChatId: string, msgId: string, emoji: string) => {
+      if (!currentUser) return;
+      const updated = groups.map((g) => {
+        if (g.id !== groupChatId) return g;
+        const msgs = g.messages.map((m) => {
+          if (m.id !== msgId) return m;
+          const reactions = { ...(m.reactions || {}) };
+          const users = reactions[emoji] || [];
+          if (users.includes(currentUser.id)) {
+            reactions[emoji] = users.filter((u) => u !== currentUser.id);
+            if (reactions[emoji].length === 0) delete reactions[emoji];
+          } else {
+            reactions[emoji] = [...users, currentUser.id];
+          }
+          return { ...m, reactions };
+        });
+        return { ...g, messages: msgs };
+      });
+      saveGroups(updated);
+    },
+    [currentUser, groups]
+  );
+
   const value = useMemo(
     () => ({
       language, setLanguage, theme, toggleTheme, currentUser, isAuthenticated: !!currentUser,
@@ -3679,6 +4004,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isRoomMinimized, minimizedRoomId, minimizedRoomName, minimizedRoomImage, minimizeRoom, expandRoom,
       isStoryEditorOpen, setStoryEditorOpen,
       floatingRoomPos, setFloatingRoomPos,
+      groups, createGroup, sendGroupMessage, deleteGroupMessage,
+      kickGroupMember, banGroupMember, muteGroupMember, unmuteGroupMember,
+      promoteToAdmin, demoteAdmin, leaveGroup, editGroup,
+      searchGroupByPublicId, getMyGroups, getGroupMemberRole, isGroupMuted, joinGroup,
+      addGroupReaction,
     }),
     [
       language, theme, currentUser, isSuperAdmin, isManager, isRestaurantOwner, getMyRestaurant,
@@ -3715,6 +4045,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       getUserPosts, getUserReels, t,
       isRoomMinimized, minimizedRoomId, minimizedRoomName, minimizedRoomImage, minimizeRoom, expandRoom,
       isStoryEditorOpen, floatingRoomPos,
+      groups, createGroup, sendGroupMessage, deleteGroupMessage,
+      kickGroupMember, banGroupMember, muteGroupMember, unmuteGroupMember,
+      promoteToAdmin, demoteAdmin, leaveGroup, editGroup,
+      searchGroupByPublicId, getMyGroups, getGroupMemberRole, isGroupMuted, joinGroup,
+      addGroupReaction,
     ]
   );
 

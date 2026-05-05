@@ -169,7 +169,7 @@ export default function RegisterScreen() {
   const botPad = Platform.OS === "web" ? 20 : insets.bottom;
 
   const handleUsernameChange = (val: string) => {
-    const cleaned = val.replace(/[^a-zA-Z0-9_\u0600-\u06FF]/g, "").toLowerCase();
+    const cleaned = val.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
     setUsername(cleaned);
     if (cleaned.length >= 1) {
       setUsernameAvailable(checkUsername(cleaned));

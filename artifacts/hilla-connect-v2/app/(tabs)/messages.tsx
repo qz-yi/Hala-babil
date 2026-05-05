@@ -22,6 +22,8 @@ import { useApp, isUserVerified } from "@/context/AppContext";
 import type { Conversation, User } from "@/context/AppContext";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 
+const TINT = "#3D91F4";
+
 function UserPickerModal({ users, currentUser, onSelect, onClose, t, colors }: any) {
   const others = users.filter((u: User) => u.id !== currentUser?.id);
 
@@ -74,6 +76,67 @@ function UserPickerModal({ users, currentUser, onSelect, onClose, t, colors }: a
   );
 }
 
+function NewChatPicker({ visible, onClose, onNewChat, onNewGroup, colors }: {
+  visible: boolean;
+  onClose: () => void;
+  onNewChat: () => void;
+  onNewGroup: () => void;
+  colors: any;
+}) {
+  if (!visible) return null;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.deleteBg} onPress={onClose} />
+      <View style={[styles.actionSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+        <Text style={[styles.modalTitle, { color: colors.text }]}>محادثة جديدة</Text>
+
+        <TouchableOpacity
+          style={styles.actionRow}
+          onPress={() => { onClose(); onNewChat(); }}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: `${TINT}22` }]}>
+            <Feather name="message-circle" size={22} color={TINT} strokeWidth={1.5} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>محادثة خاصة</Text>
+            <Text style={[{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.textSecondary, marginTop: 2 }]}>
+              تحدث مع شخص واحد
+            </Text>
+          </View>
+          <Feather name="chevron-left" size={16} color={colors.textSecondary} strokeWidth={1.5} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.actionRow}
+          onPress={() => { onClose(); onNewGroup(); }}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: "#10B98122" }]}>
+            <Feather name="users" size={22} color="#10B981" strokeWidth={1.5} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>مجموعة جديدة</Text>
+            <Text style={[{ fontSize: 12, fontFamily: "Inter_400Regular", color: colors.textSecondary, marginTop: 2 }]}>
+              أنشئ مجموعة مع عدة أشخاص
+            </Text>
+          </View>
+          <Feather name="chevron-left" size={16} color={colors.textSecondary} strokeWidth={1.5} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={onClose}
+          style={[styles.deleteCancel, { backgroundColor: colors.backgroundTertiary ?? colors.card, marginTop: 8 }]}
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.deleteCancelText, { color: colors.textSecondary }]}>إلغاء</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
+
 function DeleteConvoModal({
   visible,
   onConfirm,
@@ -115,19 +178,20 @@ export default function MessagesScreen() {
   const {
     conversations, users, currentUser, getConversation, deleteConversation,
     archiveConversation, unarchiveConversation, t, theme,
+    groups, getMyGroups,
   } = useApp();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
+  const [showNewChatPicker, setShowNewChatPicker] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  // Partition once so the archived collapsible header and the visible list
-  // both share the same source of truth.
   const myConvos = conversations.filter((c) => c.participants.includes(currentUser?.id || ""));
   const activeConvos = myConvos.filter((c) => !(c as any).archived);
   const archivedConvos = myConvos.filter((c) => (c as any).archived);
+  const myGroups = getMyGroups();
 
   const handleSelectUser = (user: User) => {
     const convo = getConversation(user.id);
@@ -143,8 +207,6 @@ export default function MessagesScreen() {
     return `${d.getHours()}:${d.getMinutes().toString().padStart(2, "0")}`;
   };
 
-  // Long-press now opens an action sheet with both archive/unarchive and
-  // delete instead of going straight to delete confirm.
   const [actionTarget, setActionTarget] = useState<Conversation | null>(null);
   const handleLongPress = (convo: Conversation) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -159,25 +221,41 @@ export default function MessagesScreen() {
     }
   };
 
-  // The list flips to "archived view" when the user taps the header chip.
-  // We never lose the unread count from the chip — it always reflects the
-  // archived-but-unread total even while the user is browsing the active
-  // list.
   const visibleConvos = showArchived ? archivedConvos : activeConvos;
   const archivedUnread = archivedConvos.reduce(
     (acc, c) => acc + (c.messages?.filter((m: any) => m.receiverId === currentUser?.id && !m.read).length || 0),
     0,
   );
 
+  // Combine DMs and Groups into one unified list sorted by updatedAt
+  type ListItem =
+    | { kind: "dm"; data: Conversation }
+    | { kind: "group"; data: typeof myGroups[0] };
+
+  const dmItems: ListItem[] = (showArchived ? archivedConvos : activeConvos).map((c) => ({ kind: "dm", data: c }));
+  const groupItems: ListItem[] = myGroups.map((g) => ({ kind: "group", data: g }));
+  const allItems: ListItem[] = [...dmItems, ...groupItems].sort(
+    (a, b) => (b.data.updatedAt ?? 0) - (a.data.updatedAt ?? 0)
+  );
+
+  const hasAnyContent = myConvos.length > 0 || myGroups.length > 0;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPad, borderBottomColor: colors.border }]}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={[styles.backBtn, { borderColor: colors.border }]}
+          activeOpacity={0.8}
+        >
+          <Feather name="arrow-right" size={20} color={colors.text} strokeWidth={1.5} />
+        </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>{t("messages")}</Text>
         <TouchableOpacity
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setShowPicker(true);
+            setShowNewChatPicker(true);
           }}
           style={styles.newChatBtn}
         >
@@ -185,12 +263,12 @@ export default function MessagesScreen() {
         </TouchableOpacity>
       </View>
 
-      {myConvos.length === 0 ? (
+      {!hasAnyContent ? (
         <View style={styles.emptyState}>
           <Feather name="message-circle" size={56} color={colors.border} strokeWidth={1} />
           <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>{t("noMessages")}</Text>
           <TouchableOpacity
-            onPress={() => setShowPicker(true)}
+            onPress={() => setShowNewChatPicker(true)}
             style={[styles.emptyBtn, { backgroundColor: colors.tint }]}
           >
             <Text style={[styles.emptyBtnText, { color: colors.background }]}>{t("startChat")}</Text>
@@ -198,12 +276,9 @@ export default function MessagesScreen() {
         </View>
       ) : (
         <FlatList
-          data={[...visibleConvos].sort((a, b) => b.updatedAt - a.updatedAt)}
+          data={showArchived ? dmItems : allItems}
           ListHeaderComponent={
             <>
-              {/* Archived chip — sits above the active conversations list and
-                  taps through to the archived view; in archived view we show a
-                  back chip so the user can return to the main list. */}
               {showArchived ? (
                 <TouchableOpacity
                   style={[styles.archivedHeader, { borderBottomColor: colors.border }]}
@@ -253,23 +328,75 @@ export default function MessagesScreen() {
               </View>
             ) : null
           }
-          keyExtractor={(c) => c.id}
+          keyExtractor={(item) => `${item.kind}-${item.data.id}`}
           contentContainerStyle={{ paddingBottom: insets.bottom + 90, paddingTop: 8 }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
-            const other = getOtherUser(item);
+            if (item.kind === "group") {
+              const group = item.data;
+              const color = TINT;
+              const lastMsg = group.lastMessage;
+              return (
+                <TouchableOpacity
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push(`/group/${group.id}` as any);
+                  }}
+                  style={[styles.convoItem]}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.convoAvatar, { backgroundColor: `${color}22` }]}>
+                    {group.photo ? (
+                      <Image source={{ uri: group.photo }} style={styles.convoAvatarImg} />
+                    ) : (
+                      <Feather name="users" size={22} color={color} strokeWidth={1.5} />
+                    )}
+                    <View style={styles.groupBadge}>
+                      <Feather name="users" size={9} color="#fff" strokeWidth={2} />
+                    </View>
+                  </View>
+                  <View style={[styles.convoInfo, { borderBottomColor: colors.border }]}>
+                    <View style={styles.convoTopRow}>
+                      <Text style={[styles.convoName, { color: colors.text }]} numberOfLines={1}>
+                        {group.name}
+                      </Text>
+                      {lastMsg && (
+                        <Text style={[styles.convoTime, { color: colors.textSecondary }]}>
+                          {formatTime(lastMsg.timestamp)}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={styles.convoBottomRow}>
+                      <Text style={[styles.convoLastMsg, { color: colors.textSecondary }]} numberOfLines={1}>
+                        {lastMsg
+                          ? lastMsg.type === "image"
+                            ? "📷 صورة"
+                            : lastMsg.type === "system"
+                            ? lastMsg.content
+                            : `${lastMsg.senderName}: ${lastMsg.content}`
+                          : `${group.members.length} عضو`}
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            }
+
+            // DM conversation
+            const convo = item.data as Conversation;
+            const other = getOtherUser(convo);
             if (!other) return null;
             const color = ACCENT_COLORS[other.name.length % ACCENT_COLORS.length];
-            const hasUnread = item.messages?.some(
+            const hasUnread = convo.messages?.some(
               (m: any) => m.receiverId === currentUser?.id && !m.read
             );
             return (
               <TouchableOpacity
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push(`/chat/${item.id}`);
+                  router.push(`/chat/${convo.id}`);
                 }}
-                onLongPress={() => handleLongPress(item)}
+                onLongPress={() => handleLongPress(convo)}
                 delayLongPress={400}
                 style={[styles.convoItem]}
                 activeOpacity={0.7}
@@ -287,8 +414,8 @@ export default function MessagesScreen() {
                       <Text style={[styles.convoName, { color: hasUnread ? colors.text : colors.textSecondary }]}>{other.name}</Text>
                       {isUserVerified(other) && <VerifiedBadge size={12} />}
                     </View>
-                    {item.lastMessage && (
-                      <Text style={[styles.convoTime, { color: colors.textSecondary }]}>{formatTime(item.lastMessage.timestamp)}</Text>
+                    {convo.lastMessage && (
+                      <Text style={[styles.convoTime, { color: colors.textSecondary }]}>{formatTime(convo.lastMessage.timestamp)}</Text>
                     )}
                   </View>
                   <View style={styles.convoBottomRow}>
@@ -300,15 +427,15 @@ export default function MessagesScreen() {
                       ]}
                       numberOfLines={1}
                     >
-                      {item.lastMessage?.type === "shared"
+                      {convo.lastMessage?.type === "shared"
                         ? "📎 محتوى مشارك"
-                        : item.lastMessage?.type === "image"
+                        : convo.lastMessage?.type === "image"
                         ? "📷 صورة"
-                        : item.lastMessage?.type === "video"
+                        : convo.lastMessage?.type === "video"
                         ? "🎥 فيديو"
-                        : item.lastMessage?.type === "audio"
+                        : convo.lastMessage?.type === "audio"
                         ? "🎤 رسالة صوتية"
-                        : item.lastMessage?.content || t("startChat")}
+                        : convo.lastMessage?.content || t("startChat")}
                     </Text>
                     {hasUnread && <View style={styles.unreadDot} />}
                   </View>
@@ -318,6 +445,15 @@ export default function MessagesScreen() {
           }}
         />
       )}
+
+      {/* New chat type picker */}
+      <NewChatPicker
+        visible={showNewChatPicker}
+        onClose={() => setShowNewChatPicker(false)}
+        onNewChat={() => setShowPicker(true)}
+        onNewGroup={() => router.push("/group/create" as any)}
+        colors={colors}
+      />
 
       {showPicker && (
         <UserPickerModal
@@ -337,8 +473,7 @@ export default function MessagesScreen() {
         colors={colors}
       />
 
-      {/* Long-press action sheet — archive toggle + delete entry. Delete still
-          flows through DeleteConvoModal for the destructive confirmation. */}
+      {/* Long-press action sheet for DMs */}
       <Modal
         visible={!!actionTarget}
         transparent
@@ -398,8 +533,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 0.5,
+    gap: 10,
   },
-  headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  backBtn: {
+    width: 40, height: 40, borderRadius: 13, borderWidth: 1,
+    alignItems: "center", justifyContent: "center",
+  },
+  headerTitle: { fontSize: 22, fontFamily: "Inter_700Bold", flex: 1, textAlign: "center" },
   newChatBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
 
   convoItem: {
@@ -409,9 +549,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
   },
-  convoAvatar: { width: 54, height: 54, borderRadius: 27, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  convoAvatar: { width: 54, height: 54, borderRadius: 27, alignItems: "center", justifyContent: "center", overflow: "hidden", position: "relative" },
   convoAvatarImg: { width: "100%", height: "100%", borderRadius: 27 },
   convoAvatarText: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  groupBadge: {
+    position: "absolute", bottom: 0, right: 0,
+    width: 18, height: 18, borderRadius: 9, backgroundColor: "#10B981",
+    alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#000",
+  },
   convoInfo: { flex: 1, borderBottomWidth: 0.5, paddingBottom: 12 },
   convoTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   convoBottomRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 3 },
@@ -460,20 +605,13 @@ const styles = StyleSheet.create({
   emptyPicker: { alignItems: "center", paddingVertical: 40, gap: 12 },
   emptyText: { fontFamily: "Inter_400Regular" },
 
-  // Delete modal
   deleteBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)" },
   deleteCard: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderTopWidth: 1,
-    padding: 24,
-    paddingBottom: 44,
-    alignItems: "center",
-    gap: 10,
+    bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderTopWidth: 1, padding: 24, paddingBottom: 44,
+    alignItems: "center", gap: 10,
   },
   deleteIconWrap: {
     width: 72, height: 72, borderRadius: 36,
@@ -497,20 +635,11 @@ const styles = StyleSheet.create({
   },
   deleteCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 
-  // Archived chip — sits at the top of the active conversations list and
-  // doubles as the "back" header while in archived view.
   archivedHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 0.5,
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5,
   },
-  archivedIcon: {
-    width: 38, height: 38, borderRadius: 12,
-    alignItems: "center", justifyContent: "center",
-  },
+  archivedIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   archivedTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   archivedSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   archivedBadge: {
@@ -520,21 +649,15 @@ const styles = StyleSheet.create({
   },
   archivedBadgeText: { color: "#fff", fontSize: 12, fontFamily: "Inter_700Bold" },
 
-  // Long-press action sheet — slim sheet with two action rows + cancel.
   actionSheet: {
-    position: "absolute",
-    bottom: 0, left: 0, right: 0,
+    position: "absolute", bottom: 0, left: 0, right: 0,
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    borderTopWidth: 1,
-    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32,
+    borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32,
   },
   actionRow: {
     flexDirection: "row", alignItems: "center", gap: 14,
     paddingVertical: 14, paddingHorizontal: 4,
   },
-  actionIcon: {
-    width: 40, height: 40, borderRadius: 12,
-    alignItems: "center", justifyContent: "center",
-  },
+  actionIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   actionLabel: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });

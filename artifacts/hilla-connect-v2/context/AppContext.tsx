@@ -17,6 +17,22 @@ export type AccountType = "public" | "private";
 export type PostFilter = "none" | "grayscale" | "warm" | "cool" | "vintage";
 export type UserRole = "MANAGER" | "RESTAURANT_OWNER" | "CUSTOMER";
 
+export type PrivacyLevel = "everyone" | "following" | "followers" | "none";
+
+export interface UserPrivacySettings {
+  stories: PrivacyLevel;
+  profilePhoto: PrivacyLevel;
+  groups: PrivacyLevel;
+  mentions: PrivacyLevel;
+}
+
+export const DEFAULT_PRIVACY: UserPrivacySettings = {
+  stories: "everyone",
+  profilePhoto: "everyone",
+  groups: "everyone",
+  mentions: "everyone",
+};
+
 export interface User {
   id: string;
   name: string;
@@ -35,6 +51,7 @@ export interface User {
   isActive?: boolean;
   createdAt: number;
   verifiedUntil?: number;
+  strikes?: number;
 }
 
 export function isUserVerified(user: User | null | undefined): boolean {
@@ -542,6 +559,14 @@ interface AppContextValue {
   isGroupMuted: (groupChatId: string) => boolean;
   joinGroup: (groupChatId: string) => void;
   addGroupReaction: (groupChatId: string, msgId: string, emoji: string) => void;
+  // Privacy
+  privacySettings: UserPrivacySettings;
+  updatePrivacySettings: (settings: Partial<UserPrivacySettings>) => void;
+  canViewStory: (viewerId: string, ownerId: string) => boolean;
+  canViewProfilePhoto: (viewerId: string, ownerId: string) => boolean;
+  canAddToGroup: (userId: string) => boolean;
+  canMention: (viewerId: string, ownerId: string) => boolean;
+  addStrike: (userId: string) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -1083,6 +1108,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isStoryEditorOpen, setStoryEditorOpen] = useState(false);
   const [floatingRoomPos, setFloatingRoomPos] = useState<{ x: number; y: number } | null>(null);
   const [groups, setGroups] = useState<GroupChat[]>([]);
+  const [privacySettingsMap, setPrivacySettingsMap] = useState<Record<string, UserPrivacySettings>>({});
 
   const minimizeRoom = useCallback((roomId: string, roomName: string, roomImage?: string) => {
     setIsRoomMinimized(true);
@@ -1109,7 +1135,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         "restaurants", "passwords", "blockedUsers", "reels", "reelLikes",
         "reelComments", "posts", "postLikes", "postComments", "stories",
         "closeFriendsLists", "follows", "notifications", "savedPosts", "governorateImages",
-        "groupChats",
+        "groupChats", "privacySettings",
       ];
       const values = await AsyncStorage.multiGet(keys);
       const data = Object.fromEntries(values.map(([k, v]) => [k, v]));
@@ -1156,6 +1182,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.savedPosts) setSavedPostsState(JSON.parse(data.savedPosts));
       if (data.governorateImages) setGovernorateImagesState(JSON.parse(data.governorateImages));
       if (data.groupChats) setGroups(JSON.parse(data.groupChats));
+      if (data.privacySettings) setPrivacySettingsMap(JSON.parse(data.privacySettings));
     } catch (e) {}
   };
 
@@ -1176,6 +1203,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const saveSavedPostsData = (s: string[]) => { setSavedPostsState(s); AsyncStorage.setItem("savedPosts", JSON.stringify(s)); };
   const saveGovernorateImagesData = (g: GovernorateImage[]) => { setGovernorateImagesState(g); AsyncStorage.setItem("governorateImages", JSON.stringify(g)); };
   const saveGroups = (g: GroupChat[]) => { setGroups(g); AsyncStorage.setItem("groupChats", JSON.stringify(g)); };
+  const savePrivacySettingsMap = (m: Record<string, UserPrivacySettings>) => { setPrivacySettingsMap(m); AsyncStorage.setItem("privacySettings", JSON.stringify(m)); };
 
   const savePost = useCallback((postId: string) => {
     setSavedPostsState((prev) => {
@@ -3964,6 +3992,61 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [currentUser, groups]
   );
 
+  // ───── Privacy Settings ─────
+  const getMyPrivacy = useCallback((): UserPrivacySettings => {
+    if (!currentUser) return DEFAULT_PRIVACY;
+    return privacySettingsMap[currentUser.id] ?? DEFAULT_PRIVACY;
+  }, [currentUser, privacySettingsMap]);
+
+  const updatePrivacySettings = useCallback((settings: Partial<UserPrivacySettings>) => {
+    if (!currentUser) return;
+    const current = privacySettingsMap[currentUser.id] ?? DEFAULT_PRIVACY;
+    const updated = { ...current, ...settings };
+    savePrivacySettingsMap({ ...privacySettingsMap, [currentUser.id]: updated });
+  }, [currentUser, privacySettingsMap]);
+
+  const checkPrivacy = useCallback((level: PrivacyLevel, viewerId: string, ownerId: string): boolean => {
+    if (viewerId === ownerId) return true;
+    if (level === "everyone") return true;
+    if (level === "none") return false;
+    const ownerFollowers = follows.filter((f) => f.followingId === ownerId && f.status === "accepted").map((f) => f.followerId);
+    const ownerFollowing = follows.filter((f) => f.followerId === ownerId && f.status === "accepted").map((f) => f.followingId);
+    if (level === "followers") return ownerFollowers.includes(viewerId);
+    if (level === "following") return ownerFollowing.includes(viewerId);
+    return false;
+  }, [follows]);
+
+  const canViewStory = useCallback((viewerId: string, ownerId: string): boolean => {
+    const level = (privacySettingsMap[ownerId] ?? DEFAULT_PRIVACY).stories;
+    return checkPrivacy(level, viewerId, ownerId);
+  }, [privacySettingsMap, checkPrivacy]);
+
+  const canViewProfilePhoto = useCallback((viewerId: string, ownerId: string): boolean => {
+    const level = (privacySettingsMap[ownerId] ?? DEFAULT_PRIVACY).profilePhoto;
+    return checkPrivacy(level, viewerId, ownerId);
+  }, [privacySettingsMap, checkPrivacy]);
+
+  const canAddToGroup = useCallback((userId: string): boolean => {
+    if (!currentUser) return false;
+    if (userId === currentUser.id) return true;
+    const level = (privacySettingsMap[userId] ?? DEFAULT_PRIVACY).groups;
+    return checkPrivacy(level, currentUser.id, userId);
+  }, [currentUser, privacySettingsMap, checkPrivacy]);
+
+  const canMention = useCallback((viewerId: string, ownerId: string): boolean => {
+    const level = (privacySettingsMap[ownerId] ?? DEFAULT_PRIVACY).mentions;
+    return checkPrivacy(level, viewerId, ownerId);
+  }, [privacySettingsMap, checkPrivacy]);
+
+  const addStrike = useCallback((userId: string) => {
+    const updatedUsers = users.map((u) => u.id === userId ? { ...u, strikes: (u.strikes ?? 0) + 1 } : u);
+    saveUsers(updatedUsers);
+    setCurrentUser((prev) => {
+      if (!prev || prev.id !== userId) return prev;
+      return { ...prev, strikes: (prev.strikes ?? 0) + 1 };
+    });
+  }, [users]);
+
   const value = useMemo(
     () => ({
       language, setLanguage, theme, toggleTheme, currentUser, isAuthenticated: !!currentUser,
@@ -4009,6 +4092,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       promoteToAdmin, demoteAdmin, leaveGroup, editGroup,
       searchGroupByPublicId, getMyGroups, getGroupMemberRole, isGroupMuted, joinGroup,
       addGroupReaction,
+      privacySettings: getMyPrivacy(),
+      updatePrivacySettings, canViewStory, canViewProfilePhoto, canAddToGroup, canMention, addStrike,
     }),
     [
       language, theme, currentUser, isSuperAdmin, isManager, isRestaurantOwner, getMyRestaurant,
@@ -4050,6 +4135,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       promoteToAdmin, demoteAdmin, leaveGroup, editGroup,
       searchGroupByPublicId, getMyGroups, getGroupMemberRole, isGroupMuted, joinGroup,
       addGroupReaction,
+      updatePrivacySettings, canViewStory, canViewProfilePhoto, canAddToGroup, canMention, addStrike,
+      privacySettingsMap,
     ]
   );
 

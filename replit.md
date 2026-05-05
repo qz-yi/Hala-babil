@@ -229,6 +229,29 @@ Most other mobile data is still stored in AsyncStorage. The API server also hand
 - `returnKeyType="send"` on comment and reply inputs
 - Comments already supported `onSubmitEditing={handleSend}`
 
+### v4.0 — Privacy Settings + Content Moderation
+
+#### Privacy Settings System
+- `PrivacyLevel` type: `"everyone" | "following" | "followers" | "none"`
+- `UserPrivacySettings` interface with 4 controls: `stories`, `profilePhoto`, `groups`, `mentions`
+- Stored in AsyncStorage under `"privacySettings"` key (per userId map)
+- Profile drawer has new **"الخصوصية"** tab (5th tab alongside settings/activity/requests/saved)
+- Dropdown per setting — tap to expand, select one of 4 levels, applies instantly with haptic feedback
+- Helper functions in AppContext: `canViewStory()`, `canViewProfilePhoto()`, `canAddToGroup()`, `canMention()` — all respect the follow graph for `following/followers` levels
+- Group creation already checks `canAddToGroup()` at the member selection step
+
+#### Content Moderation System
+- Route: `POST /api/moderate` in `artifacts/api-server/src/routes/moderation.ts`
+- Uses `AI_INTEGRATIONS_OPENAI_BASE_URL` / `AI_INTEGRATIONS_OPENAI_API_KEY` (auto-provisioned Replit AI integration)
+- Sends image as base64 to GPT-5-mini Vision → returns `{ safe: boolean, reason?: string }`
+- Client utility: `artifacts/hilla-connect-v2/utils/contentModeration.ts` — converts URI to base64 via `fetch + FileReader`, calls API, returns result
+- Integrated into 3 publish flows:
+  - **Posts/Reels**: `finalize-post.tsx` → checks before `addPost/addReel`
+  - **Stories**: `create-story.tsx` → checks before `addStory` in story mode
+  - **Profile/Cover images**: `create-story.tsx` → checks before `updateProfile/updateCoverPhoto`
+- On violation: blocks upload, shows `"عذراً، هذا المحتوى ينتهك معايير المجتمع"` toast, calls `addStrike(userId)`
+- `strikes?: number` field on User interface, persisted in `users` AsyncStorage array
+
 ### Important Notes
 - Never define components inside other components (causes keyboard focus loss)
 - Use `Date.now().toString() + Math.random()` for IDs (no uuid package)

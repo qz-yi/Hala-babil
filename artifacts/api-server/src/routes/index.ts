@@ -4,6 +4,7 @@ import agoraRouter from "./agora.js";
 import roomsRouter from "./rooms.js";
 import authRouter from "./auth.js";
 import storiesRouter from "./stories.js";
+import moderationRouter from "./moderation.js";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(agoraRouter);
 router.use(roomsRouter);
 router.use(authRouter);
 router.use(storiesRouter);
+router.use(moderationRouter);
 
 export default router;

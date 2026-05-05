@@ -32,6 +32,7 @@ import { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { User } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
+import { moderateContent } from "@/utils/contentModeration";
 import { setBakedMedia } from "@/lib/bakedMediaBridge";
 import {
   consumeSharedContent,
@@ -1375,7 +1376,7 @@ export default function CreateStoryScreen() {
   const {
     addStory, users, currentUser, getFollowers, closeFriendsList, updateCloseFriendsList,
     addPost, addReel, updateProfile, updateCoverPhoto,
-    setStoryEditorOpen,
+    setStoryEditorOpen, addStrike,
   } = useApp();
 
   // Mark the story editor as open while this screen is mounted so that any
@@ -2074,11 +2075,40 @@ export default function CreateStoryScreen() {
       // Direct-publish modes (story / profile / cover):
       if (editorMode === "profile") {
         if (!currentUser) throw new Error("no user");
+        // Moderate profile images
+        if (finalUri && bakedMediaType === "image") {
+          const modResult = await moderateContent(finalUri);
+          if (!modResult.safe) {
+            addStrike(currentUser.id);
+            showToast("عذراً، هذا المحتوى ينتهك معايير المجتمع", "error");
+            setPublishing(false);
+            return;
+          }
+        }
         await updateProfile(currentUser.name, currentUser.bio, finalUri);
       } else if (editorMode === "cover") {
+        // Moderate cover images
+        if (finalUri && currentUser && bakedMediaType === "image") {
+          const modResult = await moderateContent(finalUri);
+          if (!modResult.safe) {
+            addStrike(currentUser.id);
+            showToast("عذراً، هذا المحتوى ينتهك معايير المجتمع", "error");
+            setPublishing(false);
+            return;
+          }
+        }
         await updateCoverPhoto(finalUri);
       } else {
-        // STORY mode
+        // STORY mode — moderate story images
+        if (finalUri && bakedMediaType === "image" && currentUser) {
+          const modResult = await moderateContent(finalUri);
+          if (!modResult.safe) {
+            addStrike(currentUser.id);
+            showToast("عذراً، هذا المحتوى ينتهك معايير المجتمع", "error");
+            setPublishing(false);
+            return;
+          }
+        }
         if (isCloseFriends) updateCloseFriendsList(cfList);
         // Overlays are now baked into the image — pass empty overlayData so the
         // viewer doesn't double-render them on top of the captured PNG. Videos

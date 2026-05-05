@@ -23,7 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS, STORY_GRADIENT_COLORS } from "@/constants/colors";
 import { useApp, isUserVerified } from "@/context/AppContext";
-import type { AccountType, Post, Reel } from "@/context/AppContext";
+import type { AccountType, Post, Reel, UserPrivacySettings, PrivacyLevel } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 import { VerifiedBadge, VerifiedAvatarFrame } from "@/components/VerifiedBadge";
 import { CircularCropScreen } from "@/components/CircularCropScreen";
@@ -33,7 +33,7 @@ const GRID_ITEM_SIZE = (SCREEN_WIDTH - 3) / 3;
 const COVER_HEIGHT = 170;
 
 type GridTab = "posts" | "reels";
-type DrawerPage = "settings" | "activity" | "requests" | "saved";
+type DrawerPage = "settings" | "activity" | "requests" | "saved" | "privacy";
 
 // ───── Followers / Following Modal ─────
 function FollowListModal({
@@ -154,7 +154,28 @@ function ProfileDrawer({
     getMyPostComments,
     getLikedPosts,
     getSavedPosts,
+    privacySettings,
+    updatePrivacySettings,
   } = useApp();
+
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+
+  const PRIVACY_OPTIONS: { value: PrivacyLevel; label: string }[] = [
+    { value: "everyone", label: "الجميع" },
+    { value: "following", label: "الأشخاص الذين أتابعهم" },
+    { value: "followers", label: "المتابِعون" },
+    { value: "none", label: "لا أحد" },
+  ];
+
+  const getPrivacyLabel = (level: PrivacyLevel) =>
+    PRIVACY_OPTIONS.find((o) => o.value === level)?.label ?? "الجميع";
+
+  const PRIVACY_SETTINGS_CONFIG = [
+    { key: "stories" as keyof UserPrivacySettings, label: "رؤية القصص", icon: "eye", color: "#3D91F4" },
+    { key: "profilePhoto" as keyof UserPrivacySettings, label: "الصورة الشخصية والغلاف", icon: "image", color: "#9B59B6" },
+    { key: "groups" as keyof UserPrivacySettings, label: "إضافة للمجموعات", icon: "users", color: "#34C759" },
+    { key: "mentions" as keyof UserPrivacySettings, label: "الإشارات (Mentions)", icon: "at-sign", color: "#F59E0B" },
+  ];
   const verified = isUserVerified(currentUser);
   const isExpired = currentUser?.verifiedUntil && !verified;
   const MANAGER_WHATSAPP = "07719820537";
@@ -177,6 +198,7 @@ function ProfileDrawer({
         <View style={[styles.drawerTabs, { borderBottomColor: colors.border }]}>
           {[
             { key: "settings", label: "الإعدادات", icon: "settings" },
+            { key: "privacy", label: "الخصوصية", icon: "shield" },
             { key: "activity", label: "نشاطي", icon: "activity" },
             { key: "requests", label: "الطلبات", icon: "users" },
             { key: "saved", label: "محفوظ", icon: "bookmark" },
@@ -305,6 +327,74 @@ function ProfileDrawer({
                 <Text style={[styles.drawerItemText, { color: "#FF3B5C" }]}>{t("logout")}</Text>
                 <Feather name="chevron-right" size={16} color="#FF3B5C" strokeWidth={1.5} />
               </TouchableOpacity>
+            </>
+          )}
+
+          {page === "privacy" && (
+            <>
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 4 }]}>
+                تحكم في من يمكنه رؤية محتواك أو التفاعل معك
+              </Text>
+              {PRIVACY_SETTINGS_CONFIG.map((setting) => (
+                <View key={setting.key}>
+                  <TouchableOpacity
+                    style={[styles.drawerItem, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
+                    onPress={() => {
+                      setOpenDropdown(openDropdown === setting.key ? null : setting.key);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[styles.drawerItemIcon, { backgroundColor: `${setting.color}22` }]}>
+                      <Feather name={setting.icon as any} size={18} color={setting.color} strokeWidth={1.5} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.drawerItemText, { color: colors.text }]}>{setting.label}</Text>
+                      <Text style={{ color: setting.color, fontSize: 11, fontFamily: "Inter_500Medium", marginTop: 1 }}>
+                        {getPrivacyLabel(privacySettings[setting.key])}
+                      </Text>
+                    </View>
+                    <Feather
+                      name={openDropdown === setting.key ? "chevron-down" : "chevron-right"}
+                      size={16}
+                      color={colors.textSecondary}
+                      strokeWidth={1.5}
+                    />
+                  </TouchableOpacity>
+
+                  {openDropdown === setting.key && (
+                    <View style={[styles.privacyDropdown, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                      {PRIVACY_OPTIONS.map((opt, idx) => (
+                        <TouchableOpacity
+                          key={opt.value}
+                          style={[
+                            styles.privacyOption,
+                            { borderBottomColor: colors.border },
+                            idx === PRIVACY_OPTIONS.length - 1 && { borderBottomWidth: 0 },
+                            privacySettings[setting.key] === opt.value && { backgroundColor: `${setting.color}11` },
+                          ]}
+                          onPress={() => {
+                            updatePrivacySettings({ [setting.key]: opt.value });
+                            setOpenDropdown(null);
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[
+                            styles.privacyOptionText,
+                            { color: privacySettings[setting.key] === opt.value ? setting.color : colors.text },
+                          ]}>
+                            {opt.label}
+                          </Text>
+                          {privacySettings[setting.key] === opt.value && (
+                            <Feather name="check" size={16} color={setting.color} strokeWidth={2.5} />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              ))}
             </>
           )}
 
@@ -1313,4 +1403,22 @@ const styles = StyleSheet.create({
   followUserPhone: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
   followEmpty: { alignItems: "center", paddingVertical: 40, gap: 12 },
   followEmptyText: { fontFamily: "Inter_400Regular" },
+
+  // Privacy dropdown
+  privacyDropdown: {
+    marginTop: 2,
+    marginBottom: 6,
+    borderRadius: 16,
+    borderWidth: 0.5,
+    overflow: "hidden",
+  },
+  privacyOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderBottomWidth: 0.5,
+  },
+  privacyOptionText: { fontSize: 14, fontFamily: "Inter_500Medium", textAlign: "right" },
 });

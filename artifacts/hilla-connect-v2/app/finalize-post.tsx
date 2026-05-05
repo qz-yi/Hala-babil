@@ -36,6 +36,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 import { consumeBakedMedia, type BakedMediaPayload } from "@/lib/bakedMediaBridge";
+import { moderateContent } from "@/utils/contentModeration";
 
 const Z_BG = "#000000";
 const Z_PANEL = "#0A0A0A";
@@ -76,7 +77,7 @@ function VideoThumb({ uri }: { uri: string }) {
 
 export default function FinalizePostScreen() {
   const insets = useSafeAreaInsets();
-  const { addPost, addReel } = useApp();
+  const { addPost, addReel, currentUser, addStrike } = useApp();
   const { showToast } = useToast();
 
   // The baked media is handed off from the editor via an in-memory bridge —
@@ -113,6 +114,17 @@ export default function FinalizePostScreen() {
     }
     setPublishing(true);
     try {
+      // ── Content Moderation ──────────────────────────────────────────────
+      if (mediaType === "image" && mediaUri) {
+        const modResult = await moderateContent(mediaUri);
+        if (!modResult.safe) {
+          if (currentUser) addStrike(currentUser.id);
+          showToast("عذراً، هذا المحتوى ينتهك معايير المجتمع", "error");
+          setPublishing(false);
+          return;
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────
       if (mode === "reel") {
         await addReel(mediaUri, caption.trim(), filter);
       } else {

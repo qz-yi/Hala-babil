@@ -1,0 +1,20 @@
+CRITICAL UI/UX OVERHAUL: Premium Profile Picture Flow
+​Objective: Completely replace the standard file picker flow for Profile Pictures with a custom, interactive circular cropping engine, identical to Instagram’s user experience. Update the avatar interaction logic.
+​1️⃣ The Interaction Logic (Profile Avatar)
+​Single Tap: Does nothing (or opens the avatar fullscreen viewer, if implemented). It should NO LONGER trigger the file picker directly.
+​Long Press ( M&O): MUST trigger an ActionSheet (Bottom Sheet) in Arabic with the following contextual options:
+​اختيار صورة شخصية جديدة (Opens Gallery Cropper)
+​التقاط صورة شخصية جديدة (Opens Camera Cropper)
+​حذف الصورة (Conditional: ONLY visible if the user currently has a non-default avatar).
+​2️⃣ The New Gallery Cropper (The "Circular Crop Screen")
+​Flow Change: When "New Profile Picture" is selected, do NOT navigate to the current editor. Use a custom Circular Crop Screen Component.
+​Visual Reference: Build the UI identical to image_42.png and image_43.png.
+​Top Section: Main preview area with a semi-transparent dark overlay and a clear, sharp Circular Mask with a thin grid.
+​Bottom Section: Standard grid gallery picker.
+​Functionality: * Ensure standard media selection from the grid updates the main preview area.
+​MANDATORY Interaction: The image within the circular mask must be fully Draggable (Panning) and Pinch-to-Zoom (Scaling). The user uses this to perfectly center their desired area within the circle.
+​Cleanup: Remove ALL "Story Editor" features (filters, text overlays, stickers) from this profile photo flow. The output must be just the cropped image.
+​3️⃣ Image Synthesis & Upload (The Core Fix)
+​Finalizing: When "Next/Done" is clicked, do not upload the original image metadata.
+​Logic: Use a custom function (e.g., <ProfilePhotoCrop>.current.crop()) to generate a rendered PNG/JPEG Blob that captures only what is within the circular mask at the current zoom and pan coordinates.
+​Aspect Ratio: Ensure the generated blob is perfectly square (1:1), which will naturally fit the app's circular avatar displays. Upload THIS generated blob.

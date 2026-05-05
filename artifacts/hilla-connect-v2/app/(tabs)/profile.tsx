@@ -26,6 +26,7 @@ import { useApp, isUserVerified } from "@/context/AppContext";
 import type { AccountType, Post, Reel } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 import { VerifiedBadge, VerifiedAvatarFrame } from "@/components/VerifiedBadge";
+import { CircularCropScreen } from "@/components/CircularCropScreen";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_ITEM_SIZE = (SCREEN_WIDTH - 3) / 3;
@@ -499,6 +500,11 @@ export default function ProfileScreen() {
   const [logoutModal, setLogoutModal] = useState(false);
   const [followersModal, setFollowersModal] = useState(false);
   const [followingModal, setFollowingModal] = useState(false);
+  const [avatarSheet, setAvatarSheet] = useState(false);
+  const [cropVisible, setCropVisible] = useState(false);
+  const [cropUri, setCropUri] = useState("");
+  const [cropW, setCropW] = useState(1);
+  const [cropH, setCropH] = useState(1);
 
   // Cover photo update routes through the UniversalEditor for manual crop & filter.
   const handlePickCover = () => {
@@ -526,9 +532,55 @@ export default function ProfileScreen() {
 
   const accentColor = ACCENT_COLORS[currentUser.name.length % ACCENT_COLORS.length];
 
-  // Profile picture update routes through the UniversalEditor for manual crop & filter.
-  const handlePickImage = () => {
-    router.push({ pathname: "/create-story", params: { mode: "profile" } } as any);
+  const openCropWithAsset = (asset: ImagePicker.ImagePickerAsset) => {
+    setCropUri(asset.uri);
+    setCropW(asset.width || 1000);
+    setCropH(asset.height || 1000);
+    setCropVisible(true);
+  };
+
+  const handlePickFromGallery = async () => {
+    setAvatarSheet(false);
+    await new Promise((r) => setTimeout(r, 350));
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: false,
+      quality: 1,
+    });
+    if (!result.canceled && result.assets[0]) {
+      openCropWithAsset(result.assets[0]);
+    }
+  };
+
+  const handlePickFromCamera = async () => {
+    setAvatarSheet(false);
+    await new Promise((r) => setTimeout(r, 350));
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (perm.status !== "granted") {
+      showToast("لا يوجد إذن للكاميرا", "error");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: false,
+      quality: 1,
+    });
+    if (!result.canceled && result.assets[0]) {
+      openCropWithAsset(result.assets[0]);
+    }
+  };
+
+  const handleDeleteAvatar = async () => {
+    setAvatarSheet(false);
+    await updateProfile(currentUser!.name, currentUser!.bio, "", undefined, currentUser!.username);
+    showToast("تم حذف الصورة الشخصية", "success");
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleCropDone = async (croppedUri: string) => {
+    setCropVisible(false);
+    await updateProfile(currentUser!.name, currentUser!.bio, croppedUri, undefined, currentUser!.username);
+    showToast("تم تحديث الصورة الشخصية", "success");
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const handleSaveProfile = async () => {
@@ -646,7 +698,14 @@ export default function ProfileScreen() {
 
             {/* ── Avatar row overlapping cover ── */}
             <View style={[styles.avatarRow, { backgroundColor: colors.background }]}>
-              <TouchableOpacity onPress={handlePickImage} activeOpacity={0.85} style={styles.avatarWrap}>
+              <Pressable
+                onLongPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setAvatarSheet(true);
+                }}
+                delayLongPress={380}
+                style={styles.avatarWrap}
+              >
                 {isSuperAdmin ? (
                   <LinearGradient colors={["#FFD700", "#FFA500", "#FF8C00"]} style={styles.avatar}>
                     {currentUser.avatar ? (
@@ -686,7 +745,7 @@ export default function ProfileScreen() {
                 <View style={styles.editOverlay}>
                   <Feather name="camera" size={13} color="#fff" strokeWidth={1.5} />
                 </View>
-              </TouchableOpacity>
+              </Pressable>
 
               <View style={{ flex: 1 }} />
 
@@ -960,6 +1019,72 @@ export default function ProfileScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Avatar Action Sheet */}
+      <Modal visible={avatarSheet} transparent animationType="slide" onRequestClose={() => setAvatarSheet(false)}>
+        <Pressable style={styles.sheetOverlay} onPress={() => setAvatarSheet(false)}>
+          <Pressable style={[styles.sheetContainer, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => {}}>
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>الصورة الشخصية</Text>
+
+            <TouchableOpacity
+              style={[styles.sheetOption, { borderColor: colors.border }]}
+              onPress={handlePickFromGallery}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.sheetOptionIcon, { backgroundColor: "#3D91F422" }]}>
+                <Feather name="image" size={20} color="#3D91F4" strokeWidth={1.5} />
+              </View>
+              <Text style={[styles.sheetOptionText, { color: colors.text }]}>اختيار صورة شخصية جديدة</Text>
+              <Feather name="chevron-left" size={18} color={colors.textSecondary} strokeWidth={1.5} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.sheetOption, { borderColor: colors.border }]}
+              onPress={handlePickFromCamera}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.sheetOptionIcon, { backgroundColor: "#34C75922" }]}>
+                <Feather name="camera" size={20} color="#34C759" strokeWidth={1.5} />
+              </View>
+              <Text style={[styles.sheetOptionText, { color: colors.text }]}>التقاط صورة شخصية جديدة</Text>
+              <Feather name="chevron-left" size={18} color={colors.textSecondary} strokeWidth={1.5} />
+            </TouchableOpacity>
+
+            {!!currentUser.avatar && (
+              <TouchableOpacity
+                style={[styles.sheetOption, { borderColor: colors.border }]}
+                onPress={handleDeleteAvatar}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.sheetOptionIcon, { backgroundColor: "#FF3B5C22" }]}>
+                  <Feather name="trash-2" size={20} color="#FF3B5C" strokeWidth={1.5} />
+                </View>
+                <Text style={[styles.sheetOptionText, { color: "#FF3B5C" }]}>حذف الصورة</Text>
+                <Feather name="chevron-left" size={18} color="#FF3B5C66" strokeWidth={1.5} />
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[styles.sheetCancelBtn, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+              onPress={() => setAvatarSheet(false)}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.sheetCancelText, { color: colors.textSecondary }]}>إلغاء</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Circular Crop Screen */}
+      <CircularCropScreen
+        visible={cropVisible}
+        imageUri={cropUri}
+        imageWidth={cropW}
+        imageHeight={cropH}
+        onClose={() => setCropVisible(false)}
+        onDone={handleCropDone}
+      />
     </View>
   );
 }
@@ -1127,6 +1252,44 @@ const styles = StyleSheet.create({
   accountTypeBtnDesc: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   logoutIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#FF3B5C22", alignItems: "center", justifyContent: "center", alignSelf: "center" },
   logoutDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
+
+  // Avatar Action Sheet
+  sheetOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  sheetContainer: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderTopWidth: 0.5,
+    padding: 20,
+    paddingBottom: 36,
+    gap: 10,
+  },
+  sheetHandle: { width: 36, height: 3, borderRadius: 2, alignSelf: "center", marginBottom: 12 },
+  sheetTitle: { fontSize: 16, fontFamily: "Inter_700Bold", textAlign: "center", marginBottom: 4 },
+  sheetOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    borderWidth: 0.5,
+  },
+  sheetOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetOptionText: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", textAlign: "right" },
+  sheetCancelBtn: {
+    borderRadius: 18,
+    borderWidth: 0.5,
+    paddingVertical: 15,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  sheetCancelText: { fontSize: 15, fontFamily: "Inter_500Medium" },
 
   // Followers modal
   followBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)" },

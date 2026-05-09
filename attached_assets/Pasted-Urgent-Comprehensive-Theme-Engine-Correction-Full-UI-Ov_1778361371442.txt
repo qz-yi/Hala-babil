@@ -1,0 +1,23 @@
+Urgent: Comprehensive Theme Engine Correction & Full UI Overhaul
+​Context:
+The previous implementation is incomplete. Only 3 themes (Neon, Blue Ocean, Gold) are partially working, and most screens remain static with hardcoded colors. A "Theme" must transform the entire app's look and feel, not just text colors.
+​Your Task: Execute a "Deep Migration" across ALL 33 screens and 12 components.
+​1. The Global Theme Fix (Global Inconsistency)
+​Audit & Replace: Systematically scan every file. Replace every hardcoded hex code (e.g., #000, #FFF, black, white) and every theme === 'dark' ? ... ternary with the corresponding token from useThemeStore().colors.
+​Total Immersion: When a theme is selected, the background, card, border, tabBar, and navBar must all change. If a screen doesn't change color, the migration for that screen is considered a failure.
+​2. Completing the 6 Modes & Light/Dark Integration
+​Full Palette Activation: Ensure all 6 modes (Neon, Blue Ocean, Gold Luxury, Purple Night, Red Hacker, Dynamic) are fully mapped in theme/palettes.ts.
+​The Light/Dark Override: Integrate the Light and Dark mode toggles into the Appearance (المظهر) menu.
+​Logic: If the user picks "Light" or "Dark", it should act as the base palette. If they pick a specialized theme (like Gold), it overrides the base.
+​3. Redesigning the Appearance Menu (UI/UX)
+​New Layout: Reorganize the "Appearance" menu into a beautiful, high-end grid or list.
+​Theme Cards: Each theme (including Light/Dark) must have a visual preview card.
+​Centralized Selection: The user must be able to switch between any of the 8 options (Light, Dark, + 6 Themes) and 5 Overlays from this single menu.
+​4. The "Total Change" Rule
+​Red Hacker: Must switch the entire app to a Monospace font and a terminal-style black/red UI.
+​Gold Luxury: Must use matte gold gradients for headers and primary buttons, with charcoal backgrounds.
+​Cinematic/Glass Overlays: These are independent. Ensure that turning on "Glass" applies a blur effect to all cards and headers globally, regardless of the active color theme.
+​5. Technical Enforcement
+​Zustand Selectors: Use optimized selectors to ensure that changing the theme from the Appearance menu triggers a global re-render of all active screens immediately.
+​NativeWind/StyleSheet: Ensure all StyleSheet.create blocks are updated to dynamic functions that accept the colors object as an argument.
+​Start by fixing the Appearance menu UI first, then proceed to the deep migration of the remaining static screens one by one. Do not stop until grep shows zero hardcoded hex codes in the src/ directory

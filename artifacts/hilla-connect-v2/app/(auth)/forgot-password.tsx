@@ -17,16 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
-
-const BG = "#000000";
-const CARD = "#121212";
-const BORDER = "#262626";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
-const INPUT_BG = "#1C1C1C";
-const ACCENT = "#3D91F4";
-const SUCCESS = "#10B981";
-const WARNING = "#F59E0B";
+import { useThemeStore } from "@/store/themeStore";
 
 type Stage = "email" | "otp" | "reset" | "done";
 
@@ -34,6 +25,7 @@ export default function ForgotPasswordScreen() {
   const { sendEmailOTP, resetPasswordWithOTP, t } = useApp();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
+  const { tokens: c } = useThemeStore();
 
   const [stage, setStage] = useState<Stage>("email");
   const [email, setEmail] = useState("");
@@ -120,39 +112,43 @@ export default function ForgotPasswordScreen() {
     Linking.openURL("https://wa.me/9647719820537?text=طلب+إعادة+تعيين+كلمة+المرور");
   };
 
+  const ff = c.fontFamily;
+
   return (
-    <View style={[styles.container, { paddingTop: topPad, paddingBottom: botPad }]}>
+    <View style={[st.container, { backgroundColor: c.background, paddingTop: topPad, paddingBottom: botPad }]}>
       <TouchableOpacity
         onPress={() => router.back()}
-        style={[styles.backBtn, { top: topPad + 12 }]}
+        style={[st.backBtn, { top: topPad + 12 }]}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
-        <Feather name="arrow-left" size={22} color={TEXT} strokeWidth={1.5} />
+        <Feather name="arrow-left" size={22} color={c.text} strokeWidth={1.5} />
       </TouchableOpacity>
 
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={st.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {/* ── Stage: Email ── */}
           {stage === "email" && (
             <>
-              <View style={[styles.iconBox, { backgroundColor: `${WARNING}18`, borderColor: `${WARNING}44` }]}>
-                <Feather name="mail" size={36} color={WARNING} strokeWidth={1.5} />
+              <View style={[st.iconBox, { backgroundColor: `${c.warning}18`, borderColor: `${c.warning}44` }]}>
+                <Feather name="mail" size={36} color={c.warning} strokeWidth={1.5} />
               </View>
-              <Text style={styles.title}>{t("forgotPassword")}</Text>
-              <Text style={styles.desc}>
+              <Text style={[st.title, { color: c.text, fontFamily: ff ?? "Inter_700Bold" }]}>
+                {t("forgotPassword")}
+              </Text>
+              <Text style={[st.desc, { color: c.textSecondary, fontFamily: ff ?? "Inter_400Regular" }]}>
                 أدخل بريدك الإلكتروني المسجل وسنرسل لك رمز التحقق لإعادة تعيين كلمة المرور.
               </Text>
 
-              <View style={styles.inputWrapper}>
-                <Feather name="mail" size={18} color={TEXT2} strokeWidth={1.5} />
+              <View style={[st.inputWrapper, { backgroundColor: c.inputBackground, borderColor: c.border }]}>
+                <Feather name="mail" size={18} color={c.textSecondary} strokeWidth={1.5} />
                 <TextInput
-                  style={styles.input}
+                  style={[st.input, { color: c.text, fontFamily: ff ?? "Inter_400Regular" }]}
                   placeholder={t("email")}
-                  placeholderTextColor={TEXT2}
+                  placeholderTextColor={c.textSecondary}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -163,23 +159,32 @@ export default function ForgotPasswordScreen() {
                 />
               </View>
 
-              <TouchableOpacity onPress={handleSendOTP} style={styles.primaryBtn} activeOpacity={0.85} disabled={loading}>
-                <Text style={styles.primaryBtnText}>{loading ? "..." : t("sendOTP")}</Text>
+              <TouchableOpacity
+                onPress={handleSendOTP}
+                style={[st.primaryBtn, { backgroundColor: c.accent }]}
+                activeOpacity={0.85}
+                disabled={loading}
+              >
+                <Text style={[st.primaryBtnText, { color: "#FFFFFF", fontFamily: ff ?? "Inter_600SemiBold" }]}>
+                  {loading ? "..." : t("sendOTP")}
+                </Text>
               </TouchableOpacity>
 
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>أو</Text>
-                <View style={styles.dividerLine} />
+              <View style={st.divider}>
+                <View style={[st.dividerLine, { backgroundColor: c.border }]} />
+                <Text style={[st.dividerText, { color: c.textSecondary, fontFamily: ff ?? "Inter_400Regular" }]}>أو</Text>
+                <View style={[st.dividerLine, { backgroundColor: c.border }]} />
               </View>
 
-              <TouchableOpacity onPress={contactWhatsApp} style={styles.waBtn} activeOpacity={0.85}>
+              <TouchableOpacity onPress={contactWhatsApp} style={st.waBtn} activeOpacity={0.85}>
                 <Feather name="message-circle" size={20} color="#fff" strokeWidth={1.5} />
-                <Text style={styles.waBtnText}>{t("whatsappRecovery")}</Text>
+                <Text style={st.waBtnText}>{t("whatsappRecovery")}</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => router.back()} style={styles.cancelBtn}>
-                <Text style={styles.cancelBtnText}>{t("cancel")}</Text>
+              <TouchableOpacity onPress={() => router.back()} style={st.cancelBtn}>
+                <Text style={[st.cancelBtnText, { color: c.textSecondary, fontFamily: ff ?? "Inter_500Medium" }]}>
+                  {t("cancel")}
+                </Text>
               </TouchableOpacity>
             </>
           )}
@@ -187,21 +192,23 @@ export default function ForgotPasswordScreen() {
           {/* ── Stage: OTP ── */}
           {stage === "otp" && (
             <>
-              <View style={[styles.iconBox, { backgroundColor: `${ACCENT}18`, borderColor: `${ACCENT}44` }]}>
-                <Feather name="shield" size={36} color={ACCENT} strokeWidth={1.5} />
+              <View style={[st.iconBox, { backgroundColor: `${c.accent}18`, borderColor: `${c.accent}44` }]}>
+                <Feather name="shield" size={36} color={c.accent} strokeWidth={1.5} />
               </View>
-              <Text style={styles.title}>{t("enterOTP")}</Text>
-              <Text style={styles.desc}>
+              <Text style={[st.title, { color: c.text, fontFamily: ff ?? "Inter_700Bold" }]}>
+                {t("enterOTP")}
+              </Text>
+              <Text style={[st.desc, { color: c.textSecondary, fontFamily: ff ?? "Inter_400Regular" }]}>
                 تم إرسال رمز التحقق المكوّن من 6 أرقام إلى {email}
               </Text>
 
-              <View style={styles.inputWrapper}>
-                <Feather name="key" size={18} color={TEXT2} strokeWidth={1.5} />
+              <View style={[st.inputWrapper, { backgroundColor: c.inputBackground, borderColor: c.border }]}>
+                <Feather name="key" size={18} color={c.textSecondary} strokeWidth={1.5} />
                 <TextInput
                   ref={otpRef}
-                  style={[styles.input, styles.otpInput]}
+                  style={[st.input, st.otpInput, { color: c.text, fontFamily: ff ?? "Inter_700Bold" }]}
                   placeholder="• • • • • •"
-                  placeholderTextColor={TEXT2}
+                  placeholderTextColor={c.textSecondary}
                   value={otp}
                   onChangeText={setOtp}
                   keyboardType="number-pad"
@@ -212,23 +219,33 @@ export default function ForgotPasswordScreen() {
                 />
               </View>
 
-              <TouchableOpacity onPress={handleVerifyOTP} style={styles.primaryBtn} activeOpacity={0.85}>
-                <Text style={styles.primaryBtnText}>{t("verifyOTP")}</Text>
+              <TouchableOpacity
+                onPress={handleVerifyOTP}
+                style={[st.primaryBtn, { backgroundColor: c.accent }]}
+                activeOpacity={0.85}
+              >
+                <Text style={[st.primaryBtnText, { color: "#FFFFFF", fontFamily: ff ?? "Inter_600SemiBold" }]}>
+                  {t("verifyOTP")}
+                </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => { setStage("email"); setOtp(""); }} style={styles.cancelBtn}>
-                <Text style={styles.cancelBtnText}>← إعادة الإرسال</Text>
+              <TouchableOpacity onPress={() => { setStage("email"); setOtp(""); }} style={st.cancelBtn}>
+                <Text style={[st.cancelBtnText, { color: c.textSecondary, fontFamily: ff ?? "Inter_500Medium" }]}>
+                  ← إعادة الإرسال
+                </Text>
               </TouchableOpacity>
 
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>{t("tryAnotherWay")}</Text>
-                <View style={styles.dividerLine} />
+              <View style={st.divider}>
+                <View style={[st.dividerLine, { backgroundColor: c.border }]} />
+                <Text style={[st.dividerText, { color: c.textSecondary, fontFamily: ff ?? "Inter_400Regular" }]}>
+                  {t("tryAnotherWay")}
+                </Text>
+                <View style={[st.dividerLine, { backgroundColor: c.border }]} />
               </View>
 
-              <TouchableOpacity onPress={contactWhatsApp} style={styles.waBtn} activeOpacity={0.85}>
+              <TouchableOpacity onPress={contactWhatsApp} style={st.waBtn} activeOpacity={0.85}>
                 <Feather name="message-circle" size={20} color="#fff" strokeWidth={1.5} />
-                <Text style={styles.waBtnText}>{t("whatsappRecovery")}</Text>
+                <Text style={st.waBtnText}>{t("whatsappRecovery")}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -236,19 +253,23 @@ export default function ForgotPasswordScreen() {
           {/* ── Stage: Reset ── */}
           {stage === "reset" && (
             <>
-              <View style={[styles.iconBox, { backgroundColor: `${SUCCESS}18`, borderColor: `${SUCCESS}44` }]}>
-                <Feather name="lock" size={36} color={SUCCESS} strokeWidth={1.5} />
+              <View style={[st.iconBox, { backgroundColor: `${c.success}18`, borderColor: `${c.success}44` }]}>
+                <Feather name="lock" size={36} color={c.success} strokeWidth={1.5} />
               </View>
-              <Text style={styles.title}>{t("resetPassword")}</Text>
-              <Text style={styles.desc}>أدخل كلمة المرور الجديدة</Text>
+              <Text style={[st.title, { color: c.text, fontFamily: ff ?? "Inter_700Bold" }]}>
+                {t("resetPassword")}
+              </Text>
+              <Text style={[st.desc, { color: c.textSecondary, fontFamily: ff ?? "Inter_400Regular" }]}>
+                أدخل كلمة المرور الجديدة
+              </Text>
 
-              <View style={styles.inputWrapper}>
-                <Feather name="lock" size={18} color={TEXT2} strokeWidth={1.5} />
+              <View style={[st.inputWrapper, { backgroundColor: c.inputBackground, borderColor: c.border }]}>
+                <Feather name="lock" size={18} color={c.textSecondary} strokeWidth={1.5} />
                 <TextInput
                   ref={newPassRef}
-                  style={styles.input}
+                  style={[st.input, { color: c.text, fontFamily: ff ?? "Inter_400Regular" }]}
                   placeholder={t("newPassword")}
-                  placeholderTextColor={TEXT2}
+                  placeholderTextColor={c.textSecondary}
                   value={newPassword}
                   onChangeText={setNewPassword}
                   secureTextEntry={!showNew}
@@ -257,17 +278,17 @@ export default function ForgotPasswordScreen() {
                   textAlign={Platform.OS !== "web" ? "right" : "left"}
                 />
                 <TouchableOpacity onPress={() => setShowNew(!showNew)}>
-                  <Feather name={showNew ? "eye-off" : "eye"} size={18} color={TEXT2} strokeWidth={1.5} />
+                  <Feather name={showNew ? "eye-off" : "eye"} size={18} color={c.textSecondary} strokeWidth={1.5} />
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.inputWrapper}>
-                <Feather name="lock" size={18} color={TEXT2} strokeWidth={1.5} />
+              <View style={[st.inputWrapper, { backgroundColor: c.inputBackground, borderColor: c.border }]}>
+                <Feather name="lock" size={18} color={c.textSecondary} strokeWidth={1.5} />
                 <TextInput
                   ref={confirmRef}
-                  style={styles.input}
+                  style={[st.input, { color: c.text, fontFamily: ff ?? "Inter_400Regular" }]}
                   placeholder={t("confirmPassword")}
-                  placeholderTextColor={TEXT2}
+                  placeholderTextColor={c.textSecondary}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showConfirm}
@@ -276,12 +297,19 @@ export default function ForgotPasswordScreen() {
                   textAlign={Platform.OS !== "web" ? "right" : "left"}
                 />
                 <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
-                  <Feather name={showConfirm ? "eye-off" : "eye"} size={18} color={TEXT2} strokeWidth={1.5} />
+                  <Feather name={showConfirm ? "eye-off" : "eye"} size={18} color={c.textSecondary} strokeWidth={1.5} />
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity onPress={handleReset} style={styles.primaryBtn} activeOpacity={0.85} disabled={loading}>
-                <Text style={styles.primaryBtnText}>{loading ? "..." : t("resetPassword")}</Text>
+              <TouchableOpacity
+                onPress={handleReset}
+                style={[st.primaryBtn, { backgroundColor: c.accent }]}
+                activeOpacity={0.85}
+                disabled={loading}
+              >
+                <Text style={[st.primaryBtnText, { color: "#FFFFFF", fontFamily: ff ?? "Inter_600SemiBold" }]}>
+                  {loading ? "..." : t("resetPassword")}
+                </Text>
               </TouchableOpacity>
             </>
           )}
@@ -289,18 +317,22 @@ export default function ForgotPasswordScreen() {
           {/* ── Stage: Done ── */}
           {stage === "done" && (
             <>
-              <View style={[styles.iconBox, { backgroundColor: `${SUCCESS}18`, borderColor: `${SUCCESS}44` }]}>
-                <Feather name="check-circle" size={36} color={SUCCESS} strokeWidth={1.5} />
+              <View style={[st.iconBox, { backgroundColor: `${c.success}18`, borderColor: `${c.success}44` }]}>
+                <Feather name="check-circle" size={36} color={c.success} strokeWidth={1.5} />
               </View>
-              <Text style={styles.title}>تم بنجاح!</Text>
-              <Text style={styles.desc}>{t("passwordChanged")}</Text>
+              <Text style={[st.title, { color: c.text, fontFamily: ff ?? "Inter_700Bold" }]}>تم بنجاح!</Text>
+              <Text style={[st.desc, { color: c.textSecondary, fontFamily: ff ?? "Inter_400Regular" }]}>
+                {t("passwordChanged")}
+              </Text>
 
               <TouchableOpacity
                 onPress={() => { router.dismissAll(); router.replace("/(auth)/login"); }}
-                style={styles.primaryBtn}
+                style={[st.primaryBtn, { backgroundColor: c.accent }]}
                 activeOpacity={0.85}
               >
-                <Text style={styles.primaryBtnText}>{t("login")}</Text>
+                <Text style={[st.primaryBtnText, { color: "#FFFFFF", fontFamily: ff ?? "Inter_600SemiBold" }]}>
+                  {t("login")}
+                </Text>
               </TouchableOpacity>
             </>
           )}
@@ -310,8 +342,8 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+const st = StyleSheet.create({
+  container: { flex: 1 },
   backBtn: {
     position: "absolute",
     left: 16,
@@ -339,33 +371,30 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     marginBottom: 4,
   },
-  title: { fontSize: 26, fontFamily: "Inter_700Bold", color: TEXT, textAlign: "center" },
-  desc: { fontSize: 15, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center", lineHeight: 24 },
+  title: { fontSize: 26, textAlign: "center" },
+  desc: { fontSize: 15, textAlign: "center", lineHeight: 24 },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: INPUT_BG,
     borderRadius: 16,
     borderWidth: 0.5,
-    borderColor: BORDER,
     paddingHorizontal: 16,
     height: 56,
     gap: 12,
     width: "100%",
   },
-  input: { flex: 1, fontSize: 16, color: TEXT, fontFamily: "Inter_400Regular", height: "100%" },
-  otpInput: { fontSize: 22, letterSpacing: 8, fontFamily: "Inter_700Bold" },
+  input: { flex: 1, fontSize: 16, height: "100%" },
+  otpInput: { fontSize: 22, letterSpacing: 8 },
   primaryBtn: {
-    backgroundColor: TEXT,
     borderRadius: 100,
     paddingVertical: 16,
     alignItems: "center",
     width: "100%",
   },
-  primaryBtnText: { color: BG, fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  primaryBtnText: { fontSize: 16 },
   divider: { flexDirection: "row", alignItems: "center", gap: 10, width: "100%" },
-  dividerLine: { flex: 1, height: 0.5, backgroundColor: BORDER },
-  dividerText: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2 },
+  dividerLine: { flex: 1, height: 0.5 },
+  dividerText: { fontSize: 13 },
   waBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -379,5 +408,5 @@ const styles = StyleSheet.create({
   },
   waBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
   cancelBtn: { paddingVertical: 12 },
-  cancelBtnText: { color: TEXT2, fontSize: 15, fontFamily: "Inter_500Medium" },
+  cancelBtnText: { fontSize: 15 },
 });

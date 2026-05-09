@@ -229,14 +229,14 @@ function ProfileDrawer({
               </TouchableOpacity>
 
               <View style={[styles.drawerItem, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-                <View style={[styles.drawerItemIcon, { backgroundColor: "#3D91F422" }]}>
-                  <Feather name={theme === "dark" ? "moon" : "sun"} size={18} color="#3D91F4" strokeWidth={1.5} />
+                <View style={[styles.drawerItemIcon, { backgroundColor: `${colors.accent}22` }]}>
+                  <Feather name={theme === "dark" ? "moon" : "sun"} size={18} color={colors.accent} strokeWidth={1.5} />
                 </View>
                 <Text style={[styles.drawerItemText, { color: colors.text }]}>{theme === "dark" ? t("darkMode") : t("lightMode")}</Text>
                 <Switch
                   value={theme === "dark"}
                   onValueChange={toggleTheme}
-                  trackColor={{ false: "#333", true: "#3D91F4" }}
+                  trackColor={{ false: colors.border, true: colors.accent }}
                   thumbColor="#fff"
                 />
               </View>
@@ -264,13 +264,13 @@ function ProfileDrawer({
               {isSuperAdmin && (
                 <TouchableOpacity
                   onPress={() => { onClose(); router.push("/admin"); }}
-                  style={[styles.drawerItem, { borderColor: "#FFD70044", backgroundColor: "#FFD70011" }]}
+                  style={[styles.drawerItem, { borderColor: `${colors.superAdmin}44`, backgroundColor: `${colors.superAdmin}11` }]}
                 >
-                  <View style={[styles.drawerItemIcon, { backgroundColor: "#FFD70022" }]}>
-                    <Feather name="shield" size={18} color="#FFD700" strokeWidth={1.5} />
+                  <View style={[styles.drawerItemIcon, { backgroundColor: `${colors.superAdmin}22` }]}>
+                    <Feather name="shield" size={18} color={colors.superAdmin} strokeWidth={1.5} />
                   </View>
-                  <Text style={[styles.drawerItemText, { color: "#FFD700" }]}>{t("adminPanel")}</Text>
-                  <Feather name="chevron-right" size={16} color="#FFD700" strokeWidth={1.5} />
+                  <Text style={[styles.drawerItemText, { color: colors.superAdmin }]}>{t("adminPanel")}</Text>
+                  <Feather name="chevron-right" size={16} color={colors.superAdmin} strokeWidth={1.5} />
                 </TouchableOpacity>
               )}
 
@@ -286,18 +286,18 @@ function ProfileDrawer({
               </TouchableOpacity>
 
               {isExpired ? (
-                <View style={[styles.drawerItem, { borderColor: "#FF3B5C44", backgroundColor: "#FF3B5C11", flexDirection: "column", alignItems: "flex-end", gap: 10 }]}>
+                <View style={[styles.drawerItem, { borderColor: `${colors.danger}44`, backgroundColor: `${colors.danger}11`, flexDirection: "column", alignItems: "flex-end", gap: 10 }]}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8, width: "100%" }}>
-                    <View style={[styles.drawerItemIcon, { backgroundColor: "#FF3B5C22" }]}>
-                      <Feather name="shield-off" size={18} color="#FF3B5C" strokeWidth={1.5} />
+                    <View style={[styles.drawerItemIcon, { backgroundColor: `${colors.danger}22` }]}>
+                      <Feather name="shield-off" size={18} color={colors.danger} strokeWidth={1.5} />
                     </View>
-                    <Text style={[styles.drawerItemText, { color: "#FF3B5C", flex: 1 }]}>انتهت فترة التوثيق</Text>
+                    <Text style={[styles.drawerItemText, { color: colors.danger, flex: 1 }]}>انتهت فترة التوثيق</Text>
                   </View>
                   <Text style={{ color: colors.textSecondary, fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "right", width: "100%" }}>
                     انتهت فترة التوثيق، هل تريد التجديد؟
                   </Text>
                   <TouchableOpacity
-                    style={{ backgroundColor: "#3D91F4", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8, alignSelf: "flex-end" }}
+                    style={{ backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8, alignSelf: "flex-end" }}
                     onPress={() => { import("react-native").then(({ Linking }) => Linking.openURL(`https://wa.me/${MANAGER_WHATSAPP}?text=${encodeURIComponent("مرحبا، أريد تجديد التوثيق")}`)); }}
                   >
                     <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>التواصل مع الدعم</Text>
@@ -305,30 +305,30 @@ function ProfileDrawer({
                 </View>
               ) : !verified ? (
                 <TouchableOpacity
-                  style={[styles.drawerItem, { borderColor: "#3D91F422", backgroundColor: "#3D91F411" }]}
+                  style={[styles.drawerItem, { borderColor: `${colors.accent}22`, backgroundColor: `${colors.accent}11` }]}
                   onPress={() => { import("react-native").then(({ Linking }) => Linking.openURL(`https://wa.me/${MANAGER_WHATSAPP}?text=${encodeURIComponent("مرحبا، أريد توثيق حسابي")}`)); }}
                 >
-                  <View style={[styles.drawerItemIcon, { backgroundColor: "#3D91F422" }]}>
-                    <Feather name="check-circle" size={18} color="#3D91F4" strokeWidth={1.5} />
+                  <View style={[styles.drawerItemIcon, { backgroundColor: `${colors.accent}22` }]}>
+                    <Feather name="check-circle" size={18} color={colors.accent} strokeWidth={1.5} />
                   </View>
-                  <Text style={[styles.drawerItemText, { color: "#3D91F4" }]}>توثيق الحساب</Text>
-                  <Feather name="chevron-right" size={16} color="#3D91F4" strokeWidth={1.5} />
+                  <Text style={[styles.drawerItemText, { color: colors.accent }]}>توثيق الحساب</Text>
+                  <Feather name="chevron-right" size={16} color={colors.accent} strokeWidth={1.5} />
                 </TouchableOpacity>
               ) : (
-                <View style={[styles.drawerItem, { borderColor: "#3D91F422", backgroundColor: "#3D91F411" }]}>
-                  <View style={[styles.drawerItemIcon, { backgroundColor: "#3D91F422" }]}>
-                    <Feather name="check-circle" size={18} color="#3D91F4" strokeWidth={1.5} />
+                <View style={[styles.drawerItem, { borderColor: `${colors.accent}22`, backgroundColor: `${colors.accent}11` }]}>
+                  <View style={[styles.drawerItemIcon, { backgroundColor: `${colors.accent}22` }]}>
+                    <Feather name="check-circle" size={18} color={colors.accent} strokeWidth={1.5} />
                   </View>
-                  <Text style={[styles.drawerItemText, { color: "#3D91F4" }]}>حساب موثق ✓</Text>
+                  <Text style={[styles.drawerItemText, { color: colors.accent }]}>حساب موثق ✓</Text>
                 </View>
               )}
 
-              <TouchableOpacity onPress={() => onSettingsItem("logout")} style={[styles.drawerItem, { borderColor: "#FF3B5C22", backgroundColor: colors.backgroundSecondary }]}>
-                <View style={[styles.drawerItemIcon, { backgroundColor: "#FF3B5C22" }]}>
-                  <Feather name="log-out" size={18} color="#FF3B5C" strokeWidth={1.5} />
+              <TouchableOpacity onPress={() => onSettingsItem("logout")} style={[styles.drawerItem, { borderColor: `${colors.danger}22`, backgroundColor: colors.backgroundSecondary }]}>
+                <View style={[styles.drawerItemIcon, { backgroundColor: `${colors.danger}22` }]}>
+                  <Feather name="log-out" size={18} color={colors.danger} strokeWidth={1.5} />
                 </View>
-                <Text style={[styles.drawerItemText, { color: "#FF3B5C" }]}>{t("logout")}</Text>
-                <Feather name="chevron-right" size={16} color="#FF3B5C" strokeWidth={1.5} />
+                <Text style={[styles.drawerItemText, { color: colors.danger }]}>{t("logout")}</Text>
+                <Feather name="chevron-right" size={16} color={colors.danger} strokeWidth={1.5} />
               </TouchableOpacity>
             </>
           )}
@@ -414,7 +414,7 @@ function ProfileDrawer({
                   onPress={() => { onClose(); router.push(`/post/${p.id}` as any); }}
                   style={[styles.activityItem, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
                 >
-                  <Feather name="heart" size={16} color="#FF3B5C" strokeWidth={0} />
+                  <Feather name="heart" size={16} color={colors.danger} strokeWidth={0} />
                   <Text style={[styles.activityItemText, { color: colors.text }]} numberOfLines={1}>
                     {p.content || (p.mediaType === "image" ? "📷 صورة" : "منشور")}
                   </Text>
@@ -430,7 +430,7 @@ function ProfileDrawer({
                   onPress={() => { onClose(); router.push(`/post/${c.postId}` as any); }}
                   style={[styles.activityItem, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
                 >
-                  <Feather name="message-circle" size={16} color="#3D91F4" strokeWidth={1.5} />
+                  <Feather name="message-circle" size={16} color={colors.accent} strokeWidth={1.5} />
                   <Text style={[styles.activityItemText, { color: colors.text }]} numberOfLines={1}>{c.content}</Text>
                   <Feather name="chevron-right" size={13} color={colors.textSecondary} strokeWidth={1.5} />
                 </TouchableOpacity>

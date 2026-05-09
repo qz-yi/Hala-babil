@@ -168,7 +168,7 @@ function SharePostSheet({
                   <Text style={[styles.shareUserPhone, { color: colors.textSecondary }]}>@{item.username || item.email}</Text>
                 </View>
                 {isSent ? (
-                  <Ionicons name="checkmark-circle" size={22} color="#10B981" />
+                  <Ionicons name="checkmark-circle" size={22} color={colors.success} />
                 ) : (
                   <Ionicons name="paper-plane-outline" size={18} color={colors.tint} />
                 )}
@@ -491,10 +491,10 @@ function PostOptionsModal({
 
             <TouchableOpacity
               onPress={() => setConfirmDelete(true)}
-              style={[modalStyles.optionBtn, { backgroundColor: "#FF3B5C18", borderColor: "#FF3B5C33" }]}
+              style={[modalStyles.optionBtn, { backgroundColor: `${colors.danger}18`, borderColor: `${colors.danger}33` }]}
             >
-              <Ionicons name="trash-outline" size={20} color="#FF3B5C" />
-              <Text style={[modalStyles.optionText, { color: "#FF3B5C" }]}>حذف المنشور</Text>
+              <Ionicons name="trash-outline" size={20} color={colors.danger} />
+              <Text style={[modalStyles.optionText, { color: colors.danger }]}>حذف المنشور</Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={handleClose} style={[modalStyles.cancelBtn, { backgroundColor: colors.backgroundSecondary }]}>
@@ -504,7 +504,7 @@ function PostOptionsModal({
         ) : (
           <>
             <View style={modalStyles.confirmIcon}>
-              <Ionicons name="trash" size={36} color="#FF3B5C" />
+              <Ionicons name="trash" size={36} color={colors.danger} />
             </View>
             <Text style={[modalStyles.title, { color: colors.text }]}>حذف المنشور</Text>
             <Text style={[modalStyles.confirmSubtitle, { color: colors.textSecondary }]}>
@@ -542,7 +542,7 @@ const modalStyles = StyleSheet.create({
   },
   optionText: { fontSize: 16, fontFamily: "Inter_600SemiBold", flex: 1 },
   deleteBtn: {
-    backgroundColor: "#FF3B5C", borderRadius: 20,
+    backgroundColor: "#C0392B", borderRadius: 20,
     paddingVertical: 16, alignItems: "center",
   },
   deleteBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_700Bold" },

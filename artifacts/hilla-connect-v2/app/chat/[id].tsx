@@ -35,6 +35,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useColors } from "@/hooks/useColors";
+import { useThemeStore } from "@/store/themeStore";
 import { useApp, isUserVerified } from "@/context/AppContext";
 import type {
   MessageLocation,
@@ -340,7 +341,7 @@ function ReplyBubbleRef({
         replyRefStyles.wrap,
         {
           backgroundColor: isMe ? "rgba(255,255,255,0.08)" : "rgba(61,145,244,0.08)",
-          borderLeftColor: isMe ? "rgba(255,255,255,0.5)" : "#3D91F4",
+          borderLeftColor: isMe ? "rgba(255,255,255,0.5)" : useThemeStore.getState().tokens.accent,
         },
       ]}
     >
@@ -1160,7 +1161,7 @@ export default function ChatScreen() {
       <View style={[styles.container, { backgroundColor: BG, justifyContent: "center", alignItems: "center" }]}>
         <Text style={{ color: TEXT2 }}>المحادثة غير موجودة</Text>
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={{ color: "#3D91F4", marginTop: 12 }}>رجوع</Text>
+          <Text style={{ color: useThemeStore.getState().tokens.accent, marginTop: 12 }}>رجوع</Text>
         </TouchableOpacity>
       </View>
     );
@@ -1297,7 +1298,7 @@ export default function ChatScreen() {
         {/* Reply Preview Bar */}
         {replyTo && (
           <View style={replyBarStyles.bar}>
-            <Feather name="corner-up-left" size={14} color="#3D91F4" />
+            <Feather name="corner-up-left" size={14} color={useThemeStore.getState().tokens.accent} />
             <View style={{ flex: 1 }}>
               <Text style={replyBarStyles.label}>رد على</Text>
               <Text style={replyBarStyles.preview} numberOfLines={1}>
@@ -1319,10 +1320,10 @@ export default function ChatScreen() {
           <View style={[styles.attachMenu, { backgroundColor: CARD, borderColor: BORDER }]}>
             <TouchableOpacity
               onPress={handlePickImage}
-              style={[styles.attachItem, { backgroundColor: "#3D91F418" }]}
+              style={[styles.attachItem, { backgroundColor: `${useThemeStore.getState().tokens.accent}18` }]}
             >
-              <Feather name="image" size={22} color="#3D91F4" strokeWidth={1.5} />
-              <Text style={[styles.attachLabel, { color: "#3D91F4" }]}>صورة</Text>
+              <Feather name="image" size={22} color={useThemeStore.getState().tokens.accent} strokeWidth={1.5} />
+              <Text style={[styles.attachLabel, { color: useThemeStore.getState().tokens.accent }]}>صورة</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handlePickVideo}
@@ -1333,14 +1334,14 @@ export default function ChatScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSendLocation}
-              style={[styles.attachItem, { backgroundColor: "#10B98118" }]}
+              style={[styles.attachItem, { backgroundColor: `${useThemeStore.getState().tokens.success}18` }]}
             >
               {locLoading ? (
-                <Feather name="loader" size={22} color="#10B981" strokeWidth={1.5} />
+                <Feather name="loader" size={22} color={useThemeStore.getState().tokens.success} strokeWidth={1.5} />
               ) : (
-                <Feather name="map-pin" size={22} color="#10B981" strokeWidth={1.5} />
+                <Feather name="map-pin" size={22} color={useThemeStore.getState().tokens.success} strokeWidth={1.5} />
               )}
-              <Text style={[styles.attachLabel, { color: "#10B981" }]}>موقعي</Text>
+              <Text style={[styles.attachLabel, { color: useThemeStore.getState().tokens.success }]}>موقعي</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1356,12 +1357,12 @@ export default function ChatScreen() {
             <>
               <TouchableOpacity
                 onPress={() => setShowAttach((v) => !v)}
-                style={[styles.attachBtn, { backgroundColor: showAttach ? "#3D91F422" : "#1C1C1C" }]}
+                style={[styles.attachBtn, { backgroundColor: showAttach ? `${useThemeStore.getState().tokens.accent}22` : "#1C1C1C" }]}
               >
                 <Feather
                   name={showAttach ? "x" : "paperclip"}
                   size={20}
-                  color={showAttach ? "#3D91F4" : TEXT2}
+                  color={showAttach ? useThemeStore.getState().tokens.accent : TEXT2}
                   strokeWidth={1.5}
                 />
               </TouchableOpacity>

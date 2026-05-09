@@ -8,8 +8,6 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
 import React, { useEffect, useRef } from "react";
 import { Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -26,18 +24,27 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+const Notifications = Platform.OS !== "web"
+  ? require("expo-notifications")
+  : null;
+
+if (Notifications) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+}
 
 async function registerForPushNotifications() {
-  if (!Device.isDevice) return null;
+  if (!Notifications) return null;
   if (Platform.OS === "web") return null;
+
+  const Device = require("expo-device");
+  if (!Device.isDevice) return null;
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
@@ -56,28 +63,21 @@ async function registerForPushNotifications() {
 }
 
 function NotificationSetup() {
-  const { currentUser, updateProfile } = useApp();
-  const notificationListener = useRef<Notifications.EventSubscription | null>(null);
-  const responseListener = useRef<Notifications.EventSubscription | null>(null);
+  const { currentUser } = useApp();
+  const notificationListener = useRef<any>(null);
+  const responseListener = useRef<any>(null);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !Notifications) return;
 
-    registerForPushNotifications().then((token) => {
-      if (token && token !== currentUser.bio) {
-        AsyncStorage_updatePushToken(token);
-      }
-    });
+    registerForPushNotifications().then((_token) => {});
 
-    notificationListener.current = Notifications.addNotificationReceivedListener((_notification) => {
-    });
+    notificationListener.current = Notifications.addNotificationReceivedListener((_notification: any) => {});
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response: any) => {
       const data = response.notification.request.content.data as any;
       if (!data) return;
-
       const { type, referenceId, senderId } = data;
-
       if (type === "message" && senderId) {
         router.push(`/chat/${senderId}` as any);
       } else if ((type === "comment" || type === "like" || type === "mention") && referenceId) {
@@ -100,9 +100,6 @@ function NotificationSetup() {
   return null;
 }
 
-function AsyncStorage_updatePushToken(_token: string) {
-}
-
 function RootLayoutNav() {
   const tokens = useThemeStore((s) => s.tokens);
   const bg = tokens.background;
@@ -119,135 +116,25 @@ function RootLayoutNav() {
         }}
       >
         <Stack.Screen name="index" />
-        <Stack.Screen
-          name="(auth)"
-          options={{
-            headerShown: false,
-            animation: "slide_from_bottom",
-          }}
-        />
-        <Stack.Screen
-          name="(tabs)"
-          options={{ contentStyle: { backgroundColor: bg } }}
-        />
-        <Stack.Screen
-          name="room/[id]"
-          options={{
-            presentation: "modal",
-            headerShown: false,
-            animation: "slide_from_bottom",
-          }}
-        />
-        <Stack.Screen
-          name="chat/[id]"
-          options={{
-            headerShown: false,
-            animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen
-          name="chat/info/[id]"
-          options={{
-            headerShown: false,
-            animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen
-          name="profile/[id]"
-          options={{
-            headerShown: false,
-            animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen
-          name="restaurant/[id]"
-          options={{
-            headerShown: false,
-            animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen
-          name="admin"
-          options={{
-            headerShown: false,
-            animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen
-          name="notifications"
-          options={{
-            headerShown: false,
-            animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen
-          name="post/[id]"
-          options={{
-            headerShown: false,
-            animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen
-          name="create-post"
-          options={{
-            presentation: "modal",
-            headerShown: false,
-            animation: "slide_from_bottom",
-          }}
-        />
-        <Stack.Screen
-          name="create-story"
-          options={{
-            presentation: "modal",
-            headerShown: false,
-            animation: "slide_from_bottom",
-          }}
-        />
-        <Stack.Screen
-          name="finalize-post"
-          options={{
-            presentation: "modal",
-            headerShown: false,
-            animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen
-          name="story/[userId]"
-          options={{
-            presentation: "fullScreenModal",
-            headerShown: false,
-            animation: "fade",
-          }}
-        />
-        <Stack.Screen
-          name="change-password"
-          options={{
-            headerShown: false,
-            animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen
-          name="group/[id]"
-          options={{
-            headerShown: false,
-            animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen
-          name="group/info/[id]"
-          options={{
-            headerShown: false,
-            animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen
-          name="group/create"
-          options={{
-            headerShown: false,
-            animation: "slide_from_bottom",
-            presentation: "modal",
-          }}
-        />
+        <Stack.Screen name="(auth)" options={{ headerShown: false, animation: "slide_from_bottom" }} />
+        <Stack.Screen name="(tabs)" options={{ contentStyle: { backgroundColor: bg } }} />
+        <Stack.Screen name="room/[id]" options={{ presentation: "modal", headerShown: false, animation: "slide_from_bottom" }} />
+        <Stack.Screen name="chat/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="chat/info/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="profile/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="restaurant/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="admin" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="notifications" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="post/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="create-post" options={{ presentation: "modal", headerShown: false, animation: "slide_from_bottom" }} />
+        <Stack.Screen name="create-story" options={{ presentation: "modal", headerShown: false, animation: "slide_from_bottom" }} />
+        <Stack.Screen name="finalize-post" options={{ presentation: "modal", headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="story/[userId]" options={{ presentation: "fullScreenModal", headerShown: false, animation: "fade" }} />
+        <Stack.Screen name="change-password" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="group/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="group/info/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="group/create" options={{ headerShown: false, animation: "slide_from_bottom", presentation: "modal" }} />
+        <Stack.Screen name="user-posts/[userId]" options={{ headerShown: false, animation: "slide_from_right" }} />
       </Stack>
       <FloatingRoomWidget />
     </View>

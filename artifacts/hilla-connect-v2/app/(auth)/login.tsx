@@ -17,18 +17,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
-
-const BG = "#000000";
-const CARD = "#121212";
-const BORDER = "#262626";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
-const INPUT_BG = "#1C1C1C";
+import { useThemeStore } from "@/store/themeStore";
 
 export default function LoginScreen() {
   const { login, t } = useApp();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
+  const { tokens: c } = useThemeStore();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -58,49 +53,47 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <KeyboardAvoidingView
-        behavior="padding"
-        style={{ flex: 1 }}
-      >
+    <View style={[st.container, { backgroundColor: c.background }]}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={[
-            styles.scroll,
-            { paddingTop: topPad + 16, paddingBottom: botPad + 24 },
-          ]}
+          contentContainerStyle={[st.scroll, { paddingTop: topPad + 16, paddingBottom: botPad + 24 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <TouchableOpacity
             onPress={() => router.back()}
-            style={styles.backBtn}
+            style={st.backBtn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Feather name="arrow-left" size={22} color={TEXT} strokeWidth={1.5} />
+            <Feather name="arrow-left" size={22} color={c.text} strokeWidth={1.5} />
           </TouchableOpacity>
 
-          <View style={styles.headerBlock}>
+          <View style={st.headerBlock}>
             <LinearGradient
-              colors={["#d6249f", "#285AEB"]}
+              colors={[c.gradientStart, c.gradientEnd]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.logoRing}
+              style={st.logoRing}
             >
-              <View style={styles.logoInner}>
-                <Feather name="user" size={28} color={TEXT} strokeWidth={1.5} />
+              <View style={[st.logoInner, { backgroundColor: c.card }]}>
+                <Feather name="user" size={28} color={c.text} strokeWidth={1.5} />
               </View>
             </LinearGradient>
-            <Text style={styles.title}>{t("login")}</Text>
-            <Text style={styles.subtitle}>{t("welcomeToApp")}</Text>
+            <Text style={[st.title, { color: c.text, fontFamily: c.fontFamily ?? "Inter_700Bold" }]}>
+              {t("login")}
+            </Text>
+            <Text style={[st.subtitle, { color: c.textSecondary, fontFamily: c.fontFamily ?? "Inter_400Regular" }]}>
+              {t("welcomeToApp")}
+            </Text>
           </View>
 
-          <View style={styles.form}>
-            <View style={styles.inputWrapper}>
-              <Feather name="at-sign" size={18} color={TEXT2} strokeWidth={1.5} />
+          <View style={st.form}>
+            <View style={[st.inputWrapper, { backgroundColor: c.inputBackground, borderColor: c.border }]}>
+              <Feather name="at-sign" size={18} color={c.textSecondary} strokeWidth={1.5} />
               <TextInput
-                style={styles.input}
+                style={[st.input, { color: c.text, fontFamily: c.fontFamily ?? "Inter_400Regular" }]}
                 placeholder={t("usernameOrEmail")}
-                placeholderTextColor={TEXT2}
+                placeholderTextColor={c.textSecondary}
                 value={identifier}
                 onChangeText={setIdentifier}
                 keyboardType="email-address"
@@ -111,13 +104,13 @@ export default function LoginScreen() {
               />
             </View>
 
-            <View style={styles.inputWrapper}>
-              <Feather name="lock" size={18} color={TEXT2} strokeWidth={1.5} />
+            <View style={[st.inputWrapper, { backgroundColor: c.inputBackground, borderColor: c.border }]}>
+              <Feather name="lock" size={18} color={c.textSecondary} strokeWidth={1.5} />
               <TextInput
                 ref={passwordRef}
-                style={styles.input}
+                style={[st.input, { color: c.text, fontFamily: c.fontFamily ?? "Inter_400Regular" }]}
                 placeholder={t("password")}
-                placeholderTextColor={TEXT2}
+                placeholderTextColor={c.textSecondary}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
@@ -125,16 +118,8 @@ export default function LoginScreen() {
                 onSubmitEditing={handleLogin}
                 textAlign={Platform.OS !== "web" ? "right" : "left"}
               />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeBtn}
-              >
-                <Feather
-                  name={showPassword ? "eye-off" : "eye"}
-                  size={18}
-                  color={TEXT2}
-                  strokeWidth={1.5}
-                />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={st.eyeBtn}>
+                <Feather name={showPassword ? "eye-off" : "eye"} size={18} color={c.textSecondary} strokeWidth={1.5} />
               </TouchableOpacity>
             </View>
 
@@ -142,22 +127,30 @@ export default function LoginScreen() {
               onPress={() => router.push("/(auth)/forgot-password")}
               style={{ alignSelf: "flex-end" }}
             >
-              <Text style={styles.forgotText}>{t("forgotPassword")}</Text>
+              <Text style={[st.forgotText, { color: c.textSecondary, fontFamily: c.fontFamily ?? "Inter_500Medium" }]}>
+                {t("forgotPassword")}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={handleLogin}
               disabled={loading}
-              style={styles.submitBtn}
+              style={[st.submitBtn, { backgroundColor: c.text }]}
             >
-              <Text style={styles.submitBtnText}>{loading ? "..." : t("login")}</Text>
+              <Text style={[st.submitBtnText, { color: c.background, fontFamily: c.fontFamily ?? "Inter_600SemiBold" }]}>
+                {loading ? "..." : t("login")}
+              </Text>
             </TouchableOpacity>
 
-            <View style={styles.switchRow}>
-              <Text style={styles.switchText}>?ليس لديك حساب{"  "}</Text>
+            <View style={st.switchRow}>
+              <Text style={[st.switchText, { color: c.textSecondary, fontFamily: c.fontFamily ?? "Inter_400Regular" }]}>
+                ?ليس لديك حساب{"  "}
+              </Text>
               <TouchableOpacity onPress={() => router.replace("/(auth)/register")}>
-                <Text style={styles.switchLink}>{t("register")}</Text>
+                <Text style={[st.switchLink, { color: c.text, fontFamily: c.fontFamily ?? "Inter_600SemiBold" }]}>
+                  {t("register")}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -167,8 +160,8 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+const st = StyleSheet.create({
+  container: { flex: 1 },
   scroll: { flexGrow: 1, paddingHorizontal: 24, gap: 32 },
   backBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   headerBlock: { alignItems: "center", gap: 16 },
@@ -184,36 +177,32 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     borderRadius: 37,
-    backgroundColor: CARD,
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { fontSize: 28, fontFamily: "Inter_700Bold", color: TEXT, textAlign: "center" },
-  subtitle: { fontSize: 15, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center" },
+  title: { fontSize: 28, textAlign: "center" },
+  subtitle: { fontSize: 15, textAlign: "center" },
   form: { gap: 16 },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: INPUT_BG,
     borderRadius: 16,
     borderWidth: 0.5,
-    borderColor: BORDER,
     paddingHorizontal: 16,
     height: 56,
     gap: 12,
   },
-  input: { flex: 1, fontSize: 16, color: TEXT, fontFamily: "Inter_400Regular", height: "100%" },
+  input: { flex: 1, fontSize: 16, height: "100%" },
   eyeBtn: { padding: 4 },
-  forgotText: { fontSize: 14, fontFamily: "Inter_500Medium", color: TEXT2, marginTop: -4 },
+  forgotText: { fontSize: 14, marginTop: -4 },
   submitBtn: {
-    backgroundColor: TEXT,
     borderRadius: 100,
     paddingVertical: 18,
     alignItems: "center",
     marginTop: 4,
   },
-  submitBtnText: { color: BG, fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  submitBtnText: { fontSize: 17 },
   switchRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 4 },
-  switchText: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2 },
-  switchLink: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT },
+  switchText: { fontSize: 14 },
+  switchLink: { fontSize: 14 },
 });

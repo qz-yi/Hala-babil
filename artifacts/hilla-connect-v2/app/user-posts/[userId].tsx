@@ -97,7 +97,7 @@ function CommentOptionsModal({
             <Text
               style={[
                 styles.optionText,
-                opt.style === "destructive" ? { color: "#FF3B5C" } : { color: colors.text },
+                opt.style === "destructive" ? { color: colors.danger } : { color: colors.text },
               ]}
             >
               {opt.text}
@@ -208,16 +208,16 @@ function CommentSheet({
                 style={[
                   styles.commentItem,
                   item.isPinned && {
-                    backgroundColor: "rgba(61,145,244,0.07)",
+                    backgroundColor: colors.glowSoft,
                     borderRadius: 12,
                     borderWidth: 0.5,
-                    borderColor: "#3D91F444",
+                    borderColor: `${colors.accent}44`,
                   },
                 ]}
               >
                 {item.isPinned && (
                   <View style={styles.pinnedBadge}>
-                    <Feather name="bookmark" size={9} color="#3D91F4" strokeWidth={2} />
+                    <Feather name="bookmark" size={9} color={colors.accent} strokeWidth={2} />
                     <Text style={styles.pinnedText}>مثبّت</Text>
                   </View>
                 )}
@@ -236,7 +236,7 @@ function CommentSheet({
                 </TouchableOpacity>
                 <View style={styles.commentBody}>
                   <TouchableOpacity onPress={() => { onClose(); router.push(`/profile/${item.userId}` as any); }} activeOpacity={0.8} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Text style={[styles.commentUser, { color: "#3D91F4" }]}>
+                    <Text style={[styles.commentUser, { color: colors.accent }]}>
                       {commenter?.username || item.userName}
                     </Text>
                     {isUserVerified(commenter) && <VerifiedBadge size={13} />}
@@ -245,7 +245,7 @@ function CommentSheet({
                     text={item.content}
                     users={users}
                     style={[styles.commentText, { color: colors.text }]}
-                    mentionStyle={{ color: "#3D91F4", fontFamily: "Inter_600SemiBold" }}
+                    mentionStyle={{ color: colors.accent, fontFamily: "Inter_600SemiBold" }}
                   />
                 </View>
                 <TouchableOpacity
@@ -255,11 +255,11 @@ function CommentSheet({
                   <Feather
                     name="heart"
                     size={15}
-                    color={liked ? "#FF3B5C" : colors.textSecondary}
+                    color={liked ? colors.danger : colors.textSecondary}
                     strokeWidth={liked ? 0 : 1.5}
                   />
                   {likesCount > 0 && (
-                    <Text style={[styles.commentLikeCount, { color: liked ? "#FF3B5C" : colors.textSecondary }]}>
+                    <Text style={[styles.commentLikeCount, { color: liked ? colors.danger : colors.textSecondary }]}>
                       {likesCount}
                     </Text>
                   )}
@@ -281,7 +281,7 @@ function CommentSheet({
             style={{ borderWidth: 0, backgroundColor: "transparent" }}
           />
           <TouchableOpacity onPress={handleSend} style={styles.sendBtn}>
-            <Feather name="send" size={18} color="#3D91F4" strokeWidth={1.5} />
+            <Feather name="send" size={18} color={colors.accent} strokeWidth={1.5} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -427,7 +427,7 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
               <Feather
                 name="heart"
                 size={24}
-                color={liked ? "#FF3B5C" : colors.text}
+                color={liked ? colors.danger : colors.text}
                 strokeWidth={liked ? 0 : 1.5}
               />
             </Animated.View>
@@ -669,7 +669,7 @@ const styles = StyleSheet.create({
   commentUser: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   commentText: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
   pinnedBadge: { flexDirection: "row", alignItems: "center", gap: 3, position: "absolute", top: 4, right: 4 },
-  pinnedText: { fontSize: 9, color: "#3D91F4", fontFamily: "Inter_600SemiBold" },
+  pinnedText: { fontSize: 9, fontFamily: "Inter_600SemiBold" },
   commentLikeBtn: { alignItems: "center", justifyContent: "center", gap: 2, minWidth: 28, paddingTop: 4 },
   commentLikeCount: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   inputRow: {

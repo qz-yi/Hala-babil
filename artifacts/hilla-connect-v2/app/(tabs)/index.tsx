@@ -394,16 +394,16 @@ function CommentSheet({
                 style={[
                   styles.commentItem,
                   item.isPinned && {
-                    backgroundColor: "rgba(61,145,244,0.07)",
+                    backgroundColor: colors.glowSoft,
                     borderRadius: 12,
                     borderWidth: 0.5,
-                    borderColor: "#3D91F444",
+                    borderColor: `${colors.accent}44`,
                   },
                 ]}
               >
                 {item.isPinned && (
                   <View style={styles.pinnedBadge}>
-                    <Feather name="bookmark" size={9} color="#3D91F4" strokeWidth={2} />
+                    <Feather name="bookmark" size={9} color={colors.accent} strokeWidth={2} />
                     <Text style={styles.pinnedText}>مثبّت</Text>
                   </View>
                 )}
@@ -422,7 +422,7 @@ function CommentSheet({
                 </TouchableOpacity>
                 <View style={styles.commentBody}>
                   <TouchableOpacity onPress={() => handleNavigateToProfile(item.userId)} activeOpacity={0.8} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Text style={[styles.commentUser, { color: "#3D91F4" }]}>
+                    <Text style={[styles.commentUser, { color: colors.accent }]}>
                       {commenter?.username || item.userName}
                     </Text>
                     {isUserVerified(commenter) && <VerifiedBadge size={13} />}
@@ -431,7 +431,7 @@ function CommentSheet({
                     text={item.content}
                     users={users}
                     style={[styles.commentText, { color: colors.text }]}
-                    mentionStyle={{ color: "#3D91F4", fontFamily: "Inter_600SemiBold" }}
+                    mentionStyle={{ color: colors.accent, fontFamily: "Inter_600SemiBold" }}
                   />
                 </View>
                 <TouchableOpacity
@@ -442,11 +442,11 @@ function CommentSheet({
                   <Feather
                     name="heart"
                     size={15}
-                    color={liked ? "#FF3B5C" : colors.textSecondary}
+                    color={liked ? colors.danger : colors.textSecondary}
                     strokeWidth={liked ? 0 : 1.5}
                   />
                   {likesCount > 0 && (
-                    <Text style={[styles.commentLikeCount, { color: liked ? "#FF3B5C" : colors.textSecondary }]}>
+                    <Text style={[styles.commentLikeCount, { color: liked ? colors.danger : colors.textSecondary }]}>
                       {likesCount}
                     </Text>
                   )}
@@ -467,8 +467,8 @@ function CommentSheet({
             containerStyle={{ flex: 1 }}
             style={{ borderWidth: 0, backgroundColor: "transparent", paddingHorizontal: 0, paddingVertical: 0 }}
           />
-          <TouchableOpacity onPress={handleSend} style={[styles.sendBtn, { backgroundColor: text.trim() ? "#3D91F422" : "transparent" }]}>
-            <Feather name="send" size={18} color={text.trim() ? "#3D91F4" : colors.textSecondary} strokeWidth={1.5} />
+          <TouchableOpacity onPress={handleSend} style={[styles.sendBtn, { backgroundColor: text.trim() ? `${colors.accent}22` : "transparent" }]}>
+            <Feather name="send" size={18} color={text.trim() ? colors.accent : colors.textSecondary} strokeWidth={1.5} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -516,7 +516,7 @@ function CommentSheet({
                       <Text style={[styles.commentUser, { color: colors.text }]}>{item.name}</Text>
                       {item.username && <Text style={{ color: colors.textSecondary, fontSize: 12 }}>@{item.username}</Text>}
                     </View>
-                    <Feather name="heart" size={14} color="#FF3B5C" strokeWidth={0} />
+                    <Feather name="heart" size={14} color={colors.danger} strokeWidth={0} />
                   </TouchableOpacity>
                 );
               }}

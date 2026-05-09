@@ -20,16 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp, IRAQI_GOVERNORATES } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
-
-const BG = "#000000";
-const CARD = "#121212";
-const BORDER = "#262626";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
-const INPUT_BG = "#1C1C1C";
-const ACCENT = "#3D91F4";
-const SUCCESS = "#10B981";
-const ERROR = "#FF3B5C";
+import { useThemeStore } from "@/store/themeStore";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -64,14 +55,15 @@ function RegisterField({
   onSubmit,
   statusIcon,
 }: FieldProps) {
+  const { tokens: c } = useThemeStore();
   return (
-    <View style={styles.inputWrapper}>
-      <Feather name={icon} size={18} color={TEXT2} strokeWidth={1.5} />
+    <View style={[st.inputWrapper, { backgroundColor: c.inputBackground, borderColor: c.border }]}>
+      <Feather name={icon} size={18} color={c.textSecondary} strokeWidth={1.5} />
       <TextInput
         ref={inputRef}
-        style={styles.input}
+        style={[st.input, { color: c.text, fontFamily: c.fontFamily ?? "Inter_400Regular" }]}
         placeholder={placeholder}
-        placeholderTextColor={TEXT2}
+        placeholderTextColor={c.textSecondary}
         value={value}
         onChangeText={onChangeText}
         keyboardType={keyboardType}
@@ -82,14 +74,14 @@ function RegisterField({
         autoCapitalize="none"
       />
       {statusIcon === "ok" && (
-        <Feather name="check-circle" size={16} color={SUCCESS} strokeWidth={1.5} />
+        <Feather name="check-circle" size={16} color={c.success} strokeWidth={1.5} />
       )}
       {statusIcon === "error" && (
-        <Feather name="x-circle" size={16} color={ERROR} strokeWidth={1.5} />
+        <Feather name="x-circle" size={16} color={c.danger} strokeWidth={1.5} />
       )}
       {secure && onToggleSecure && (
         <TouchableOpacity onPress={onToggleSecure}>
-          <Feather name={showSecure ? "eye-off" : "eye"} size={18} color={TEXT2} strokeWidth={1.5} />
+          <Feather name={showSecure ? "eye-off" : "eye"} size={18} color={c.textSecondary} strokeWidth={1.5} />
         </TouchableOpacity>
       )}
     </View>
@@ -107,12 +99,15 @@ function GovernoratePicker({
   onSelect: (g: string) => void;
   onClose: () => void;
 }) {
+  const { tokens: c } = useThemeStore();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.modalBg} onPress={onClose} />
-      <View style={styles.pickerSheet}>
-        <View style={styles.pickerHandle} />
-        <Text style={styles.pickerTitle}>اختر محافظتك</Text>
+      <Pressable style={st.modalBg} onPress={onClose} />
+      <View style={[st.pickerSheet, { backgroundColor: c.card, borderColor: c.border }]}>
+        <View style={[st.pickerHandle, { backgroundColor: c.border }]} />
+        <Text style={[st.pickerTitle, { color: c.text, borderBottomColor: c.border, fontFamily: c.fontFamily ?? "Inter_700Bold" }]}>
+          اختر محافظتك
+        </Text>
         <FlatList
           data={IRAQI_GOVERNORATES as readonly string[]}
           keyExtractor={(item) => item}
@@ -121,7 +116,11 @@ function GovernoratePicker({
             const isSelected = item === selected;
             return (
               <TouchableOpacity
-                style={[styles.pickerItem, isSelected && styles.pickerItemSelected]}
+                style={[
+                  st.pickerItem,
+                  { borderBottomColor: c.border },
+                  isSelected && { backgroundColor: `${c.accent}18` },
+                ]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   onSelect(item);
@@ -129,11 +128,15 @@ function GovernoratePicker({
                 }}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.pickerItemText, isSelected && styles.pickerItemTextSelected]}>
+                <Text style={[
+                  st.pickerItemText,
+                  { color: c.text, fontFamily: c.fontFamily ?? "Inter_400Regular" },
+                  isSelected && { color: c.accent, fontFamily: c.fontFamily ?? "Inter_600SemiBold" },
+                ]}>
                   {item}
                 </Text>
                 {isSelected && (
-                  <Feather name="check" size={18} color={ACCENT} strokeWidth={2} />
+                  <Feather name="check" size={18} color={c.accent} strokeWidth={2} />
                 )}
               </TouchableOpacity>
             );
@@ -148,6 +151,7 @@ export default function RegisterScreen() {
   const { register, checkUsername, checkEmail, t } = useApp();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
+  const { tokens: c } = useThemeStore();
 
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
@@ -167,6 +171,7 @@ export default function RegisterScreen() {
 
   const topPad = Platform.OS === "web" ? 30 : insets.top;
   const botPad = Platform.OS === "web" ? 20 : insets.bottom;
+  const ff = c.fontFamily;
 
   const handleUsernameChange = (val: string) => {
     const cleaned = val.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
@@ -212,13 +217,7 @@ export default function RegisterScreen() {
     }
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const result = await register(
-      name.trim(),
-      username.trim(),
-      email.trim(),
-      governorate,
-      password
-    );
+    const result = await register(name.trim(), username.trim(), email.trim(), governorate, password);
     setLoading(false);
     if (result.success) {
       showToast(t("success") + "! " + t("welcome"), "success");
@@ -237,43 +236,41 @@ export default function RegisterScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <KeyboardAvoidingView
-        behavior="padding"
-        style={{ flex: 1 }}
-      >
+    <View style={[st.container, { backgroundColor: c.background }]}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={[
-            styles.scroll,
-            { paddingTop: topPad + 16, paddingBottom: botPad + 40 },
-          ]}
+          contentContainerStyle={[st.scroll, { paddingTop: topPad + 16, paddingBottom: botPad + 40 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <TouchableOpacity
             onPress={() => router.back()}
-            style={styles.backBtn}
+            style={st.backBtn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Feather name="arrow-left" size={22} color={TEXT} strokeWidth={1.5} />
+            <Feather name="arrow-left" size={22} color={c.text} strokeWidth={1.5} />
           </TouchableOpacity>
 
-          <View style={styles.headerBlock}>
+          <View style={st.headerBlock}>
             <LinearGradient
-              colors={["#34D399", "#059669"]}
+              colors={[c.gradientStart, c.gradientEnd]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.logoRing}
+              style={st.logoRing}
             >
-              <View style={styles.logoInner}>
-                <Feather name="user-plus" size={26} color={TEXT} strokeWidth={1.5} />
+              <View style={[st.logoInner, { backgroundColor: c.card }]}>
+                <Feather name="user-plus" size={26} color={c.text} strokeWidth={1.5} />
               </View>
             </LinearGradient>
-            <Text style={styles.title}>{t("register")}</Text>
-            <Text style={styles.subtitle}>{t("joinApp")}</Text>
+            <Text style={[st.title, { color: c.text, fontFamily: ff ?? "Inter_700Bold" }]}>
+              {t("register")}
+            </Text>
+            <Text style={[st.subtitle, { color: c.textSecondary, fontFamily: ff ?? "Inter_400Regular" }]}>
+              {t("joinApp")}
+            </Text>
           </View>
 
-          <View style={styles.form}>
+          <View style={st.form}>
             {/* الاسم */}
             <RegisterField
               icon="user"
@@ -294,17 +291,19 @@ export default function RegisterScreen() {
                 nextRef={emailRef}
                 statusIcon={
                   username.length >= 1
-                    ? usernameAvailable === true
-                      ? "ok"
-                      : "error"
+                    ? usernameAvailable === true ? "ok" : "error"
                     : null
                 }
               />
               {username.length >= 1 && usernameAvailable === true && (
-                <Text style={[styles.fieldHint, { color: SUCCESS }]}>✓ اسم المستخدم متاح</Text>
+                <Text style={[st.fieldHint, { color: c.success, fontFamily: ff ?? "Inter_400Regular" }]}>
+                  ✓ اسم المستخدم متاح
+                </Text>
               )}
               {username.length >= 1 && usernameAvailable === false && (
-                <Text style={[styles.fieldHint, { color: ERROR }]}>✗ {t("usernameExists")}</Text>
+                <Text style={[st.fieldHint, { color: c.danger, fontFamily: ff ?? "Inter_400Regular" }]}>
+                  ✗ {t("usernameExists")}
+                </Text>
               )}
             </View>
 
@@ -331,30 +330,40 @@ export default function RegisterScreen() {
                 }
               />
               {email.length > 0 && emailValid === false && (
-                <Text style={[styles.fieldHint, { color: ERROR }]}>✗ {t("invalidEmail")}</Text>
+                <Text style={[st.fieldHint, { color: c.danger, fontFamily: ff ?? "Inter_400Regular" }]}>
+                  ✗ {t("invalidEmail")}
+                </Text>
               )}
               {email.length > 0 && emailValid === true && emailAvailable === false && (
-                <Text style={[styles.fieldHint, { color: ERROR }]}>✗ {t("emailExists")}</Text>
+                <Text style={[st.fieldHint, { color: c.danger, fontFamily: ff ?? "Inter_400Regular" }]}>
+                  ✗ {t("emailExists")}
+                </Text>
               )}
               {email.length > 0 && emailValid === true && emailAvailable === true && (
-                <Text style={[styles.fieldHint, { color: SUCCESS }]}>✓ البريد الإلكتروني متاح</Text>
+                <Text style={[st.fieldHint, { color: c.success, fontFamily: ff ?? "Inter_400Regular" }]}>
+                  ✓ البريد الإلكتروني متاح
+                </Text>
               )}
             </View>
 
-            {/* المحافظة - Dropdown */}
+            {/* المحافظة */}
             <TouchableOpacity
-              style={[styles.inputWrapper, !governorate && styles.inputWrapperEmpty]}
+              style={[st.inputWrapper, { backgroundColor: c.inputBackground, borderColor: c.border }]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setShowGovPicker(true);
               }}
               activeOpacity={0.85}
             >
-              <Feather name="map-pin" size={18} color={TEXT2} strokeWidth={1.5} />
-              <Text style={[styles.govPlaceholder, governorate && styles.govSelected]}>
+              <Feather name="map-pin" size={18} color={c.textSecondary} strokeWidth={1.5} />
+              <Text style={[
+                st.govPlaceholder,
+                { color: c.textSecondary, fontFamily: ff ?? "Inter_400Regular" },
+                governorate && { color: c.text },
+              ]}>
                 {governorate || t("selectGovernorate")}
               </Text>
-              <Feather name="chevron-down" size={18} color={TEXT2} strokeWidth={1.5} />
+              <Feather name="chevron-down" size={18} color={c.textSecondary} strokeWidth={1.5} />
             </TouchableOpacity>
 
             {/* كلمة المرور */}
@@ -375,15 +384,21 @@ export default function RegisterScreen() {
               activeOpacity={0.85}
               onPress={handleRegister}
               disabled={loading}
-              style={styles.submitBtn}
+              style={[st.submitBtn, { backgroundColor: c.text }]}
             >
-              <Text style={styles.submitBtnText}>{loading ? "..." : t("register")}</Text>
+              <Text style={[st.submitBtnText, { color: c.background, fontFamily: ff ?? "Inter_600SemiBold" }]}>
+                {loading ? "..." : t("register")}
+              </Text>
             </TouchableOpacity>
 
-            <View style={styles.switchRow}>
-              <Text style={styles.switchText}>لديك حساب؟{"  "}</Text>
+            <View style={st.switchRow}>
+              <Text style={[st.switchText, { color: c.textSecondary, fontFamily: ff ?? "Inter_400Regular" }]}>
+                لديك حساب؟{"  "}
+              </Text>
               <TouchableOpacity onPress={() => router.replace("/(auth)/login")}>
-                <Text style={styles.switchLink}>{t("login")}</Text>
+                <Text style={[st.switchLink, { color: c.text, fontFamily: ff ?? "Inter_600SemiBold" }]}>
+                  {t("login")}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -400,74 +415,63 @@ export default function RegisterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+const st = StyleSheet.create({
+  container: { flex: 1 },
   scroll: { flexGrow: 1, paddingHorizontal: 24, gap: 24 },
   backBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   headerBlock: { alignItems: "center", gap: 14 },
   logoRing: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center", padding: 2.5 },
-  logoInner: { width: "100%", height: "100%", borderRadius: 37, backgroundColor: CARD, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 26, fontFamily: "Inter_700Bold", color: TEXT, textAlign: "center" },
-  subtitle: { fontSize: 15, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center" },
+  logoInner: { width: "100%", height: "100%", borderRadius: 37, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 26, textAlign: "center" },
+  subtitle: { fontSize: 15, textAlign: "center" },
   form: { gap: 12 },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: INPUT_BG,
     borderRadius: 16,
     borderWidth: 0.5,
-    borderColor: BORDER,
     paddingHorizontal: 16,
     height: 56,
     gap: 12,
   },
-  inputWrapperEmpty: { borderColor: BORDER },
-  input: { flex: 1, fontSize: 16, color: TEXT, fontFamily: "Inter_400Regular", height: "100%" },
-  fieldHint: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2, marginTop: 4, marginRight: 4, textAlign: "right" },
-  govPlaceholder: { flex: 1, fontSize: 16, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "right" },
-  govSelected: { color: TEXT },
+  input: { flex: 1, fontSize: 16, height: "100%" },
+  fieldHint: { fontSize: 12, marginTop: 4, marginRight: 4, textAlign: "right" },
+  govPlaceholder: { flex: 1, fontSize: 16, textAlign: "right" },
   submitBtn: {
-    backgroundColor: TEXT,
     borderRadius: 100,
     paddingVertical: 18,
     alignItems: "center",
     marginTop: 4,
   },
-  submitBtnText: { color: BG, fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  submitBtnText: { fontSize: 17 },
   switchRow: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
-  switchText: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2 },
-  switchLink: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT },
+  switchText: { fontSize: 14 },
+  switchLink: { fontSize: 14 },
   modalBg: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.6)" },
   pickerSheet: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: CARD,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingBottom: 40,
     maxHeight: "70%",
     borderTopWidth: 0.5,
-    borderColor: BORDER,
   },
   pickerHandle: {
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: BORDER,
     alignSelf: "center",
     marginTop: 12,
     marginBottom: 8,
   },
   pickerTitle: {
     fontSize: 18,
-    fontFamily: "Inter_700Bold",
-    color: TEXT,
     textAlign: "center",
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: BORDER,
   },
   pickerItem: {
     flexDirection: "row",
@@ -476,9 +480,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 0.5,
-    borderBottomColor: "#1E1E1E",
   },
-  pickerItemSelected: { backgroundColor: "#1C2C3C" },
-  pickerItemText: { fontSize: 16, fontFamily: "Inter_400Regular", color: TEXT },
-  pickerItemTextSelected: { color: ACCENT, fontFamily: "Inter_600SemiBold" },
+  pickerItemText: { fontSize: 16 },
 });

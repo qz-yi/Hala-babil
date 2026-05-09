@@ -1,0 +1,38 @@
+Ultimate App Overhaul & Visual Transformation Prompt
+​Objective:
+Perform a full architectural refactoring and visual redesign of my Social Media Application (Satha). The goal is to transform it into a high-end, high-performance hybrid (Instagram, Telegram, Facebook, and WhatsApp) using a professional UI foundation.
+​1. Technical Stack Requirements:
+​Styling: Tailwind CSS + DaisyUI.
+​Components: Shadcn/UI (for core accessible components).
+​Icons: Lucide-react.
+​Animations: Framer Motion (or React Native Reanimated if applicable).
+​State Management: Zustand (preferred for the Theme Engine).
+​Theming: CSS Variables driven by a centralized ThemeManager.
+​2. Phase 1: Code Audit & Structural Refactoring
+​Analyze & Clean: Review all existing components and screens. Fix all glitches, redundant state updates, and logic errors.
+​Hybrid UI Architecture: Restructure the UI to integrate:
+​Feed & Stories: Instagram-style.
+​Messaging: Telegram/WhatsApp-style (optimized for speed/folders).
+​Community: Facebook-style groups.
+​Performance: Optimize rendering to ensure consistent 60FPS scrolling and fluid interactions.
+​3. Phase 2: Advanced Multi-Mode Theme Engine
+Implement a ThemeManager using CSS Variables. Delete existing light/dark logic and replace it with 6 semantic modes:
+​Neon: Pure Black background, #00FF88 primary glow, fluorescent accents.
+​Blue Ocean: Deep blue gradients with pearl white accents.
+​Gold Luxury: Matte gold gradients with dark charcoal/black backgrounds.
+​Purple Night: Deep violets and amethysts with soft glow.
+​Red Hacker: Terminal aesthetic, black/red color scheme, monospaced fonts.
+​Dynamic: Color extraction (using node-vibrant) from the user's wallpaper/profile pic to generate a real-time palette.
+​4. Advanced UI Overlays (Independent Axes):
+The system must allow these overlays to be applied on top of any theme:
+​Cinematic Mode: Gaussian blur on backgrounds, soft 3D shadows, camera-like transitions.
+​Transparent / Glass Mode: Full Glassmorphism implementation (backdrop-filter: blur()), thin borders, and adjusted opacity.
+​Motion Mode: Parallax effects, micro-interactions, and visual haptic feedback.
+​Creator Mode: High-contrast, minimalist workspace optimized for content production.
+​5. Design Rules & UI Foundation:
+​Atomic Design: Create a 'theme' folder with standardized tokens for colors, spacing, and radii.
+​No Hardcoding: Every component must consume CSS Variables (e.g., bg-[var(--background)])—never use hex codes directly in components.
+​Global Polish: Standardize all margins, paddings, and border-radii across the app based on a consistent geometric scale.
+​Fluidity: Ensure the app feels "alive" with reactive UI elements and smooth layout transitions.
+​Initial Instruction for Agent:
+Start by analyzing the current folder structure and proposing a migration plan to integrate Shadcn/UI, DaisyUI, and the new ThemeManager without breaking existing core features. Wait for my confirmation after the analysis.

@@ -34,6 +34,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { useColors } from "@/hooks/useColors";
 import { useApp, isUserVerified } from "@/context/AppContext";
 import type {
   MessageLocation,
@@ -896,7 +897,7 @@ export default function ChatScreen() {
     deleteConversation, markConversationRead,
     archiveConversation, unarchiveConversation, setConversationTheme,
   } = useApp();
-  const colors = Colors[theme];
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const [message, setMessage] = useState("");
   const [showAttach, setShowAttach] = useState(false);

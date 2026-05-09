@@ -24,6 +24,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { useColors } from "@/hooks/useColors";
 import { useApp, isUserVerified } from "@/context/AppContext";
 import type { PostComment, PostFilter } from "@/context/AppContext";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
@@ -569,7 +570,7 @@ export default function PostDetailScreen() {
     t,
   } = useApp();
 
-  const colors = Colors[theme];
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 20 : insets.top;
   const botPad = Platform.OS === "web" ? 20 : insets.bottom;

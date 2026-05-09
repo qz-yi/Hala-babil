@@ -22,18 +22,20 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS, STORY_GRADIENT_COLORS } from "@/constants/colors";
+import { useColors as useThemeColors } from "@/hooks/useColors";
 import { useApp, isUserVerified } from "@/context/AppContext";
 import type { AccountType, Post, Reel, UserPrivacySettings, PrivacyLevel } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 import { VerifiedBadge, VerifiedAvatarFrame } from "@/components/VerifiedBadge";
 import { CircularCropScreen } from "@/components/CircularCropScreen";
+import { ThemePicker } from "@/components/ThemePicker";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_ITEM_SIZE = (SCREEN_WIDTH - 3) / 3;
 const COVER_HEIGHT = 170;
 
 type GridTab = "posts" | "reels";
-type DrawerPage = "settings" | "activity" | "requests" | "saved" | "privacy";
+type DrawerPage = "settings" | "activity" | "requests" | "saved" | "privacy" | "themes";
 
 // ───── Followers / Following Modal ─────
 function FollowListModal({
@@ -198,6 +200,7 @@ function ProfileDrawer({
         <View style={[styles.drawerTabs, { borderBottomColor: colors.border }]}>
           {[
             { key: "settings", label: "الإعدادات", icon: "settings" },
+            { key: "themes", label: "المظهر", icon: "sliders" },
             { key: "privacy", label: "الخصوصية", icon: "shield" },
             { key: "activity", label: "نشاطي", icon: "activity" },
             { key: "requests", label: "الطلبات", icon: "users" },
@@ -329,6 +332,8 @@ function ProfileDrawer({
               </TouchableOpacity>
             </>
           )}
+
+          {page === "themes" && <ThemePicker />}
 
           {page === "privacy" && (
             <>
@@ -573,7 +578,7 @@ export default function ProfileScreen() {
     t,
     users,
   } = useApp();
-  const colors = Colors[theme];
+  const colors = useThemeColors();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 20 : insets.top;

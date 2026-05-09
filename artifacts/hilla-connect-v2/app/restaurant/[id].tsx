@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useToast } from "@/components/Toast";
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { MenuItem } from "@/context/AppContext";
 
@@ -32,7 +33,7 @@ export default function RestaurantDetailScreen() {
     currentUser,
   } = useApp();
   const { showToast } = useToast();
-  const colors = Colors[theme];
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;

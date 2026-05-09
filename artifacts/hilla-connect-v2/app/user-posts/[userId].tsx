@@ -22,6 +22,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { useColors } from "@/hooks/useColors";
 import { useApp, isUserVerified } from "@/context/AppContext";
 import type { Post, PostComment } from "@/context/AppContext";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
@@ -482,7 +483,7 @@ function PostCard({ post, colors }: { post: Post; colors: any }) {
 export default function UserPostsFeedScreen() {
   const { userId, startId } = useLocalSearchParams<{ userId: string; startId: string }>();
   const { getUserPosts, users, theme } = useApp();
-  const colors = Colors[theme];
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const flatRef = useRef<FlatList>(null);
 

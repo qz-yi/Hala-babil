@@ -20,6 +20,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { ToastProvider } from "@/components/Toast";
 import { FloatingRoomWidget } from "@/components/FloatingRoomWidget";
+import { useThemeStore } from "@/store/themeStore";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -103,8 +104,8 @@ function AsyncStorage_updatePushToken(_token: string) {
 }
 
 function RootLayoutNav() {
-  const { theme } = useApp();
-  const bg = theme === "dark" ? "#000000" : "#FFFFFF";
+  const tokens = useThemeStore((s) => s.tokens);
+  const bg = tokens.background;
 
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>

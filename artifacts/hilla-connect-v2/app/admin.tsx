@@ -23,6 +23,7 @@ import { useToast } from "@/components/Toast";
 import { IRAQI_GOVERNORATES, useApp, isUserVerified } from "@/context/AppContext";
 import type { Restaurant, User } from "@/context/AppContext";
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { useColors } from "@/hooks/useColors";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 const BG = "#000000";
@@ -298,7 +299,7 @@ export default function AdminScreen() {
   } = useApp();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
-  const colors = Colors[theme];
+  const colors = useColors();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [tab, setTab] = useState<Tab>("owners");
   const [selectedGov, setSelectedGov] = useState<string | null>(null);

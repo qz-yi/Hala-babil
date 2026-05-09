@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useThemeStore } from "@/store/themeStore";
 import React, {
   createContext,
   useCallback,
@@ -1235,6 +1236,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTheme((prev) => {
       const next = prev === "light" ? "dark" : "light";
       AsyncStorage.setItem("theme", next);
+      const store = useThemeStore.getState();
+      const current = store.activeTheme;
+      if (current === "classicDark" || current === "classicLight") {
+        store.setTheme(next === "dark" ? "classicDark" : "classicLight");
+      }
       return next;
     });
   }, []);

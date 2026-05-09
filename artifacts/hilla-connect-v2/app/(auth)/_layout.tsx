@@ -1,10 +1,9 @@
 import { Stack } from "expo-router";
 import React from "react";
-import { useApp } from "@/context/AppContext";
+import { useThemeStore } from "@/store/themeStore";
 
 export default function AuthLayout() {
-  const { theme } = useApp();
-  const bg = theme === "dark" ? "#000000" : "#FFFFFF";
+  const bg = useThemeStore((s) => s.tokens.background);
   return (
     <Stack
       screenOptions={{

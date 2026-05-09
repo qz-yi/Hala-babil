@@ -26,6 +26,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { useColors } from "@/hooks/useColors";
 import { useApp, isUserVerified } from "@/context/AppContext";
 import type { Message, User, SharedContent } from "@/context/AppContext";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
@@ -674,7 +675,7 @@ export default function RoomScreen() {
     minimizeRoom, expandRoom,
   } = useApp();
   const { showToast } = useToast();
-  const colors = Colors[theme];
+  const colors = useColors();
   const insets = useSafeAreaInsets();
 
   const [message, setMessage] = useState("");

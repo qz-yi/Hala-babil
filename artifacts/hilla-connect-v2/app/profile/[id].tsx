@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { useColors } from "@/hooks/useColors";
 import { useApp, isUserVerified } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 import { VerifiedBadge, VerifiedAvatarFrame } from "@/components/VerifiedBadge";
@@ -86,7 +87,7 @@ export default function UserProfileScreen() {
     blockUser, unblockUser, isBlocked,
     theme, t,
   } = useApp();
-  const colors = Colors[theme];
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
   const [gridTab, setGridTab] = useState<GridTab>("posts");

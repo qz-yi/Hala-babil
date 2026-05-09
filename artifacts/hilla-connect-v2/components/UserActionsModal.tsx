@@ -11,6 +11,7 @@ import {
 } from "react-native";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { User } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
@@ -32,9 +33,9 @@ export default function UserActionsModal({
   mutedUsers,
   onClose,
 }: UserActionsModalProps) {
-  const { kickFromRoom, banFromRoom, muteUserInRoom, t, theme } = useApp();
+  const { kickFromRoom, banFromRoom, muteUserInRoom, t } = useApp();
   const { showToast } = useToast();
-  const colors = Colors[theme];
+  const colors = useColors();
 
   if (!targetUser) return null;
 

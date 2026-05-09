@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { GroupMember } from "@/context/AppContext";
 
@@ -36,7 +37,7 @@ export default function GroupInfoScreen() {
     muteGroupMember, unmuteGroupMember, promoteToAdmin, demoteAdmin,
     leaveGroup, editGroup, theme,
   } = useApp();
-  const colors = Colors[theme];
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 20 : insets.bottom;

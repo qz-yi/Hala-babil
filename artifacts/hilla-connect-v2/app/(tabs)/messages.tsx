@@ -17,7 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ACCENT_COLORS } from "@/constants/colors";
-import Colors from "@/constants/colors";
+import { useColors } from "@/hooks/useColors";
 import { useApp, isUserVerified } from "@/context/AppContext";
 import type { Conversation, User } from "@/context/AppContext";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
@@ -180,7 +180,7 @@ export default function MessagesScreen() {
     archiveConversation, unarchiveConversation, t, theme,
     groups, getMyGroups,
   } = useApp();
-  const colors = Colors[theme];
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const [showNewChatPicker, setShowNewChatPicker] = useState(false);
   const [showPicker, setShowPicker] = useState(false);

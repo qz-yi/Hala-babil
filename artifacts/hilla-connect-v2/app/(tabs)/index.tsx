@@ -27,6 +27,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS, STORY_GRADIENT_COLORS } from "@/constants/colors";
+import { useColors } from "@/hooks/useColors";
 import { useApp, isUserVerified } from "@/context/AppContext";
 import type { Post, PostComment, Story, User } from "@/context/AppContext";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
@@ -1095,7 +1096,7 @@ export default function HomeScreen() {
     theme,
   } = useApp();
 
-  const colors = Colors[theme];
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 20 : insets.top;
 
@@ -1188,12 +1189,12 @@ export default function HomeScreen() {
         {Platform.OS === "ios" && (
           <BlurView
             intensity={60}
-            tint={theme === "dark" ? "dark" : "light"}
-            style={[StyleSheet.absoluteFill, { backgroundColor: theme === "dark" ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.7)" }]}
+            tint={colors.isDark ? "dark" : "light"}
+            style={[StyleSheet.absoluteFill, { backgroundColor: colors.isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.7)" }]}
           />
         )}
         {Platform.OS !== "ios" && (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: theme === "dark" ? "rgba(0,0,0,0.92)" : "rgba(255,255,255,0.95)" }]} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.isDark ? `${colors.background}EE` : `${colors.background}F0` }]} />
         )}
         <View style={styles.headerRow}>
           <View style={styles.headerIcons}>

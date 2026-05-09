@@ -21,6 +21,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
+import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { User } from "@/context/AppContext";
 
@@ -33,7 +34,7 @@ const TINT = "#3D91F4";
 
 export default function CreateGroupScreen() {
   const { users, currentUser, createGroup, theme } = useApp();
-  const colors = Colors[theme];
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 20 : insets.bottom;

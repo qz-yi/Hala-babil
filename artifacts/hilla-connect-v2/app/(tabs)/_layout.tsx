@@ -9,6 +9,7 @@ import { Dimensions, PanResponder, Platform, StyleSheet, View } from "react-nati
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/context/AppContext";
+import { useThemeStore } from "@/store/themeStore";
 
 const { width: SW } = Dimensions.get("window");
 const TAB_ROUTES = ["index", "rooms", "reels", "restaurants", "profile"];
@@ -87,18 +88,19 @@ function useSwipeTabNav() {
 }
 
 function ClassicTabLayout() {
-  const { t, theme, isRestaurantOwner } = useApp();
+  const { t, isRestaurantOwner } = useApp();
+  const tokens = useThemeStore((s) => s.tokens);
   const safeAreaInsets = useSafeAreaInsets();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
-  const isDark = theme === "dark";
+  const isDark = tokens.isDark;
   const { leftEdgePan, rightEdgePan } = useSwipeTabNav();
 
   const tabBarBg = isDark ? "rgba(0,0,0,0.92)" : "rgba(255,255,255,0.95)";
-  const borderColor = isDark ? "#262626" : "#E5E5E5";
-  const activeColor = isDark ? "#FFFFFF" : "#000000";
-  const inactiveColor = isDark ? "#636366" : "#9CA3AF";
-  const bgColor = isDark ? "#000000" : "#FFFFFF";
+  const borderColor = tokens.border;
+  const activeColor = tokens.tabIconSelected;
+  const inactiveColor = tokens.tabIconDefault;
+  const bgColor = tokens.background;
 
   return (
     <View style={{ flex: 1, backgroundColor: bgColor }}>

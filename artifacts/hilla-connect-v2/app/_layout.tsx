@@ -150,12 +150,17 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    // Hide splash as soon as possible — don't block on fonts
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) return null;
+  // Never block rendering waiting for fonts — use system fallback if needed
 
   return (
     <SafeAreaProvider style={{ backgroundColor: "#000000" }}>

@@ -31,12 +31,8 @@ import { useToast } from "@/components/Toast";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import MentionInput from "@/components/MentionInput";
 import MentionText from "@/components/MentionText";
+import { useThemeStore } from "@/store/themeStore";
 
-const BG = "#000000";
-const CARD = "#121212";
-const BORDER = "#262626";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
 const REEL_HEIGHT = Platform.OS === "web" ? Math.min(SCREEN_HEIGHT, 700) : SCREEN_HEIGHT;
@@ -333,18 +329,19 @@ function ReelCommentOptionsModal({
   options: { text: string; style?: string; onPress: () => void }[];
   onClose: () => void;
 }) {
+  const c = useThemeStore((s) => s.tokens);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
-      <View style={[styles.optionsSheet, { backgroundColor: CARD, borderColor: BORDER }]}>
-        <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
+      <View style={[styles.optionsSheet, { backgroundColor: c.card, borderColor: c.border }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: c.border }]} />
         {options.map((opt, idx) => (
           <TouchableOpacity
             key={idx}
             onPress={() => { onClose(); opt.onPress(); }}
             style={[
               styles.optionItem,
-              { borderBottomColor: BORDER },
+              { borderBottomColor: c.border },
               idx < options.length - 1 && { borderBottomWidth: 0.5 },
             ]}
             activeOpacity={0.7}
@@ -352,7 +349,7 @@ function ReelCommentOptionsModal({
             <Text
               style={[
                 styles.optionText,
-                opt.style === "destructive" ? { color: "#FF3B5C" } : { color: TEXT },
+                opt.style === "destructive" ? { color: "#FF3B5C" } : { color: c.text },
               ]}
             >
               {opt.text}
@@ -361,10 +358,10 @@ function ReelCommentOptionsModal({
         ))}
         <TouchableOpacity
           onPress={onClose}
-          style={[styles.optionCancelBtn, { backgroundColor: "#1C1C1C" }]}
+          style={[styles.optionCancelBtn, { backgroundColor: c.backgroundTertiary }]}
           activeOpacity={0.7}
         >
-          <Text style={[styles.optionCancelText, { color: TEXT2 }]}>إلغاء</Text>
+          <Text style={[styles.optionCancelText, { color: c.textSecondary }]}>إلغاء</Text>
         </TouchableOpacity>
       </View>
     </Modal>
@@ -382,6 +379,7 @@ function CommentSheet({
   visible: boolean;
   onClose: () => void;
 }) {
+  const c = useThemeStore((s) => s.tokens);
   const {
     getReelComments, addReelComment, deleteReelComment, users, currentUser,
     likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers,
@@ -452,17 +450,17 @@ function CommentSheet({
       <KeyboardAvoidingView
         behavior="padding"
         keyboardVerticalOffset={0}
-        style={[styles.commentSheet, { backgroundColor: CARD, borderColor: BORDER }]}
+        style={[styles.commentSheet, { backgroundColor: c.card, borderColor: c.border }]}
       >
-        <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
-        <Text style={[styles.sheetTitle, { color: TEXT }]}>التعليقات ({comments.length})</Text>
+        <View style={[styles.sheetHandle, { backgroundColor: c.border }]} />
+        <Text style={[styles.sheetTitle, { color: c.text }]}>التعليقات ({comments.length})</Text>
         <FlatList
           data={comments}
           keyExtractor={(c) => c.id}
           style={{ flex: 1 }}
           contentContainerStyle={{ flexGrow: 1 }}
           ListEmptyComponent={
-            <Text style={[styles.emptyComments, { color: TEXT2 }]}>
+            <Text style={[styles.emptyComments, { color: c.textSecondary }]}>
               لا توجد تعليقات بعد
             </Text>
           }
@@ -507,7 +505,7 @@ function CommentSheet({
                   <MentionText
                     text={item.content}
                     users={users}
-                    style={[styles.commentText, { color: TEXT }]}
+                    style={[styles.commentText, { color: c.text }]}
                     mentionStyle={{ color: "#3D91F4", fontFamily: "Inter_600SemiBold" }}
                   />
                 </View>
@@ -519,11 +517,11 @@ function CommentSheet({
                   <Feather
                     name="heart"
                     size={15}
-                    color={liked ? "#FF3B5C" : TEXT2}
+                    color={liked ? "#FF3B5C" : c.textSecondary}
                     strokeWidth={liked ? 0 : 1.5}
                   />
                   {likesCount > 0 && (
-                    <Text style={[styles.commentLikeCount, { color: liked ? "#FF3B5C" : TEXT2 }]}>
+                    <Text style={[styles.commentLikeCount, { color: liked ? "#FF3B5C" : c.textSecondary }]}>
                       {likesCount}
                     </Text>
                   )}
@@ -532,13 +530,13 @@ function CommentSheet({
             );
           }}
         />
-        <View style={[styles.commentInput, { backgroundColor: "#1C1C1C", borderColor: BORDER }]}>
+        <View style={[styles.commentInput, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}>
           <MentionInput
             value={text}
             onChangeText={setText}
             users={users}
             placeholder="أضف تعليقاً... (@username للإشارة)"
-            colors={{ text: TEXT, textSecondary: TEXT2, card: CARD, border: BORDER, backgroundSecondary: "#1C1C1C", tint: "#3D91F4", inputBackground: "#1C1C1C" }}
+            colors={{ text: c.text, textSecondary: c.textSecondary, card: c.card, border: c.border, backgroundSecondary: c.backgroundTertiary, tint: c.accent, inputBackground: c.backgroundTertiary }}
             returnKeyType="send"
             onSubmitEditing={handleSend}
             containerStyle={{ flex: 1 }}
@@ -564,11 +562,11 @@ function CommentSheet({
         onRequestClose={() => setLikersCommentId(null)}
       >
         <Pressable style={styles.sheetBackdrop} onPress={() => setLikersCommentId(null)} />
-        <View style={[styles.likersSheet, { backgroundColor: CARD, borderColor: BORDER }]}>
-          <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
-          <Text style={[styles.sheetTitle, { color: TEXT }]}>أعجب بالتعليق</Text>
+        <View style={[styles.likersSheet, { backgroundColor: c.card, borderColor: c.border }]}>
+          <View style={[styles.sheetHandle, { backgroundColor: c.border }]} />
+          <Text style={[styles.sheetTitle, { color: c.text }]}>أعجب بالتعليق</Text>
           {likers.length === 0 ? (
-            <Text style={[styles.emptyComments, { color: TEXT2 }]}>لا يوجد إعجابات بعد</Text>
+            <Text style={[styles.emptyComments, { color: c.textSecondary }]}>لا يوجد إعجابات بعد</Text>
           ) : (
             <FlatList
               data={likers}
@@ -589,8 +587,8 @@ function CommentSheet({
                       )}
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.commentUser, { color: TEXT }]}>{item.name}</Text>
-                      {item.username && <Text style={{ color: TEXT2, fontSize: 12 }}>@{item.username}</Text>}
+                      <Text style={[styles.commentUser, { color: c.text }]}>{item.name}</Text>
+                      {item.username && <Text style={{ color: c.textSecondary, fontSize: 12 }}>@{item.username}</Text>}
                     </View>
                     <Feather name="heart" size={14} color="#FF3B5C" strokeWidth={0} />
                   </TouchableOpacity>
@@ -614,6 +612,7 @@ function ShareSheet({
   visible: boolean;
   onClose: () => void;
 }) {
+  const c = useThemeStore((s) => s.tokens);
   const { users, currentUser, shareReelToConversation, reels, shareContentToStory, isRoomMinimized, minimizedRoomId, minimizedRoomName, sendRoomMessage } = useApp();
   const { showToast } = useToast();
   const others = users.filter((u) => u.id !== currentUser?.id);
@@ -668,10 +667,10 @@ function ShareSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleDone}>
       <Pressable style={styles.sheetBackdrop} onPress={handleDone} />
-      <View style={[styles.commentSheet, { backgroundColor: CARD, borderColor: BORDER }]}>
-        <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
+      <View style={[styles.commentSheet, { backgroundColor: c.card, borderColor: c.border }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: c.border }]} />
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 4 }}>
-          <Text style={[styles.sheetTitle, { color: TEXT }]}>مشاركة</Text>
+          <Text style={[styles.sheetTitle, { color: c.text }]}>مشاركة</Text>
           {sent.length > 0 && (
             <TouchableOpacity onPress={handleDone} style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#7C3AED", borderRadius: 20 }}>
               <Text style={{ fontFamily: "Inter_600SemiBold", fontSize: 13, color: "#fff" }}>إرسال ({sent.length})</Text>
@@ -705,14 +704,14 @@ function ShareSheet({
           </TouchableOpacity>
         )}
 
-        <Text style={[{ fontFamily: "Inter_600SemiBold", fontSize: 12, color: TEXT2, letterSpacing: 0.5, marginTop: 4, marginBottom: 4 }]}>إرسال لأشخاص</Text>
+        <Text style={[{ fontFamily: "Inter_600SemiBold", fontSize: 12, color: c.textSecondary, letterSpacing: 0.5, marginTop: 4, marginBottom: 4 }]}>إرسال لأشخاص</Text>
 
         <FlatList
           data={others}
           keyExtractor={(u) => u.id}
           style={{ maxHeight: 260 }}
           ListEmptyComponent={
-            <Text style={[styles.emptyComments, { color: TEXT2 }]}>
+            <Text style={[styles.emptyComments, { color: c.textSecondary }]}>
               لا يوجد مستخدمون لمشاركتهم
             </Text>
           }
@@ -733,8 +732,8 @@ function ShareSheet({
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.commentUser, { color: TEXT }]}>{item.name}</Text>
-                  <Text style={[styles.commentText, { color: TEXT2, fontSize: 12 }]}>
+                  <Text style={[styles.commentUser, { color: c.text }]}>{item.name}</Text>
+                  <Text style={[styles.commentText, { color: c.textSecondary, fontSize: 12 }]}>
                     @{item.username || item.email}
                   </Text>
                 </View>
@@ -762,6 +761,7 @@ function PublishModal({
   onClose: () => void;
   insets: any;
 }) {
+  const c = useThemeStore((s) => s.tokens);
   const { addReel } = useApp();
   const { showToast } = useToast();
   const [videoUri, setVideoUri] = useState<string | null>(null);
@@ -817,52 +817,52 @@ function PublishModal({
         style={[
           styles.publishSheet,
           {
-            backgroundColor: CARD,
-            borderColor: BORDER,
+            backgroundColor: c.card,
+            borderColor: c.border,
             paddingBottom: insets.bottom + 20,
           },
         ]}
       >
-        <View style={[styles.sheetHandle, { backgroundColor: BORDER }]} />
-        <Text style={[styles.sheetTitle, { color: TEXT }]}>نشر مقطع جديد</Text>
+        <View style={[styles.sheetHandle, { backgroundColor: c.border }]} />
+        <Text style={[styles.sheetTitle, { color: c.text }]}>نشر مقطع جديد</Text>
 
         <TouchableOpacity
           onPress={handlePickVideo}
           style={[
             styles.videoPickBtn,
             {
-              backgroundColor: videoUri ? `${"#3D91F4"}22` : "#1C1C1C",
-              borderColor: videoUri ? "#3D91F4" : BORDER,
+              backgroundColor: videoUri ? `${c.accent}22` : c.backgroundTertiary,
+              borderColor: videoUri ? c.accent : c.border,
             },
           ]}
         >
           <Feather
             name={videoUri ? "check-circle" : "film"}
             size={28}
-            color={videoUri ? "#3D91F4" : TEXT2}
+            color={videoUri ? c.accent : c.textSecondary}
             strokeWidth={1.5}
           />
-          <Text style={[styles.videoPickText, { color: videoUri ? "#3D91F4" : TEXT2 }]}>
+          <Text style={[styles.videoPickText, { color: videoUri ? c.accent : c.textSecondary }]}>
             {videoUri ? "تم اختيار المقطع" : "اختر مقطعاً من المعرض"}
           </Text>
         </TouchableOpacity>
 
         <View
-          style={[styles.titleInput, { backgroundColor: "#1C1C1C", borderColor: BORDER }]}
+          style={[styles.titleInput, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}
         >
           <TextInput
-            style={[styles.titleInputField, { color: TEXT, fontFamily: "Inter_400Regular" }]}
+            style={[styles.titleInputField, { color: c.text, fontFamily: "Inter_400Regular" }]}
             value={title}
             onChangeText={setTitle}
             placeholder="وصف المقطع..."
-            placeholderTextColor={TEXT2}
+            placeholderTextColor={c.textSecondary}
             textAlign="right"
             multiline
             maxLength={150}
           />
         </View>
 
-        <Text style={[styles.filterLabel, { color: TEXT2 }]}>الفلاتر</Text>
+        <Text style={[styles.filterLabel, { color: c.textSecondary }]}>الفلاتر</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
           {FILTERS.map((f) => (
             <TouchableOpacity
@@ -871,13 +871,13 @@ function PublishModal({
               style={[
                 styles.filterChip,
                 {
-                  backgroundColor: filter === f.key ? "#3D91F4" : "#1C1C1C",
-                  borderColor: filter === f.key ? "#3D91F4" : BORDER,
+                  backgroundColor: filter === f.key ? c.accent : c.backgroundTertiary,
+                  borderColor: filter === f.key ? c.accent : c.border,
                 },
               ]}
             >
               <Text
-                style={[styles.filterChipText, { color: filter === f.key ? "#fff" : TEXT2 }]}
+                style={[styles.filterChipText, { color: filter === f.key ? "#fff" : c.textSecondary }]}
               >
                 {f.label}
               </Text>
@@ -886,8 +886,8 @@ function PublishModal({
         </ScrollView>
 
         <View style={styles.publishBtns}>
-          <TouchableOpacity onPress={handleClose} style={[styles.cancelPub, { borderColor: BORDER }]}>
-            <Text style={{ color: TEXT2, fontFamily: "Inter_500Medium" }}>إلغاء</Text>
+          <TouchableOpacity onPress={handleClose} style={[styles.cancelPub, { borderColor: c.border }]}>
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium" }}>إلغاء</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handlePublish} disabled={loading} style={{ flex: 1 }}>
             <LinearGradient
@@ -918,6 +918,7 @@ export default function ReelsScreen() {
     users,
   } = useApp();
   const insets = useSafeAreaInsets();
+  const c = useThemeStore((s) => s.tokens);
   const { showToast } = useToast();
   const { reelId: deepLinkReelId } = useLocalSearchParams<{ reelId?: string }>();
   const flatListRef = useRef<FlatList>(null);
@@ -984,12 +985,12 @@ export default function ReelsScreen() {
       <View
         style={[
           styles.emptyContainer,
-          { backgroundColor: BG, paddingTop: insets.top },
+          { backgroundColor: c.background, paddingTop: insets.top },
         ]}
       >
-        <Feather name="film" size={72} color={BORDER} strokeWidth={0.8} />
-        <Text style={[styles.emptyTitle, { color: TEXT2 }]}>لا توجد مقاطع بعد</Text>
-        <Text style={[styles.emptyDesc, { color: TEXT2 }]}>
+        <Feather name="film" size={72} color={c.border} strokeWidth={0.8} />
+        <Text style={[styles.emptyTitle, { color: c.textSecondary }]}>لا توجد مقاطع بعد</Text>
+        <Text style={[styles.emptyDesc, { color: c.textSecondary }]}>
           كن أول من ينشر مقطعاً!
         </Text>
         <TouchableOpacity
@@ -1090,22 +1091,22 @@ export default function ReelsScreen() {
           onPress={() => setDeleteReelId(null)}
         >
           <Pressable
-            style={{ backgroundColor: CARD, borderRadius: 24, borderWidth: 1, borderColor: BORDER, padding: 28, width: "100%", alignItems: "center", gap: 14 }}
+            style={{ backgroundColor: c.card, borderRadius: 24, borderWidth: 1, borderColor: c.border, padding: 28, width: "100%", alignItems: "center", gap: 14 }}
             onPress={() => {}}
           >
             <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "#FF3B5C22", alignItems: "center", justifyContent: "center" }}>
               <Feather name="trash-2" size={28} color="#FF3B5C" strokeWidth={1.5} />
             </View>
-            <Text style={{ color: TEXT, fontFamily: "Inter_700Bold", fontSize: 18 }}>حذف المقطع</Text>
-            <Text style={{ color: TEXT2, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }}>
+            <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 18 }}>حذف المقطع</Text>
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }}>
               هل أنت متأكد من حذف هذا المقطع؟ لا يمكن التراجع عن هذا الإجراء.
             </Text>
             <View style={{ flexDirection: "row", gap: 12, width: "100%", marginTop: 4 }}>
               <TouchableOpacity
                 onPress={() => setDeleteReelId(null)}
-                style={{ flex: 1, height: 50, borderRadius: 14, borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" }}
+                style={{ flex: 1, height: 50, borderRadius: 14, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" }}
               >
-                <Text style={{ color: TEXT2, fontFamily: "Inter_500Medium", fontSize: 15 }}>إلغاء</Text>
+                <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium", fontSize: 15 }}>إلغاء</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => {

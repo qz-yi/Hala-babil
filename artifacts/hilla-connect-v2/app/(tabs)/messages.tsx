@@ -22,7 +22,6 @@ import { useApp, isUserVerified } from "@/context/AppContext";
 import type { Conversation, User } from "@/context/AppContext";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 
-const TINT = "#3D91F4";
 
 function UserPickerModal({ users, currentUser, onSelect, onClose, t, colors }: any) {
   const others = users.filter((u: User) => u.id !== currentUser?.id);
@@ -96,8 +95,8 @@ function NewChatPicker({ visible, onClose, onNewChat, onNewGroup, colors }: {
           onPress={() => { onClose(); onNewChat(); }}
           activeOpacity={0.75}
         >
-          <View style={[styles.actionIcon, { backgroundColor: `${TINT}22` }]}>
-            <Feather name="message-circle" size={22} color={TINT} strokeWidth={1.5} />
+          <View style={[styles.actionIcon, { backgroundColor: `${colors.tint}22` }]}>
+            <Feather name="message-circle" size={22} color={colors.tint} strokeWidth={1.5} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.actionLabel, { color: colors.text }]}>محادثة خاصة</Text>
@@ -334,7 +333,7 @@ export default function MessagesScreen() {
           renderItem={({ item }) => {
             if (item.kind === "group") {
               const group = item.data;
-              const color = TINT;
+              const color = colors.tint;
               const lastMsg = group.lastMessage;
               return (
                 <TouchableOpacity
@@ -437,7 +436,7 @@ export default function MessagesScreen() {
                         ? "🎤 رسالة صوتية"
                         : convo.lastMessage?.content || t("startChat")}
                     </Text>
-                    {hasUnread && <View style={styles.unreadDot} />}
+                    {hasUnread && <View style={[styles.unreadDot, { backgroundColor: colors.tint }]} />}
                   </View>
                 </View>
               </TouchableOpacity>
@@ -555,7 +554,7 @@ const styles = StyleSheet.create({
   groupBadge: {
     position: "absolute", bottom: 0, right: 0,
     width: 18, height: 18, borderRadius: 9, backgroundColor: "#10B981",
-    alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "#000",
+    alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent",
   },
   convoInfo: { flex: 1, borderBottomWidth: 0.5, paddingBottom: 12 },
   convoTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

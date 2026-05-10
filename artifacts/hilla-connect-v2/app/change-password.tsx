@@ -16,17 +16,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
-
-const BG = "#000000";
-const CARD = "#121212";
-const BORDER = "#262626";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
-const INPUT_BG = "#1C1C1C";
-const SUCCESS = "#10B981";
-const ACCENT = "#3D91F4";
+import { useThemeStore } from "@/store/themeStore";
 
 export default function ChangePasswordScreen() {
+  const c = useThemeStore((s) => s.tokens);
   const { changePassword, t, theme } = useApp();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
@@ -76,13 +69,13 @@ export default function ChangePasswordScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: topPad, paddingBottom: botPad }]}>
+    <View style={[styles.container, { paddingTop: topPad, paddingBottom: botPad, backgroundColor: c.background }]}>
       <TouchableOpacity
         onPress={() => router.back()}
         style={[styles.backBtn, { top: topPad + 12 }]}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
-        <Feather name="arrow-left" size={22} color={TEXT} strokeWidth={1.5} />
+        <Feather name="arrow-left" size={22} color={c.text} strokeWidth={1.5} />
       </TouchableOpacity>
 
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
@@ -92,19 +85,19 @@ export default function ChangePasswordScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.iconBox}>
-            <Feather name="lock" size={36} color={SUCCESS} strokeWidth={1.5} />
+            <Feather name="lock" size={36} color="#10B981" strokeWidth={1.5} />
           </View>
 
-          <Text style={styles.title}>{t("changePassword")}</Text>
-          <Text style={styles.desc}>أدخل كلمة المرور الحالية ثم كلمة المرور الجديدة</Text>
+          <Text style={[styles.title, { color: c.text }]}>{t("changePassword")}</Text>
+          <Text style={[styles.desc, { color: c.textSecondary }]}>أدخل كلمة المرور الحالية ثم كلمة المرور الجديدة</Text>
 
           {/* كلمة المرور الحالية */}
-          <View style={styles.inputWrapper}>
-            <Feather name="lock" size={18} color={TEXT2} strokeWidth={1.5} />
+          <View style={[styles.inputWrapper, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}>
+            <Feather name="lock" size={18} color={c.textSecondary} strokeWidth={1.5} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: c.text }]}
               placeholder={t("oldPassword")}
-              placeholderTextColor={TEXT2}
+              placeholderTextColor={c.textSecondary}
               value={oldPassword}
               onChangeText={setOldPassword}
               secureTextEntry={!showOld}
@@ -113,18 +106,18 @@ export default function ChangePasswordScreen() {
               textAlign={Platform.OS !== "web" ? "right" : "left"}
             />
             <TouchableOpacity onPress={() => setShowOld(!showOld)}>
-              <Feather name={showOld ? "eye-off" : "eye"} size={18} color={TEXT2} strokeWidth={1.5} />
+              <Feather name={showOld ? "eye-off" : "eye"} size={18} color={c.textSecondary} strokeWidth={1.5} />
             </TouchableOpacity>
           </View>
 
           {/* كلمة المرور الجديدة */}
-          <View style={styles.inputWrapper}>
-            <Feather name="unlock" size={18} color={TEXT2} strokeWidth={1.5} />
+          <View style={[styles.inputWrapper, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}>
+            <Feather name="unlock" size={18} color={c.textSecondary} strokeWidth={1.5} />
             <TextInput
               ref={newRef}
-              style={styles.input}
+              style={[styles.input, { color: c.text }]}
               placeholder={t("newPassword")}
-              placeholderTextColor={TEXT2}
+              placeholderTextColor={c.textSecondary}
               value={newPassword}
               onChangeText={setNewPassword}
               secureTextEntry={!showNew}
@@ -133,18 +126,18 @@ export default function ChangePasswordScreen() {
               textAlign={Platform.OS !== "web" ? "right" : "left"}
             />
             <TouchableOpacity onPress={() => setShowNew(!showNew)}>
-              <Feather name={showNew ? "eye-off" : "eye"} size={18} color={TEXT2} strokeWidth={1.5} />
+              <Feather name={showNew ? "eye-off" : "eye"} size={18} color={c.textSecondary} strokeWidth={1.5} />
             </TouchableOpacity>
           </View>
 
           {/* تأكيد كلمة المرور */}
-          <View style={styles.inputWrapper}>
-            <Feather name="check-circle" size={18} color={TEXT2} strokeWidth={1.5} />
+          <View style={[styles.inputWrapper, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}>
+            <Feather name="check-circle" size={18} color={c.textSecondary} strokeWidth={1.5} />
             <TextInput
               ref={confirmRef}
-              style={styles.input}
+              style={[styles.input, { color: c.text }]}
               placeholder={t("confirmPassword")}
-              placeholderTextColor={TEXT2}
+              placeholderTextColor={c.textSecondary}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry={!showConfirm}
@@ -153,17 +146,17 @@ export default function ChangePasswordScreen() {
               textAlign={Platform.OS !== "web" ? "right" : "left"}
             />
             <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
-              <Feather name={showConfirm ? "eye-off" : "eye"} size={18} color={TEXT2} strokeWidth={1.5} />
+              <Feather name={showConfirm ? "eye-off" : "eye"} size={18} color={c.textSecondary} strokeWidth={1.5} />
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity
             onPress={handleSubmit}
-            style={styles.submitBtn}
+            style={[styles.submitBtn, { backgroundColor: c.text }]}
             activeOpacity={0.85}
             disabled={loading}
           >
-            <Text style={styles.submitBtnText}>{loading ? "..." : t("save")}</Text>
+            <Text style={[styles.submitBtnText, { color: c.background }]}>{loading ? "..." : t("save")}</Text>
           </TouchableOpacity>
 
           {/* Forgot Password link */}
@@ -172,15 +165,15 @@ export default function ChangePasswordScreen() {
             style={styles.forgotLink}
             activeOpacity={0.7}
           >
-            <Feather name="help-circle" size={14} color={ACCENT} strokeWidth={1.5} />
-            <Text style={styles.forgotLinkText}>{t("forgotPassword")}</Text>
+            <Feather name="help-circle" size={14} color={c.accent} strokeWidth={1.5} />
+            <Text style={[styles.forgotLinkText, { color: c.accent }]}>{t("forgotPassword")}</Text>
           </TouchableOpacity>
 
           {/* WhatsApp support fallback */}
           <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>أو</Text>
-            <View style={styles.dividerLine} />
+            <View style={[styles.dividerLine, { backgroundColor: c.border }]} />
+            <Text style={[styles.dividerText, { color: c.textSecondary }]}>أو</Text>
+            <View style={[styles.dividerLine, { backgroundColor: c.border }]} />
           </View>
 
           <TouchableOpacity
@@ -201,7 +194,7 @@ export default function ChangePasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+  container: { flex: 1 },
   backBtn: {
     position: "absolute",
     left: 16,
@@ -231,30 +224,27 @@ const styles = StyleSheet.create({
     borderColor: "#10B98144",
     marginBottom: 4,
   },
-  title: { fontSize: 26, fontFamily: "Inter_700Bold", color: TEXT, textAlign: "center" },
-  desc: { fontSize: 15, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center", lineHeight: 22 },
+  title: { fontSize: 26, fontFamily: "Inter_700Bold", textAlign: "center" },
+  desc: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: INPUT_BG,
     borderRadius: 16,
     borderWidth: 0.5,
-    borderColor: BORDER,
     paddingHorizontal: 16,
     height: 56,
     gap: 12,
     width: "100%",
   },
-  input: { flex: 1, fontSize: 16, color: TEXT, fontFamily: "Inter_400Regular", height: "100%" },
+  input: { flex: 1, fontSize: 16, fontFamily: "Inter_400Regular", height: "100%" },
   submitBtn: {
-    backgroundColor: TEXT,
     borderRadius: 100,
     paddingVertical: 16,
     alignItems: "center",
     width: "100%",
     marginTop: 8,
   },
-  submitBtnText: { color: BG, fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  submitBtnText: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
   forgotLink: {
     flexDirection: "row",
     alignItems: "center",
@@ -262,7 +252,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   forgotLinkText: {
-    color: ACCENT,
     fontSize: 14,
     fontFamily: "Inter_500Medium",
   },
@@ -273,8 +262,8 @@ const styles = StyleSheet.create({
     width: "100%",
     marginTop: 4,
   },
-  dividerLine: { flex: 1, height: 0.5, backgroundColor: BORDER },
-  dividerText: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2 },
+  dividerLine: { flex: 1, height: 0.5 },
+  dividerText: { fontSize: 13, fontFamily: "Inter_400Regular" },
   waBtn: {
     flexDirection: "row",
     alignItems: "center",

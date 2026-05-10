@@ -23,14 +23,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { Room } from "@/context/AppContext";
-
-const BG = "#000000";
-const CARD = "#121212";
-const BORDER = "#262626";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
+import { useThemeStore } from "@/store/themeStore";
 
 function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t }: any) {
+  const c = useThemeStore((s) => s.tokens);
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
   const occupied = room.seats.filter((s: any) => s !== null).length;
   const totalSeats = room.seats.length || 8;
@@ -51,16 +47,9 @@ function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t }: any) {
 
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-      <Pressable onPress={handlePress} style={styles.roomCard}>
-        <BlurView
-          intensity={30}
-          tint="dark"
-          style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
-        />
-        <LinearGradient
-          colors={[`${accentColor}18`, "transparent"]}
-          style={StyleSheet.absoluteFill}
-        />
+      <Pressable onPress={handlePress} style={[styles.roomCard, { borderColor: c.border, backgroundColor: c.card }]}>
+        <BlurView intensity={30} tint="dark" style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />
+        <LinearGradient colors={[`${accentColor}18`, "transparent"]} style={StyleSheet.absoluteFill} />
         <View style={[styles.roomColorBar, { backgroundColor: accentColor }]} />
 
         <View style={styles.roomHeader}>
@@ -68,16 +57,14 @@ function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t }: any) {
             {ownerUser?.avatar ? (
               <Image source={{ uri: ownerUser.avatar }} style={styles.roomAvatarImg} />
             ) : (
-              <Text style={styles.roomAvatarText}>
+              <Text style={[styles.roomAvatarText, { color: c.text }]}>
                 {(ownerUser?.name?.[0] ?? room.name?.[0])?.toUpperCase() || "R"}
               </Text>
             )}
           </View>
           <View style={styles.roomInfo}>
-            <Text style={styles.roomName} numberOfLines={1}>
-              {room.name}
-            </Text>
-            <Text style={styles.roomOwner}>{room.ownerName}</Text>
+            <Text style={[styles.roomName, { color: c.text }]} numberOfLines={1}>{room.name}</Text>
+            <Text style={[styles.roomOwner, { color: c.textSecondary }]}>{room.ownerName}</Text>
           </View>
           {room.roomCode && (
             <View style={[styles.codeTag, { backgroundColor: `${accentColor}22`, borderColor: `${accentColor}55` }]}>
@@ -91,55 +78,46 @@ function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t }: any) {
               style={styles.deleteBtn}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Feather name="trash-2" size={16} color="#FF3B5C" strokeWidth={1.5} />
+              <Feather name="trash-2" size={16} color={c.danger} strokeWidth={1.5} />
             </TouchableOpacity>
           )}
         </View>
 
         <View style={styles.seatsRow}>
-          {Array(totalSeats)
-            .fill(null)
-            .map((_, i) => {
-              const user = room.seatUsers?.[i];
-              const isLocked = room.lockedSeats?.[i];
-              return (
-                <View
-                  key={i}
-                  style={[
-                    styles.seat,
-                    {
-                      backgroundColor: isLocked ? "#1C1C1C" : user ? `${accentColor}33` : "#1C1C1C",
-                      borderColor: isLocked ? "#FF3B5C44" : user ? accentColor : BORDER,
-                    },
-                  ]}
-                >
-                  {isLocked ? (
-                    <Feather name="lock" size={10} color="#FF3B5C" strokeWidth={1.5} />
-                  ) : user ? (
-                    user.avatar ? (
-                      <Image source={{ uri: user.avatar }} style={styles.seatAvatarImg} />
-                    ) : (
-                      <Text style={[styles.seatText, { color: accentColor }]}>
-                        {user.name[0]?.toUpperCase()}
-                      </Text>
-                    )
+          {Array(totalSeats).fill(null).map((_, i) => {
+            const user = room.seatUsers?.[i];
+            const isLocked = room.lockedSeats?.[i];
+            return (
+              <View
+                key={i}
+                style={[
+                  styles.seat,
+                  {
+                    backgroundColor: isLocked ? c.backgroundTertiary : user ? `${accentColor}33` : c.backgroundTertiary,
+                    borderColor: isLocked ? `${c.danger}44` : user ? accentColor : c.border,
+                  },
+                ]}
+              >
+                {isLocked ? (
+                  <Feather name="lock" size={10} color={c.danger} strokeWidth={1.5} />
+                ) : user ? (
+                  user.avatar ? (
+                    <Image source={{ uri: user.avatar }} style={styles.seatAvatarImg} />
                   ) : (
-                    <Feather name="mic-off" size={10} color={TEXT2} strokeWidth={1.5} />
-                  )}
-                </View>
-              );
-            })}
+                    <Text style={[styles.seatText, { color: accentColor }]}>{user.name[0]?.toUpperCase()}</Text>
+                  )
+                ) : (
+                  <Feather name="mic-off" size={10} color={c.textSecondary} strokeWidth={1.5} />
+                )}
+              </View>
+            );
+          })}
         </View>
 
         <View style={styles.roomFooter}>
           <View style={styles.occupancyBadge}>
-            <View
-              style={[
-                styles.liveIndicator,
-                { backgroundColor: occupied > 0 ? "#34D399" : TEXT2 },
-              ]}
-            />
-            <Text style={styles.occupancyText}>{occupied}/{totalSeats} مستمع</Text>
+            <View style={[styles.liveIndicator, { backgroundColor: occupied > 0 ? c.success : c.textSecondary }]} />
+            <Text style={[styles.occupancyText, { color: c.textSecondary }]}>{occupied}/{totalSeats} مستمع</Text>
           </View>
           <View style={[styles.joinBtn, { backgroundColor: accentColor }]}>
             <Text style={styles.joinBtnText}>دخول</Text>
@@ -151,6 +129,7 @@ function RoomCard({ room, onPress, onDelete, isOwner, isSuperAdmin, t }: any) {
 }
 
 function CreateRoomModal({ onClose, onCreate, t }: any) {
+  const c = useThemeStore((s) => s.tokens);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -165,14 +144,14 @@ function CreateRoomModal({ onClose, onCreate, t }: any) {
   return (
     <View style={styles.modalOverlay}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-      <View style={styles.modalCard}>
-        <Text style={styles.modalTitle}>{t("createRoom")}</Text>
-        <View style={styles.inputWrapper}>
-          <Feather name="mic" size={18} color={TEXT2} strokeWidth={1.5} />
+      <View style={[styles.modalCard, { backgroundColor: c.card, borderColor: c.border }]}>
+        <Text style={[styles.modalTitle, { color: c.text }]}>{t("createRoom")}</Text>
+        <View style={[styles.inputWrapper, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}>
+          <Feather name="mic" size={18} color={c.textSecondary} strokeWidth={1.5} />
           <TextInput
-            style={styles.inputField}
+            style={[styles.inputField, { color: c.text }]}
             placeholder={t("roomName")}
-            placeholderTextColor={TEXT2}
+            placeholderTextColor={c.textSecondary}
             value={name}
             onChangeText={setName}
             textAlign="right"
@@ -180,11 +159,11 @@ function CreateRoomModal({ onClose, onCreate, t }: any) {
           />
         </View>
         <View style={styles.modalBtns}>
-          <TouchableOpacity onPress={onClose} style={styles.modalCancel}>
-            <Text style={{ color: TEXT2, fontFamily: "Inter_500Medium" }}>{t("cancel")}</Text>
+          <TouchableOpacity onPress={onClose} style={[styles.modalCancel, { borderColor: c.border }]}>
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium" }}>{t("cancel")}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleCreate} disabled={loading} style={styles.modalConfirm}>
-            <Text style={styles.modalConfirmText}>{loading ? "..." : t("createRoom")}</Text>
+          <TouchableOpacity onPress={handleCreate} disabled={loading} style={[styles.modalConfirm, { backgroundColor: c.text }]}>
+            <Text style={[styles.modalConfirmText, { color: c.background }]}>{loading ? "..." : t("createRoom")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -193,22 +172,23 @@ function CreateRoomModal({ onClose, onCreate, t }: any) {
 }
 
 function SearchBar({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+  const c = useThemeStore((s) => s.tokens);
   return (
-    <View style={styles.searchBar}>
-      <Feather name="search" size={16} color={TEXT2} strokeWidth={1.5} />
+    <View style={[styles.searchBar, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}>
+      <Feather name="search" size={16} color={c.textSecondary} strokeWidth={1.5} />
       <TextInput
-        style={styles.searchInput}
+        style={[styles.searchInput, { color: c.text }]}
         value={value}
         onChangeText={onChange}
         placeholder={placeholder}
-        placeholderTextColor={TEXT2}
+        placeholderTextColor={c.textSecondary}
         textAlign="right"
         returnKeyType="search"
         keyboardType="default"
       />
       {value.length > 0 && (
         <TouchableOpacity onPress={() => onChange("")}>
-          <Feather name="x" size={16} color={TEXT2} strokeWidth={1.5} />
+          <Feather name="x" size={16} color={c.textSecondary} strokeWidth={1.5} />
         </TouchableOpacity>
       )}
     </View>
@@ -216,6 +196,7 @@ function SearchBar({ value, onChange, placeholder }: { value: string; onChange: 
 }
 
 export default function RoomsScreen() {
+  const c = useThemeStore((s) => s.tokens);
   const {
     rooms, currentUser, isSuperAdmin, createRoom, deleteRoom,
     searchUsers, searchRoomByCode, t,
@@ -250,34 +231,21 @@ export default function RoomsScreen() {
   };
 
   const handleLeaveAndJoin = () => {
-    if (minimizedRoomId) {
-      leaveRoomFull(minimizedRoomId);
-      expandRoom();
-    }
+    if (minimizedRoomId) { leaveRoomFull(minimizedRoomId); expandRoom(); }
     setShowBlockedModal(false);
-    if (pendingRoomId) {
-      router.push(`/room/${pendingRoomId}` as any);
-      setPendingRoomId(null);
-    }
+    if (pendingRoomId) { router.push(`/room/${pendingRoomId}` as any); setPendingRoomId(null); }
   };
 
   const handleSearchSubmit = () => {
     if (isNumericSearch) {
       const found = searchRoomByCode(searchQuery.trim());
-      if (found) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        tryJoinRoom(found.id);
-      } else {
-        Alert.alert(t("error"), t("roomCodeNotFound"));
-      }
+      if (found) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); tryJoinRoom(found.id); }
+      else Alert.alert(t("error"), t("roomCodeNotFound"));
     }
   };
 
   const handleCreateRoom = async (name: string) => {
-    if (myRoom) {
-      setShowRoomLimitModal(true);
-      return;
-    }
+    if (myRoom) { setShowRoomLimitModal(true); return; }
     await createRoom(name);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
@@ -298,40 +266,29 @@ export default function RoomsScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topPad }]}>
+    <View style={[styles.container, { backgroundColor: c.background }]}>
+      <View style={[styles.header, { paddingTop: topPad, borderBottomColor: c.border }]}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerGreeting}>مرحباً،</Text>
-          <Text style={styles.headerName} numberOfLines={1}>
+          <Text style={[styles.headerGreeting, { color: c.textSecondary }]}>مرحباً،</Text>
+          <Text style={[styles.headerName, { color: c.text }]} numberOfLines={1}>
             {currentUser?.name || t("hillaConnect")}
           </Text>
         </View>
         {isSuperAdmin && (
-          <TouchableOpacity
-            onPress={() => router.push("/admin")}
-            style={styles.adminBtn}
-          >
+          <TouchableOpacity onPress={() => router.push("/admin")} style={[styles.adminBtn, { backgroundColor: c.backgroundTertiary, borderColor: "#FFD70066" }]}>
             <Text style={{ fontSize: 18 }}>👑</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setShowCreate(true);
-          }}
-          style={styles.createBtn}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowCreate(true); }}
+          style={[styles.createBtn, { backgroundColor: c.text }]}
         >
-          <Feather name="plus" size={22} color="#000" strokeWidth={2} />
+          <Feather name="plus" size={22} color={c.background} strokeWidth={2} />
         </TouchableOpacity>
       </View>
 
       <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
-        <SearchBar
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder={t("searchByCode")}
-        />
+        <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder={t("searchByCode")} />
         {isNumericSearch && (
           <TouchableOpacity onPress={handleSearchSubmit} style={styles.codeSearchBtn}>
             <Feather name="hash" size={14} color="#fff" strokeWidth={2} />
@@ -351,15 +308,15 @@ export default function RoomsScreen() {
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <View style={styles.noResults}>
-              <Feather name="search" size={36} color={BORDER} strokeWidth={1} />
-              <Text style={styles.noResultsText}>لا توجد نتائج</Text>
+              <Feather name="search" size={36} color={c.border} strokeWidth={1} />
+              <Text style={[styles.noResultsText, { color: c.textSecondary }]}>لا توجد نتائج</Text>
             </View>
           }
           renderItem={({ item }) => {
             const color = ACCENT_COLORS[item.id.length % ACCENT_COLORS.length];
             return (
               <TouchableOpacity
-                style={styles.searchResult}
+                style={[styles.searchResult, { borderBottomColor: c.border }]}
                 onPress={() => router.push(`/profile/${item.id}`)}
                 activeOpacity={0.7}
               >
@@ -367,27 +324,25 @@ export default function RoomsScreen() {
                   {item.avatar ? (
                     <Image source={{ uri: item.avatar }} style={styles.searchAvatarImg} />
                   ) : (
-                    <Text style={[styles.searchAvatarText, { color }]}>
-                      {item.name[0]?.toUpperCase()}
-                    </Text>
+                    <Text style={[styles.searchAvatarText, { color }]}>{item.name[0]?.toUpperCase()}</Text>
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.searchName}>{item.name}</Text>
-                  <Text style={styles.searchPhone}>@{item.username || item.email}</Text>
+                  <Text style={[styles.searchName, { color: c.text }]}>{item.name}</Text>
+                  <Text style={[styles.searchPhone, { color: c.textSecondary }]}>@{item.username || item.email}</Text>
                 </View>
-                <Feather name="chevron-right" size={16} color={TEXT2} strokeWidth={1.5} />
+                <Feather name="chevron-right" size={16} color={c.textSecondary} strokeWidth={1.5} />
               </TouchableOpacity>
             );
           }}
         />
       ) : visibleRooms.length === 0 ? (
         <View style={styles.emptyState}>
-          <Feather name="mic" size={56} color={BORDER} strokeWidth={1} />
-          <Text style={styles.emptyTitle}>{t("noRooms")}</Text>
-          <Text style={styles.emptyDesc}>{t("createFirst")}</Text>
-          <TouchableOpacity onPress={() => setShowCreate(true)} style={styles.emptyBtn}>
-            <Text style={styles.emptyBtnText}>{t("createRoom")}</Text>
+          <Feather name="mic" size={56} color={c.border} strokeWidth={1} />
+          <Text style={[styles.emptyTitle, { color: c.textSecondary }]}>{t("noRooms")}</Text>
+          <Text style={[styles.emptyDesc, { color: c.textSecondary }]}>{t("createFirst")}</Text>
+          <TouchableOpacity onPress={() => setShowCreate(true)} style={[styles.emptyBtn, { backgroundColor: c.text }]}>
+            <Text style={[styles.emptyBtnText, { color: c.background }]}>{t("createRoom")}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -411,11 +366,7 @@ export default function RoomsScreen() {
       )}
 
       {showCreate && (
-        <CreateRoomModal
-          onClose={() => setShowCreate(false)}
-          onCreate={handleCreateRoom}
-          t={t}
-        />
+        <CreateRoomModal onClose={() => setShowCreate(false)} onCreate={handleCreateRoom} t={t} />
       )}
 
       {/* Blocked — already in a room modal */}
@@ -425,26 +376,26 @@ export default function RoomsScreen() {
           onPress={() => setShowBlockedModal(false)}
         >
           <Pressable
-            style={{ backgroundColor: "#111111", borderRadius: 24, borderWidth: 1, borderColor: "#1E3A5F", padding: 28, width: "100%", alignItems: "center", gap: 14 }}
+            style={{ backgroundColor: c.card, borderRadius: 24, borderWidth: 1, borderColor: `${c.accent}44`, padding: 28, width: "100%", alignItems: "center", gap: 14 }}
             onPress={() => {}}
           >
-            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#1E3A5F", alignItems: "center", justifyContent: "center" }}>
-              <Feather name="alert-circle" size={30} color="#3D91F4" strokeWidth={1.5} />
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: `${c.accent}22`, alignItems: "center", justifyContent: "center" }}>
+              <Feather name="alert-circle" size={30} color={c.accent} strokeWidth={1.5} />
             </View>
-            <Text style={{ color: "#FFFFFF", fontFamily: "Inter_700Bold", fontSize: 17, textAlign: "center" }}>تنبيه</Text>
-            <Text style={{ color: "#8E8E93", fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center", lineHeight: 22 }}>
+            <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 17, textAlign: "center" }}>تنبيه</Text>
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center", lineHeight: 22 }}>
               لا يمكنك دخول غرفة جديدة، يجب مغادرة الغرفة الحالية أولاً. هل تريد المغادرة؟
             </Text>
             <View style={{ flexDirection: "row", gap: 12, width: "100%", marginTop: 4 }}>
               <TouchableOpacity
                 onPress={() => { setShowBlockedModal(false); setPendingRoomId(null); }}
-                style={{ flex: 1, height: 50, borderRadius: 14, borderWidth: 1, borderColor: "#222222", alignItems: "center", justifyContent: "center" }}
+                style={{ flex: 1, height: 50, borderRadius: 14, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" }}
               >
-                <Text style={{ color: "#8E8E93", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>لا</Text>
+                <Text style={{ color: c.textSecondary, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>لا</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleLeaveAndJoin}
-                style={{ flex: 1, height: 50, borderRadius: 14, backgroundColor: "#3D91F4", alignItems: "center", justifyContent: "center" }}
+                style={{ flex: 1, height: 50, borderRadius: 14, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" }}
               >
                 <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 }}>نعم</Text>
               </TouchableOpacity>
@@ -460,26 +411,26 @@ export default function RoomsScreen() {
           onPress={() => setShowDeleteModal(false)}
         >
           <Pressable
-            style={{ backgroundColor: "#111111", borderRadius: 24, borderWidth: 1, borderColor: "#2C1A1A", padding: 28, width: "100%", alignItems: "center", gap: 14 }}
+            style={{ backgroundColor: c.card, borderRadius: 24, borderWidth: 1, borderColor: `${c.danger}22`, padding: 28, width: "100%", alignItems: "center", gap: 14 }}
             onPress={() => {}}
           >
-            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#FF3B5C18", alignItems: "center", justifyContent: "center" }}>
-              <Feather name="trash-2" size={28} color="#FF3B5C" strokeWidth={1.5} />
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: `${c.danger}18`, alignItems: "center", justifyContent: "center" }}>
+              <Feather name="trash-2" size={28} color={c.danger} strokeWidth={1.5} />
             </View>
-            <Text style={{ color: "#FFFFFF", fontFamily: "Inter_700Bold", fontSize: 17 }}>حذف الغرفة</Text>
-            <Text style={{ color: "#8E8E93", fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }}>
+            <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 17 }}>حذف الغرفة</Text>
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }}>
               هل أنت متأكد من حذف هذه الغرفة؟ لا يمكن التراجع عن هذا الإجراء.
             </Text>
             <View style={{ flexDirection: "row", gap: 12, width: "100%", marginTop: 4 }}>
               <TouchableOpacity
                 onPress={() => setShowDeleteModal(false)}
-                style={{ flex: 1, height: 50, borderRadius: 14, borderWidth: 1, borderColor: "#222222", alignItems: "center", justifyContent: "center" }}
+                style={{ flex: 1, height: 50, borderRadius: 14, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" }}
               >
-                <Text style={{ color: "#8E8E93", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>إلغاء</Text>
+                <Text style={{ color: c.textSecondary, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>إلغاء</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={confirmDeleteRoom}
-                style={{ flex: 1, height: 50, borderRadius: 14, backgroundColor: "#FF3B5C", alignItems: "center", justifyContent: "center" }}
+                style={{ flex: 1, height: 50, borderRadius: 14, backgroundColor: c.danger, alignItems: "center", justifyContent: "center" }}
               >
                 <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 15 }}>حذف</Text>
               </TouchableOpacity>
@@ -489,32 +440,27 @@ export default function RoomsScreen() {
       </Modal>
 
       {/* Room Creation Limit Modal */}
-      <Modal
-        visible={showRoomLimitModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowRoomLimitModal(false)}
-      >
+      <Modal visible={showRoomLimitModal} transparent animationType="fade" onRequestClose={() => setShowRoomLimitModal(false)}>
         <Pressable
           style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "center", alignItems: "center", padding: 32 }}
           onPress={() => setShowRoomLimitModal(false)}
         >
           <Pressable
-            style={{ backgroundColor: CARD, borderRadius: 24, borderWidth: 1, borderColor: BORDER, padding: 28, width: "100%", alignItems: "center", gap: 14 }}
+            style={{ backgroundColor: c.card, borderRadius: 24, borderWidth: 1, borderColor: c.border, padding: 28, width: "100%", alignItems: "center", gap: 14 }}
             onPress={() => {}}
           >
             <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "#F59E0B22", alignItems: "center", justifyContent: "center" }}>
               <Feather name="alert-circle" size={28} color="#F59E0B" strokeWidth={1.5} />
             </View>
-            <Text style={{ color: TEXT, fontFamily: "Inter_700Bold", fontSize: 18 }}>تنبيه</Text>
-            <Text style={{ color: "#8E8E93", fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }}>
+            <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 18 }}>تنبيه</Text>
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "center" }}>
               يمكنك إنشاء غرفة واحدة فقط. يرجى حذف غرفتك الحالية أولاً.
             </Text>
             <TouchableOpacity
               onPress={() => setShowRoomLimitModal(false)}
-              style={{ width: "100%", height: 50, borderRadius: 14, backgroundColor: TEXT, alignItems: "center", justifyContent: "center", marginTop: 4 }}
+              style={{ width: "100%", height: 50, borderRadius: 14, backgroundColor: c.text, alignItems: "center", justifyContent: "center", marginTop: 4 }}
             >
-              <Text style={{ color: BG, fontFamily: "Inter_700Bold", fontSize: 15 }}>حسناً</Text>
+              <Text style={{ color: c.background, fontFamily: "Inter_700Bold", fontSize: 15 }}>حسناً</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -524,85 +470,30 @@ export default function RoomsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+  container: { flex: 1 },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: BORDER,
-    marginBottom: 12,
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, marginBottom: 12,
   },
-  headerGreeting: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2 },
-  headerName: { fontSize: 22, fontFamily: "Inter_700Bold", color: TEXT },
-  adminBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#1C1C1C",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 0.5,
-    borderColor: "#FFD70066",
-  },
-  createBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: TEXT,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1C1C1C",
-    borderRadius: 12,
-    borderWidth: 0.5,
-    borderColor: BORDER,
-    paddingHorizontal: 14,
-    height: 44,
-    gap: 10,
-  },
-  searchInput: { flex: 1, fontSize: 15, color: TEXT, fontFamily: "Inter_400Regular" },
-  codeSearchBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 10,
-    backgroundColor: "#4F46E5",
-    borderRadius: 12,
-    paddingVertical: 11,
-  },
+  headerGreeting: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  headerName: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  adminBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", borderWidth: 0.5 },
+  createBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  searchBar: { flexDirection: "row", alignItems: "center", borderRadius: 12, borderWidth: 0.5, paddingHorizontal: 14, height: 44, gap: 10 },
+  searchInput: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+  codeSearchBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10, backgroundColor: "#4F46E5", borderRadius: 12, paddingVertical: 11 },
   codeSearchBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 14 },
   list: { padding: 16, gap: 12 },
-  roomCard: {
-    borderRadius: 20,
-    borderWidth: 0.5,
-    borderColor: BORDER,
-    overflow: "hidden",
-    backgroundColor: CARD,
-  },
+  roomCard: { borderRadius: 20, borderWidth: 0.5, overflow: "hidden" },
   roomColorBar: { height: 2, width: "100%" },
   roomHeader: { flexDirection: "row", alignItems: "center", padding: 14, gap: 10 },
   roomAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", overflow: "hidden" },
-  roomAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT },
+  roomAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
   roomAvatarImg: { width: "100%", height: "100%", borderRadius: 22, resizeMode: "cover" },
   roomInfo: { flex: 1 },
-  roomName: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: TEXT },
-  roomOwner: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2, marginTop: 2 },
-  codeTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-  },
+  roomName: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  roomOwner: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  codeTag: { flexDirection: "row", alignItems: "center", gap: 3, borderWidth: 1, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4 },
   codeTagText: { fontSize: 11, fontFamily: "Inter_700Bold" },
   deleteBtn: { padding: 8 },
   seatsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 14, paddingBottom: 12 },
@@ -612,62 +503,30 @@ const styles = StyleSheet.create({
   roomFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingBottom: 14 },
   occupancyBadge: { flexDirection: "row", alignItems: "center", gap: 6 },
   liveIndicator: { width: 7, height: 7, borderRadius: 4 },
-  occupancyText: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2 },
+  occupancyText: { fontSize: 13, fontFamily: "Inter_400Regular" },
   joinBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 100 },
   joinBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
   searchList: { padding: 16, gap: 8 },
-  searchResult: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: BORDER,
-  },
+  searchResult: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, borderBottomWidth: 0.5 },
   searchAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   searchAvatarImg: { width: "100%", height: "100%", borderRadius: 22 },
   searchAvatarText: { fontSize: 17, fontFamily: "Inter_700Bold" },
-  searchName: { fontSize: 15, fontFamily: "Inter_500Medium", color: TEXT },
-  searchPhone: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2, marginTop: 2 },
+  searchName: { fontSize: 15, fontFamily: "Inter_500Medium" },
+  searchPhone: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
   noResults: { alignItems: "center", justifyContent: "center", paddingVertical: 48, gap: 12 },
-  noResultsText: { fontFamily: "Inter_400Regular", fontSize: 15, color: TEXT2 },
+  noResultsText: { fontFamily: "Inter_400Regular", fontSize: 15 },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, padding: 32 },
-  emptyTitle: { fontSize: 20, fontFamily: "Inter_600SemiBold", color: TEXT2, textAlign: "center" },
-  emptyDesc: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center" },
-  emptyBtn: { backgroundColor: TEXT, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 100, marginTop: 8 },
-  emptyBtnText: { color: BG, fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  modalOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.75)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 100,
-    padding: 24,
-  },
-  modalCard: {
-    width: "100%",
-    borderRadius: 24,
-    borderWidth: 0.5,
-    borderColor: BORDER,
-    backgroundColor: CARD,
-    padding: 24,
-    gap: 16,
-  },
-  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT, textAlign: "center" },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1C1C1C",
-    borderRadius: 14,
-    borderWidth: 0.5,
-    borderColor: BORDER,
-    paddingHorizontal: 14,
-    height: 52,
-    gap: 10,
-  },
-  inputField: { flex: 1, height: "100%", fontSize: 16, color: TEXT, fontFamily: "Inter_400Regular" },
+  emptyTitle: { fontSize: 20, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  emptyDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
+  emptyBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 100, marginTop: 8 },
+  emptyBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "center", alignItems: "center", zIndex: 100, padding: 24 },
+  modalCard: { width: "100%", borderRadius: 24, borderWidth: 0.5, padding: 24, gap: 16 },
+  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
+  inputWrapper: { flexDirection: "row", alignItems: "center", borderRadius: 14, borderWidth: 0.5, paddingHorizontal: 14, height: 52, gap: 10 },
+  inputField: { flex: 1, height: "100%", fontSize: 16, fontFamily: "Inter_400Regular" },
   modalBtns: { flexDirection: "row", gap: 12 },
-  modalCancel: { flex: 1, height: 50, borderRadius: 100, borderWidth: 0.5, borderColor: BORDER, alignItems: "center", justifyContent: "center" },
-  modalConfirm: { flex: 1, height: 50, borderRadius: 100, backgroundColor: TEXT, alignItems: "center", justifyContent: "center" },
-  modalConfirmText: { color: BG, fontFamily: "Inter_600SemiBold", fontSize: 15 },
+  modalCancel: { flex: 1, height: 50, borderRadius: 100, borderWidth: 0.5, alignItems: "center", justifyContent: "center" },
+  modalConfirm: { flex: 1, height: 50, borderRadius: 100, alignItems: "center", justifyContent: "center" },
+  modalConfirmText: { fontFamily: "Inter_600SemiBold", fontSize: 15 },
 });

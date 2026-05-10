@@ -25,12 +25,6 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { User } from "@/context/AppContext";
 
-const BG = "#000";
-const CARD = "#1C1C1E";
-const BORDER = "#2C2C2E";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
-const TINT = "#3D91F4";
 
 export default function CreateGroupScreen() {
   const { users, currentUser, createGroup, theme } = useApp();
@@ -124,13 +118,13 @@ export default function CreateGroupScreen() {
           {step === 1 ? "إنشاء مجموعة جديدة" : "اختيار الأعضاء"}
         </Text>
         {step === 1 ? (
-          <TouchableOpacity onPress={handleNext} style={[s.nextBtn, { backgroundColor: TINT }]} activeOpacity={0.85}>
+          <TouchableOpacity onPress={handleNext} style={[s.nextBtn, { backgroundColor: colors.tint }]} activeOpacity={0.85}>
             <Text style={s.nextBtnText}>التالي</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
             onPress={handleCreate}
-            style={[s.nextBtn, { backgroundColor: selectedMembers.length >= 2 ? TINT : "#333", opacity: loading ? 0.6 : 1 }]}
+            style={[s.nextBtn, { backgroundColor: selectedMembers.length >= 2 ? colors.tint : colors.border, opacity: loading ? 0.6 : 1 }]}
             activeOpacity={0.85}
             disabled={loading || selectedMembers.length < 2}
           >
@@ -158,11 +152,11 @@ export default function CreateGroupScreen() {
                 {photo ? (
                   <Image source={{ uri: photo }} style={s.photoImg} />
                 ) : (
-                  <View style={[s.photoPlaceholder, { backgroundColor: CARD, borderColor: BORDER }]}>
-                    <Feather name="camera" size={28} color={TEXT2} strokeWidth={1.5} />
+                  <View style={[s.photoPlaceholder, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Feather name="camera" size={28} color={colors.textSecondary} strokeWidth={1.5} />
                   </View>
                 )}
-                <View style={s.photoEditBadge}>
+                <View style={[s.photoEditBadge, { backgroundColor: colors.tint }]}>
                   <Feather name="edit-2" size={12} color="#fff" />
                 </View>
               </TouchableOpacity>
@@ -192,7 +186,7 @@ export default function CreateGroupScreen() {
                 معرف فريد للبحث عن المجموعة (يُستخدم عند البحث العام)
               </Text>
               <View style={[s.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={{ color: TEXT2, paddingRight: 8 }}>@</Text>
+                <Text style={{ color: colors.textSecondary, paddingRight: 8 }}>@</Text>
                 <TextInput
                   style={[s.input, { color: colors.text, flex: 1 }]}
                   placeholder="group_id"
@@ -214,25 +208,25 @@ export default function CreateGroupScreen() {
                   onPress={() => setPrivacy("public")}
                   style={[
                     s.privacyBtn,
-                    { borderColor: privacy === "public" ? TINT : BORDER, backgroundColor: privacy === "public" ? `${TINT}22` : CARD },
+                    { borderColor: privacy === "public" ? colors.tint : colors.border, backgroundColor: privacy === "public" ? `${colors.tint}22` : colors.card },
                   ]}
                   activeOpacity={0.8}
                 >
-                  <Feather name="globe" size={18} color={privacy === "public" ? TINT : TEXT2} strokeWidth={1.5} />
-                  <Text style={[s.privacyLabel, { color: privacy === "public" ? TINT : TEXT2 }]}>عامة</Text>
-                  <Text style={[s.privacyDesc, { color: TEXT2 }]}>يمكن للجميع الانضمام</Text>
+                  <Feather name="globe" size={18} color={privacy === "public" ? colors.tint : colors.textSecondary} strokeWidth={1.5} />
+                  <Text style={[s.privacyLabel, { color: privacy === "public" ? colors.tint : colors.textSecondary }]}>عامة</Text>
+                  <Text style={[s.privacyDesc, { color: colors.textSecondary }]}>يمكن للجميع الانضمام</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setPrivacy("private")}
                   style={[
                     s.privacyBtn,
-                    { borderColor: privacy === "private" ? TINT : BORDER, backgroundColor: privacy === "private" ? `${TINT}22` : CARD },
+                    { borderColor: privacy === "private" ? colors.tint : colors.border, backgroundColor: privacy === "private" ? `${colors.tint}22` : colors.card },
                   ]}
                   activeOpacity={0.8}
                 >
-                  <Feather name="lock" size={18} color={privacy === "private" ? TINT : TEXT2} strokeWidth={1.5} />
-                  <Text style={[s.privacyLabel, { color: privacy === "private" ? TINT : TEXT2 }]}>خاصة</Text>
-                  <Text style={[s.privacyDesc, { color: TEXT2 }]}>بالدعوة فقط</Text>
+                  <Feather name="lock" size={18} color={privacy === "private" ? colors.tint : colors.textSecondary} strokeWidth={1.5} />
+                  <Text style={[s.privacyLabel, { color: privacy === "private" ? colors.tint : colors.textSecondary }]}>خاصة</Text>
+                  <Text style={[s.privacyDesc, { color: colors.textSecondary }]}>بالدعوة فقط</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -251,7 +245,7 @@ export default function CreateGroupScreen() {
                 const u = users.find((x) => x.id === uid);
                 if (!u) return null;
                 return (
-                  <TouchableOpacity key={uid} onPress={() => toggleMember(uid)} style={s.chip} activeOpacity={0.8}>
+                  <TouchableOpacity key={uid} onPress={() => toggleMember(uid)} style={[s.chip, { backgroundColor: colors.card, borderColor: colors.border }]} activeOpacity={0.8}>
                     <View style={[s.chipAvatar, { backgroundColor: `${ACCENT_COLORS[u.name.length % ACCENT_COLORS.length]}33` }]}>
                       {u.avatar ? (
                         <Image source={{ uri: u.avatar }} style={s.chipAvatarImg} />
@@ -262,7 +256,7 @@ export default function CreateGroupScreen() {
                       )}
                     </View>
                     <Text style={[s.chipName, { color: colors.text }]} numberOfLines={1}>{u.name}</Text>
-                    <Feather name="x" size={12} color={TEXT2} />
+                    <Feather name="x" size={12} color={colors.textSecondary} />
                   </TouchableOpacity>
                 );
               })}
@@ -271,18 +265,18 @@ export default function CreateGroupScreen() {
 
           {/* Search */}
           <View style={[s.searchWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Feather name="search" size={16} color={TEXT2} strokeWidth={1.5} />
+            <Feather name="search" size={16} color={colors.textSecondary} strokeWidth={1.5} />
             <TextInput
               style={[s.searchInput, { color: colors.text }]}
               placeholder="ابحث عن مستخدم..."
-              placeholderTextColor={TEXT2}
+              placeholderTextColor={colors.textSecondary}
               value={memberSearch}
               onChangeText={setMemberSearch}
               textAlign="right"
             />
           </View>
 
-          <Text style={[s.memberHint, { color: TEXT2 }]}>
+          <Text style={[s.memberHint, { color: colors.textSecondary }]}>
             {selectedMembers.length > 0 ? `${selectedMembers.length} عضو محدد` : "اختر عضوين على الأقل"}
           </Text>
 
@@ -309,13 +303,13 @@ export default function CreateGroupScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={[s.memberName, { color: colors.text }]}>{item.name}</Text>
                     {item.username && (
-                      <Text style={[s.memberUsername, { color: TEXT2 }]}>@{item.username}</Text>
+                      <Text style={[s.memberUsername, { color: colors.textSecondary }]}>@{item.username}</Text>
                     )}
                   </View>
                   <View
                     style={[
                       s.checkCircle,
-                      { borderColor: isSelected ? TINT : BORDER, backgroundColor: isSelected ? TINT : "transparent" },
+                      { borderColor: isSelected ? colors.tint : colors.border, backgroundColor: isSelected ? colors.tint : "transparent" },
                     ]}
                   >
                     {isSelected && <Feather name="check" size={14} color="#fff" strokeWidth={2.5} />}
@@ -357,7 +351,7 @@ const s = StyleSheet.create({
   photoEditBadge: {
     position: "absolute", bottom: 2, right: 2,
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: TINT, alignItems: "center", justifyContent: "center",
+    alignItems: "center", justifyContent: "center",
   },
   photoHint: { fontSize: 13, fontFamily: "Inter_400Regular" },
 
@@ -380,8 +374,7 @@ const s = StyleSheet.create({
   chipsRow: { padding: 12, gap: 8, flexDirection: "row" },
   chip: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: CARD, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6,
-    borderWidth: 1, borderColor: BORDER,
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1,
   },
   chipAvatar: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   chipAvatarImg: { width: "100%", height: "100%", borderRadius: 12 },

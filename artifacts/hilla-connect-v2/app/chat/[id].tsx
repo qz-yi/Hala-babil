@@ -46,11 +46,7 @@ import type {
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import { AudioBubble } from "@/components/AudioBubble";
 
-const BG = "#000000";
-const CARD = "#121212";
-const BORDER = "#262626";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
+
 
 const QUICK_EMOJIS = ["❤️", "😂", "😮", "😢", "😡", "👍"];
 
@@ -209,17 +205,17 @@ function SharedContentPreview({
       </View>
 
       {/* Info strip */}
-      <View style={[sharedStyles.infoStrip, { backgroundColor: isMe ? "rgba(255,255,255,0.12)" : "#1A1A1A" }]}>
-        <Text style={[sharedStyles.typeChip, { color: isMe ? "rgba(255,255,255,0.55)" : TEXT2 }]}>
+      <View style={[sharedStyles.infoStrip, { backgroundColor: isMe ? "rgba(255,255,255,0.12)" : useThemeStore.getState().tokens.card }]}>
+        <Text style={[sharedStyles.typeChip, { color: isMe ? "rgba(255,255,255,0.55)" : useThemeStore.getState().tokens.textSecondary }]}>
           {LABELS[sharedContent.type]}
         </Text>
         {sharedContent.creatorName ? (
-          <Text style={[sharedStyles.creatorName, { color: isMe ? "rgba(255,255,255,0.9)" : TEXT }]} numberOfLines={1}>
+          <Text style={[sharedStyles.creatorName, { color: isMe ? "rgba(255,255,255,0.9)" : useThemeStore.getState().tokens.text }]} numberOfLines={1}>
             {sharedContent.creatorName}
           </Text>
         ) : null}
         {sharedContent.title ? (
-          <Text style={[sharedStyles.caption, { color: isMe ? "rgba(255,255,255,0.6)" : TEXT2 }]} numberOfLines={1}>
+          <Text style={[sharedStyles.caption, { color: isMe ? "rgba(255,255,255,0.6)" : useThemeStore.getState().tokens.textSecondary }]} numberOfLines={1}>
             {sharedContent.title}
           </Text>
         ) : null}
@@ -281,7 +277,7 @@ function StoryReplyRef({ storyId, isMe }: { storyId: string; isMe: boolean }) {
   return (
     <TouchableOpacity
       onPress={() => router.push(`/story/${story.creatorId}` as any)}
-      style={[storyRefStyles.wrap, { borderColor: isMe ? "rgba(255,255,255,0.3)" : BORDER }]}
+      style={[storyRefStyles.wrap, { borderColor: isMe ? "rgba(255,255,255,0.3)" : useThemeStore.getState().tokens.border }]}
       activeOpacity={0.8}
     >
       <View style={storyRefStyles.thumb}>
@@ -291,7 +287,7 @@ function StoryReplyRef({ storyId, isMe }: { storyId: string; isMe: boolean }) {
           <View style={[StyleSheet.absoluteFill as any, { backgroundColor: "#7C3AED88" }]} />
         )}
       </View>
-      <Text style={[storyRefStyles.label, { color: isMe ? "rgba(255,255,255,0.75)" : TEXT2 }]}>
+      <Text style={[storyRefStyles.label, { color: isMe ? "rgba(255,255,255,0.75)" : useThemeStore.getState().tokens.textSecondary }]}>
         رد على قصة
       </Text>
     </TouchableOpacity>
@@ -341,13 +337,13 @@ function ReplyBubbleRef({
         replyRefStyles.wrap,
         {
           backgroundColor: isMe ? "rgba(255,255,255,0.08)" : "rgba(61,145,244,0.08)",
-          borderLeftColor: isMe ? "rgba(255,255,255,0.5)" : useThemeStore.getState().tokens.accent,
+          borderLeftColor: isMe ? "rgba(255,255,255,0.5)" : useThemeStore.getState().tokens.accent ?? "#3D91F4",
         },
       ]}
     >
       <View style={replyRefStyles.accentBar} />
       <Text
-        style={[replyRefStyles.text, { color: isMe ? "rgba(255,255,255,0.75)" : TEXT2 }]}
+        style={[replyRefStyles.text, { color: isMe ? "rgba(255,255,255,0.75)" : useThemeStore.getState().tokens.textSecondary }]}
         numberOfLines={1}
         ellipsizeMode="tail"
       >
@@ -395,7 +391,7 @@ function LocationBubble({ location, isMe }: { location: MessageLocation; isMe: b
         <Text style={[locStyles.label, { color: isMe ? "rgba(255,255,255,0.8)" : "#3D91F4" }]}>
           افتح الموقع
         </Text>
-        <Text style={[locStyles.coords, { color: isMe ? "rgba(255,255,255,0.5)" : TEXT2 }]}>
+        <Text style={[locStyles.coords, { color: isMe ? "rgba(255,255,255,0.5)" : useThemeStore.getState().tokens.textSecondary }]}>
           {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
         </Text>
       </View>
@@ -455,7 +451,7 @@ function ReactionModal({
               onPress={() => setShowAll(true)}
               style={[reactStyles.emojiBtn, { backgroundColor: "#2C2C2E" }]}
             >
-              <Feather name="plus" size={18} color={TEXT2} />
+              <Feather name="plus" size={18} color="#8E8E93" />
             </TouchableOpacity>
           </View>
         )}
@@ -567,20 +563,20 @@ const ctxStyles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: CARD,
+    backgroundColor: "#121212",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
     paddingBottom: 36,
     gap: 4,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: "#262626",
   },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: "center", marginBottom: 12 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#262626", alignSelf: "center", marginBottom: 12 },
   item: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 12, paddingHorizontal: 4 },
   icon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  label: { fontSize: 15, fontFamily: "Inter_500Medium", color: TEXT },
-  sep: { height: 1, backgroundColor: BORDER, marginVertical: 4 },
+  label: { fontSize: 15, fontFamily: "Inter_500Medium", color: "#FFFFFF" },
+  sep: { height: 1, backgroundColor: "#262626", marginVertical: 4 },
 });
 
 // ───── Forward Message Picker ─────
@@ -626,7 +622,7 @@ function ForwardPicker({
                   )}
                 </View>
                 <Text style={fwdStyles.name}>{other.name}</Text>
-                <Feather name="chevron-right" size={16} color={TEXT2} />
+                <Feather name="chevron-right" size={16} color="#8E8E93" />
               </TouchableOpacity>
             );
           }}
@@ -640,19 +636,19 @@ const fwdStyles = StyleSheet.create({
   sheet: {
     position: "absolute",
     bottom: 0, left: 0, right: 0,
-    backgroundColor: CARD,
+    backgroundColor: "#121212",
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 20, paddingBottom: 36,
-    borderWidth: 1, borderColor: BORDER,
+    borderWidth: 1, borderColor: "#262626",
   },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: "center", marginBottom: 12 },
-  title: { fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 12 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#262626", alignSelf: "center", marginBottom: 12 },
+  title: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFFFFF", marginBottom: 12 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
   avatar: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: "#2C2C2E", alignItems: "center", justifyContent: "center", overflow: "hidden",
   },
-  name: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", color: TEXT },
+  name: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", color: "#FFFFFF" },
 });
 
 // ───── Recording Indicator ─────
@@ -672,10 +668,10 @@ function RecordingIndicator({ duration }: { duration: number }) {
   return (
     <View style={[recStyles.container, { backgroundColor: "#1C1C1C" }]}>
       <Animated.View style={[recStyles.dot, { transform: [{ scale: pulseAnim }] }]} />
-      <Text style={[recStyles.text, { color: TEXT }]}>
+      <Text style={[recStyles.text, { color: "#FFFFFF" }]}>
         جاري التسجيل... {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, "0")}
       </Text>
-      <Text style={[recStyles.hint, { color: TEXT2 }]}>أفلت للإرسال</Text>
+      <Text style={[recStyles.hint, { color: "#8E8E93" }]}>أفلت للإرسال</Text>
     </View>
   );
 }
@@ -750,6 +746,7 @@ function MessageBubble({
   onReplyScrollTo: (msgId: string) => void;
   senderUser?: User;
 }) {
+  const c = useThemeStore((s) => s.tokens);
   const formatTime = (ts: number) => {
     const d = new Date(ts);
     return `${d.getHours()}:${d.getMinutes().toString().padStart(2, "0")}`;
@@ -784,8 +781,8 @@ function MessageBubble({
             style={[
               styles.bubble,
               {
-                backgroundColor: isMe ? accentColor : CARD,
-                borderColor: isMe ? "transparent" : BORDER,
+                backgroundColor: isMe ? accentColor : c.card,
+                borderColor: isMe ? "transparent" : c.border,
               },
             ]}
           >
@@ -832,10 +829,10 @@ function MessageBubble({
             ) : null}
 
             {msg.content ? (
-              <Text style={[styles.bubbleText, { color: isMe ? "#fff" : TEXT }]}>{msg.content}</Text>
+              <Text style={[styles.bubbleText, { color: isMe ? "#fff" : c.text }]}>{msg.content}</Text>
             ) : null}
 
-            <Text style={[styles.bubbleTime, { color: isMe ? "rgba(255,255,255,0.6)" : TEXT2 }]}>
+            <Text style={[styles.bubbleTime, { color: isMe ? "rgba(255,255,255,0.6)" : c.textSecondary }]}>
               {formatTime(msg.timestamp)}
               {isMe && <DeliveryStatus msg={msg} onLightBg={!isMe} />}
             </Text>
@@ -844,9 +841,9 @@ function MessageBubble({
           {hasReactions && (
             <View style={[styles.reactionsRow, isMe ? { justifyContent: "flex-end" } : {}]}>
               {Object.entries(msg.reactions!).map(([emoji, users]) => (
-                <View key={emoji} style={styles.reactionChip}>
+                <View key={emoji} style={[styles.reactionChip, { borderColor: c.border }]}>
                   <Text style={styles.reactionEmoji}>{emoji}</Text>
-                  {users.length > 1 && <Text style={styles.reactionCount}>{users.length}</Text>}
+                  {users.length > 1 && <Text style={[styles.reactionCount, { color: c.textSecondary }]}>{users.length}</Text>}
                 </View>
               ))}
             </View>
@@ -879,13 +876,13 @@ function DeliveryStatus({ msg, onLightBg }: { msg: PrivateMessage; onLightBg: bo
 
   if (sending) {
     return (
-      <Text> <ActivityIndicator size="small" color={onLightBg ? TEXT2 : "rgba(255,255,255,0.7)"} /></Text>
+      <Text> <ActivityIndicator size="small" color={onLightBg ? "#8E8E93" : "rgba(255,255,255,0.7)"} /></Text>
     );
   }
   if (msg.read) {
     return <Text style={{ color: "#34D399" }}> ✓✓</Text>;
   }
-  return <Text style={{ color: onLightBg ? TEXT2 : "rgba(255,255,255,0.6)" }}> ✓</Text>;
+  return <Text style={{ color: onLightBg ? "#8E8E93" : "rgba(255,255,255,0.6)" }}> ✓</Text>;
 }
 
 // ───── Chat Screen ─────
@@ -899,6 +896,7 @@ export default function ChatScreen() {
     archiveConversation, unarchiveConversation, setConversationTheme,
   } = useApp();
   const colors = useColors();
+  const c = useThemeStore((s) => s.tokens);
   const insets = useSafeAreaInsets();
   const [message, setMessage] = useState("");
   const [showAttach, setShowAttach] = useState(false);
@@ -1158,8 +1156,8 @@ export default function ChatScreen() {
 
   if (!convo) {
     return (
-      <View style={[styles.container, { backgroundColor: BG, justifyContent: "center", alignItems: "center" }]}>
-        <Text style={{ color: TEXT2 }}>المحادثة غير موجودة</Text>
+      <View style={[styles.container, { backgroundColor: c.background, justifyContent: "center", alignItems: "center" }]}>
+        <Text style={{ color: c.textSecondary }}>المحادثة غير موجودة</Text>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={{ color: useThemeStore.getState().tokens.accent, marginTop: 12 }}>رجوع</Text>
         </TouchableOpacity>
@@ -1168,7 +1166,7 @@ export default function ChatScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: BG }]}>
+    <View style={[styles.container, { backgroundColor: c.background }]}>
       {/* Header */}
       <LinearGradient
         colors={[`${accentColor}20`, "transparent"]}
@@ -1177,9 +1175,9 @@ export default function ChatScreen() {
         <View style={styles.headerRow}>
           <TouchableOpacity
             onPress={() => router.back()}
-            style={[styles.backBtn, { backgroundColor: CARD, borderColor: BORDER }]}
+            style={[styles.backBtn, { backgroundColor: c.card, borderColor: c.border }]}
           >
-            <Feather name="arrow-left" size={20} color={TEXT} strokeWidth={1.5} />
+            <Feather name="arrow-left" size={20} color={c.text} strokeWidth={1.5} />
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => otherUser && router.push(`/profile/${otherUser.id}`)}>
@@ -1199,12 +1197,12 @@ export default function ChatScreen() {
             onPress={() => otherUser && router.push(`/chat/info/${id}` as any)}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-              <Text style={[styles.headerName, { color: TEXT }]}>{otherUser?.name}</Text>
+              <Text style={[styles.headerName, { color: c.text }]}>{otherUser?.name}</Text>
               {isUserVerified(otherUser) && <VerifiedBadge size={14} />}
             </View>
             <View style={styles.onlineRow}>
               <View style={styles.onlineDot} />
-              <Text style={[styles.onlineText, { color: TEXT2 }]}>{t("online")}</Text>
+              <Text style={[styles.onlineText, { color: c.textSecondary }]}>{t("online")}</Text>
             </View>
           </TouchableOpacity>
 
@@ -1223,9 +1221,9 @@ export default function ChatScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setShowMenu(true)}
-              style={[styles.callBtn, { backgroundColor: "#1C1C1C" }]}
+              style={[styles.callBtn, { backgroundColor: c.backgroundTertiary }]}
             >
-              <Feather name="more-vertical" size={18} color={TEXT2} strokeWidth={1.5} />
+              <Feather name="more-vertical" size={18} color={c.textSecondary} strokeWidth={1.5} />
             </TouchableOpacity>
           </View>
         </View>
@@ -1241,7 +1239,7 @@ export default function ChatScreen() {
           <Feather name="bookmark" size={14} color="#F59E0B" strokeWidth={1.5} />
           <View style={{ flex: 1 }}>
             <Text style={pinStyles.pinLabel}>رسالة مثبتة</Text>
-            <Text style={pinStyles.pinText} numberOfLines={1}>
+            <Text style={[pinStyles.pinText, { color: c.textSecondary }]} numberOfLines={1}>
               {pinnedMsg.type === "image" ? "📷 صورة" :
                pinnedMsg.type === "video" ? "🎥 فيديو" :
                pinnedMsg.type === "audio" ? "🎙 رسالة صوتية" :
@@ -1249,7 +1247,7 @@ export default function ChatScreen() {
                pinnedMsg.content}
             </Text>
           </View>
-          <Feather name="chevron-down" size={14} color={TEXT2} />
+          <Feather name="chevron-down" size={14} color={c.textSecondary} />
         </TouchableOpacity>
       )}
 
@@ -1269,8 +1267,8 @@ export default function ChatScreen() {
           onScrollToIndexFailed={() => {}}
           ListEmptyComponent={
             <View style={styles.emptyChat}>
-              <Feather name="message-circle" size={40} color={BORDER} strokeWidth={1} />
-              <Text style={{ color: TEXT2, fontFamily: "Inter_400Regular", marginTop: 8 }}>
+              <Feather name="message-circle" size={40} color={c.border} strokeWidth={1} />
+              <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", marginTop: 8 }}>
                 ابدأ المحادثة
               </Text>
             </View>
@@ -1301,7 +1299,7 @@ export default function ChatScreen() {
             <Feather name="corner-up-left" size={14} color={useThemeStore.getState().tokens.accent} />
             <View style={{ flex: 1 }}>
               <Text style={replyBarStyles.label}>رد على</Text>
-              <Text style={replyBarStyles.preview} numberOfLines={1}>
+              <Text style={[replyBarStyles.preview, { color: c.textSecondary }]} numberOfLines={1}>
                 {replyTo.type === "image" ? "📷 صورة" :
                  replyTo.type === "video" ? "🎥 فيديو" :
                  replyTo.type === "audio" ? "🎙 رسالة صوتية" :
@@ -1310,14 +1308,14 @@ export default function ChatScreen() {
               </Text>
             </View>
             <TouchableOpacity onPress={() => setReplyTo(null)}>
-              <Feather name="x" size={18} color={TEXT2} />
+              <Feather name="x" size={18} color={c.textSecondary} />
             </TouchableOpacity>
           </View>
         )}
 
         {/* Attachment Menu */}
         {showAttach && !isRecording && (
-          <View style={[styles.attachMenu, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View style={[styles.attachMenu, { backgroundColor: c.card, borderColor: c.border }]}>
             <TouchableOpacity
               onPress={handlePickImage}
               style={[styles.attachItem, { backgroundColor: `${useThemeStore.getState().tokens.accent}18` }]}
@@ -1350,28 +1348,28 @@ export default function ChatScreen() {
         <View
           style={[
             styles.inputBar,
-            { paddingBottom: botPad + 8, backgroundColor: "#1C1C1C", borderTopColor: BORDER },
+            { paddingBottom: botPad + 8, backgroundColor: c.card, borderTopColor: c.border },
           ]}
         >
           {!isRecording ? (
             <>
               <TouchableOpacity
                 onPress={() => setShowAttach((v) => !v)}
-                style={[styles.attachBtn, { backgroundColor: showAttach ? `${useThemeStore.getState().tokens.accent}22` : "#1C1C1C" }]}
+                style={[styles.attachBtn, { backgroundColor: showAttach ? `${c.accent}22` : c.card }]}
               >
                 <Feather
                   name={showAttach ? "x" : "paperclip"}
                   size={20}
-                  color={showAttach ? useThemeStore.getState().tokens.accent : TEXT2}
+                  color={showAttach ? c.accent : c.textSecondary}
                   strokeWidth={1.5}
                 />
               </TouchableOpacity>
 
-              <View style={[styles.inputWrapper, { backgroundColor: "#1C1C1C", borderColor: BORDER }]}>
+              <View style={[styles.inputWrapper, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}>
                 <TextInput
-                  style={[styles.input, { color: TEXT, fontFamily: "Inter_400Regular" }]}
+                  style={[styles.input, { color: c.text, fontFamily: "Inter_400Regular" }]}
                   placeholder={t("typeMessage")}
-                  placeholderTextColor={TEXT2}
+                  placeholderTextColor={c.textSecondary}
                   value={message}
                   onChangeText={setMessage}
                   multiline
@@ -1389,9 +1387,9 @@ export default function ChatScreen() {
                 <TouchableOpacity
                   onLongPress={handleStartRecording}
                   delayLongPress={200}
-                  style={[styles.sendBtn, { backgroundColor: "#1C1C1C" }]}
+                  style={[styles.sendBtn, { backgroundColor: c.backgroundTertiary }]}
                 >
-                  <Feather name="mic" size={22} color={TEXT2} strokeWidth={1.5} />
+                  <Feather name="mic" size={22} color={c.textSecondary} strokeWidth={1.5} />
                 </TouchableOpacity>
               )}
             </>
@@ -1451,9 +1449,9 @@ export default function ChatScreen() {
           separate confirmation modal so the user can't fat-finger them. */}
       <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
         <Pressable style={blockModalStyles.backdrop} onPress={() => setShowMenu(false)} />
-        <View style={[menuStyles.sheet, { backgroundColor: CARD, borderColor: BORDER }]}>
-          <View style={[blockModalStyles.handle, { backgroundColor: BORDER }]} />
-          <Text style={[menuStyles.heading, { color: TEXT }]}>{otherUser?.name}</Text>
+        <View style={[menuStyles.sheet, { backgroundColor: c.card, borderColor: c.border }]}>
+          <View style={[blockModalStyles.handle, { backgroundColor: c.border }]} />
+          <Text style={[menuStyles.heading, { color: c.text }]}>{otherUser?.name}</Text>
 
           <TouchableOpacity
             style={menuStyles.row}
@@ -1464,8 +1462,8 @@ export default function ChatScreen() {
               <Feather name="droplet" size={18} color={accentColor} strokeWidth={1.5} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[menuStyles.rowTitle, { color: TEXT }]}>لون المحادثة</Text>
-              <Text style={[menuStyles.rowSub, { color: TEXT2 }]}>اختر لون مميز للخلفية</Text>
+              <Text style={[menuStyles.rowTitle, { color: c.text }]}>لون المحادثة</Text>
+              <Text style={[menuStyles.rowSub, { color: c.textSecondary }]}>اختر لون مميز للخلفية</Text>
             </View>
           </TouchableOpacity>
 
@@ -1483,10 +1481,10 @@ export default function ChatScreen() {
               <Feather name="archive" size={18} color="#F59E0B" strokeWidth={1.5} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[menuStyles.rowTitle, { color: TEXT }]}>
+              <Text style={[menuStyles.rowTitle, { color: c.text }]}>
                 {convo?.archived ? "إلغاء الأرشفة" : "أرشفة المحادثة"}
               </Text>
-              <Text style={[menuStyles.rowSub, { color: TEXT2 }]}>
+              <Text style={[menuStyles.rowSub, { color: c.textSecondary }]}>
                 {convo?.archived ? "إعادة المحادثة إلى القائمة الرئيسية" : "إخفاء المحادثة من القائمة الرئيسية"}
               </Text>
             </View>
@@ -1501,8 +1499,8 @@ export default function ChatScreen() {
               <Feather name="trash-2" size={18} color="#FF3B5C" strokeWidth={1.5} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[menuStyles.rowTitle, { color: TEXT }]}>حذف المحادثة</Text>
-              <Text style={[menuStyles.rowSub, { color: TEXT2 }]}>سيتم حذف الرسائل لديك فقط</Text>
+              <Text style={[menuStyles.rowTitle, { color: c.text }]}>حذف المحادثة</Text>
+              <Text style={[menuStyles.rowSub, { color: c.textSecondary }]}>سيتم حذف الرسائل لديك فقط</Text>
             </View>
           </TouchableOpacity>
 
@@ -1520,10 +1518,10 @@ export default function ChatScreen() {
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[menuStyles.rowTitle, { color: TEXT }]}>
+              <Text style={[menuStyles.rowTitle, { color: c.text }]}>
                 {otherUser && isBlocked(otherUser.id) ? "إلغاء حظر المستخدم" : "حظر المستخدم"}
               </Text>
-              <Text style={[menuStyles.rowSub, { color: TEXT2 }]}>
+              <Text style={[menuStyles.rowSub, { color: c.textSecondary }]}>
                 {otherUser && isBlocked(otherUser.id) ? "السماح بالرسائل مرة أخرى" : "لن تتلقى رسائل أو مكالمات منه"}
               </Text>
             </View>
@@ -1531,33 +1529,30 @@ export default function ChatScreen() {
 
           <TouchableOpacity
             onPress={() => setShowMenu(false)}
-            style={[blockModalStyles.cancelBtn, { backgroundColor: "#1C1C1C", marginTop: 8 }]}
+            style={[blockModalStyles.cancelBtn, { backgroundColor: c.backgroundTertiary, marginTop: 8 }]}
           >
-            <Text style={[blockModalStyles.cancelText, { color: TEXT2 }]}>إلغاء</Text>
+            <Text style={[blockModalStyles.cancelText, { color: c.textSecondary }]}>إلغاء</Text>
           </TouchableOpacity>
         </View>
       </Modal>
 
       {/* ───── Theme color picker ───── */}
-      {/* A simple swatch grid persisting `themeColor` on the conversation;
-          the chat header gradient picks it up on next render via accentColor. */}
       <Modal visible={showThemePicker} transparent animationType="fade" onRequestClose={() => setShowThemePicker(false)}>
         <Pressable style={blockModalStyles.backdrop} onPress={() => setShowThemePicker(false)} />
-        <View style={[menuStyles.sheet, { backgroundColor: CARD, borderColor: BORDER }]}>
-          <View style={[blockModalStyles.handle, { backgroundColor: BORDER }]} />
-          <Text style={[menuStyles.heading, { color: TEXT }]}>اختر لون المحادثة</Text>
+        <View style={[menuStyles.sheet, { backgroundColor: c.card, borderColor: c.border }]}>
+          <View style={[blockModalStyles.handle, { backgroundColor: c.border }]} />
+          <Text style={[menuStyles.heading, { color: c.text }]}>اختر لون المحادثة</Text>
           <View style={menuStyles.swatchGrid}>
-            {ACCENT_COLORS.map((c) => (
+            {ACCENT_COLORS.map((col) => (
               <TouchableOpacity
-                key={c}
-                onPress={() => { setConversationTheme(id, c); setShowThemePicker(false); }}
+                key={col}
+                onPress={() => { setConversationTheme(id, col); setShowThemePicker(false); }}
                 style={[
                   menuStyles.swatch,
-                  { backgroundColor: c, borderColor: convo?.themeColor === c ? "#fff" : "transparent" },
+                  { backgroundColor: col, borderColor: convo?.themeColor === col ? "#fff" : "transparent" },
                 ]}
               />
             ))}
-            {/* Reset swatch */}
             <TouchableOpacity
               onPress={() => { setConversationTheme(id, undefined); setShowThemePicker(false); }}
               style={[
@@ -1566,14 +1561,14 @@ export default function ChatScreen() {
                   alignItems: "center", justifyContent: "center" },
               ]}
             >
-              <Feather name="x" size={18} color={TEXT2} strokeWidth={1.5} />
+              <Feather name="x" size={18} color={c.textSecondary} strokeWidth={1.5} />
             </TouchableOpacity>
           </View>
           <TouchableOpacity
             onPress={() => setShowThemePicker(false)}
-            style={[blockModalStyles.cancelBtn, { backgroundColor: "#1C1C1C", marginTop: 8 }]}
+            style={[blockModalStyles.cancelBtn, { backgroundColor: c.backgroundTertiary, marginTop: 8 }]}
           >
-            <Text style={[blockModalStyles.cancelText, { color: TEXT2 }]}>إلغاء</Text>
+            <Text style={[blockModalStyles.cancelText, { color: c.textSecondary }]}>إلغاء</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -1586,15 +1581,15 @@ export default function ChatScreen() {
         onRequestClose={() => setMenuConfirm(null)}
       >
         <Pressable style={blockModalStyles.backdrop} onPress={() => setMenuConfirm(null)} />
-        <View style={[blockModalStyles.sheet, { backgroundColor: CARD, borderColor: BORDER }]}>
-          <View style={[blockModalStyles.handle, { backgroundColor: BORDER }]} />
+        <View style={[blockModalStyles.sheet, { backgroundColor: c.card, borderColor: c.border }]}>
+          <View style={[blockModalStyles.handle, { backgroundColor: c.border }]} />
           {menuConfirm === "delete" ? (
             <>
               <View style={blockModalStyles.iconWrap}>
                 <Feather name="trash-2" size={36} color="#FF3B5C" strokeWidth={1.5} />
               </View>
-              <Text style={[blockModalStyles.title, { color: TEXT }]}>حذف المحادثة</Text>
-              <Text style={[blockModalStyles.subtitle, { color: TEXT2 }]}>
+              <Text style={[blockModalStyles.title, { color: c.text }]}>حذف المحادثة</Text>
+              <Text style={[blockModalStyles.subtitle, { color: c.textSecondary }]}>
                 هل أنت متأكد من حذف المحادثة مع {otherUser?.name}؟ لا يمكن التراجع.
               </Text>
               <TouchableOpacity
@@ -1609,8 +1604,8 @@ export default function ChatScreen() {
               <View style={[blockModalStyles.iconWrap, { backgroundColor: "#10B98122" }]}>
                 <Feather name="user-check" size={36} color="#10B981" strokeWidth={1.5} />
               </View>
-              <Text style={[blockModalStyles.title, { color: TEXT }]}>إلغاء الحظر</Text>
-              <Text style={[blockModalStyles.subtitle, { color: TEXT2 }]}>
+              <Text style={[blockModalStyles.title, { color: c.text }]}>إلغاء الحظر</Text>
+              <Text style={[blockModalStyles.subtitle, { color: c.textSecondary }]}>
                 {otherUser?.name} محظور حالياً. هل تريد إلغاء الحظر؟
               </Text>
               <TouchableOpacity
@@ -1625,8 +1620,8 @@ export default function ChatScreen() {
               <View style={blockModalStyles.iconWrap}>
                 <Feather name="slash" size={36} color="#FF3B5C" strokeWidth={1.5} />
               </View>
-              <Text style={[blockModalStyles.title, { color: TEXT }]}>حظر المستخدم</Text>
-              <Text style={[blockModalStyles.subtitle, { color: TEXT2 }]}>
+              <Text style={[blockModalStyles.title, { color: c.text }]}>حظر المستخدم</Text>
+              <Text style={[blockModalStyles.subtitle, { color: c.textSecondary }]}>
                 هل تريد حظر {otherUser?.name}؟
               </Text>
               <TouchableOpacity
@@ -1643,9 +1638,9 @@ export default function ChatScreen() {
           )}
           <TouchableOpacity
             onPress={() => setMenuConfirm(null)}
-            style={[blockModalStyles.cancelBtn, { backgroundColor: "#1C1C1C" }]}
+            style={[blockModalStyles.cancelBtn, { backgroundColor: c.backgroundTertiary }]}
           >
-            <Text style={[blockModalStyles.cancelText, { color: TEXT2 }]}>إلغاء</Text>
+            <Text style={[blockModalStyles.cancelText, { color: c.textSecondary }]}>إلغاء</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -1660,7 +1655,7 @@ const pinStyles = StyleSheet.create({
     backgroundColor: "#1C1811", borderBottomWidth: 1, borderBottomColor: "#F59E0B33",
   },
   pinLabel: { fontSize: 10, fontFamily: "Inter_500Medium", color: "#F59E0B" },
-  pinText: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2, marginTop: 1 },
+  pinText: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 1 },
 });
 
 const replyBarStyles = StyleSheet.create({
@@ -1670,7 +1665,7 @@ const replyBarStyles = StyleSheet.create({
     backgroundColor: "#0D1520", borderTopWidth: 1, borderTopColor: "#3D91F433",
   },
   label: { fontSize: 11, fontFamily: "Inter_500Medium", color: "#3D91F4" },
-  preview: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2 },
+  preview: { fontSize: 13, fontFamily: "Inter_400Regular" },
 });
 
 const blockModalStyles = StyleSheet.create({
@@ -1782,8 +1777,8 @@ const styles = StyleSheet.create({
   reactionChip: {
     flexDirection: "row", alignItems: "center", gap: 2,
     backgroundColor: "#1C1C1E", borderRadius: 12, paddingHorizontal: 6, paddingVertical: 3,
-    borderWidth: 1, borderColor: BORDER,
+    borderWidth: 1,
   },
   reactionEmoji: { fontSize: 14 },
-  reactionCount: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: TEXT2 },
+  reactionCount: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 });

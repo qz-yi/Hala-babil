@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useEffect } from "react";
+import React from "react";
 import {
   FlatList,
   Image,
@@ -16,12 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { AppNotification } from "@/context/AppContext";
-
-const BG = "#000000";
-const CARD = "#121212";
-const BORDER = "#262626";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
+import { useThemeStore } from "@/store/themeStore";
 
 const NOTIF_ICONS: Record<string, { name: string; color: string }> = {
   follow_request: { name: "user-plus", color: "#9B59B6" },
@@ -37,15 +32,10 @@ const NOTIF_ICONS: Record<string, { name: string; color: string }> = {
   mention: { name: "at-sign", color: "#F59E0B" },
 };
 
-function NotifItem({
-  notif,
-  onPress,
-}: {
-  notif: AppNotification;
-  onPress: () => void;
-}) {
+function NotifItem({ notif, onPress }: { notif: AppNotification; onPress: () => void }) {
+  const c = useThemeStore((s) => s.tokens);
   const accentColor = ACCENT_COLORS[(notif.senderName?.length ?? 0) % ACCENT_COLORS.length];
-  const icon = NOTIF_ICONS[notif.type] ?? { name: "bell", color: "#FFFFFF" };
+  const icon = NOTIF_ICONS[notif.type] ?? { name: "bell", color: c.accent };
 
   const formatTime = (ts: number) => {
     const diff = Date.now() - ts;
@@ -59,56 +49,48 @@ function NotifItem({
 
   return (
     <TouchableOpacity
-      onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        onPress();
-      }}
+      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
       style={[
-        styles.notifItem,
-        !notif.isRead && { backgroundColor: "rgba(61,145,244,0.06)" },
+        s.notifItem,
+        { borderBottomColor: c.border },
+        !notif.isRead && { backgroundColor: `${c.accent}0f` },
       ]}
       activeOpacity={0.7}
     >
-      <View style={styles.notifAvatarWrap}>
+      <View style={s.notifAvatarWrap}>
         {notif.senderAvatar ? (
-          <Image source={{ uri: notif.senderAvatar }} style={styles.notifAvatar} />
+          <Image source={{ uri: notif.senderAvatar }} style={s.notifAvatar} />
         ) : (
-          <View
-            style={[styles.notifAvatar, { backgroundColor: `${accentColor}33`, alignItems: "center", justifyContent: "center" }]}
-          >
-            <Text style={[styles.notifAvatarText, { color: accentColor }]}>
+          <View style={[s.notifAvatar, { backgroundColor: `${accentColor}33`, alignItems: "center", justifyContent: "center" }]}>
+            <Text style={[s.notifAvatarText, { color: accentColor }]}>
               {notif.senderName?.[0]?.toUpperCase()}
             </Text>
           </View>
         )}
-        <View style={[styles.notifTypeBadge, { backgroundColor: icon.color }]}>
+        <View style={[s.notifTypeBadge, { backgroundColor: icon.color, borderColor: c.background }]}>
           <Feather name={icon.name as any} size={9} color="#fff" strokeWidth={2} />
         </View>
       </View>
 
-      <View style={styles.notifContent}>
-        <Text style={styles.notifMessage} numberOfLines={2}>
-          <Text style={styles.notifSenderName}>{notif.senderName}</Text>
+      <View style={s.notifContent}>
+        <Text style={[s.notifMessage, { color: c.text }]} numberOfLines={2}>
+          <Text style={s.notifSenderName}>{notif.senderName}</Text>
           {"  "}
           {notif.message.replace(notif.senderName, "").trim()}
         </Text>
-        <Text style={styles.notifTime}>{formatTime(notif.createdAt)}</Text>
+        <Text style={[s.notifTime, { color: c.textSecondary }]}>{formatTime(notif.createdAt)}</Text>
       </View>
 
-      {!notif.isRead && <View style={styles.unreadDot} />}
+      {!notif.isRead && <View style={[s.unreadDot, { backgroundColor: c.accent }]} />}
     </TouchableOpacity>
   );
 }
 
 export default function NotificationsScreen() {
+  const c = useThemeStore((s) => s.tokens);
   const {
-    notifications,
-    currentUser,
-    markNotificationRead,
-    markAllNotificationsRead,
-    getUnreadNotificationsCount,
-    conversations,
-    t,
+    notifications, currentUser, markNotificationRead,
+    markAllNotificationsRead, getUnreadNotificationsCount, conversations, t,
   } = useApp();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 20 : insets.top;
@@ -116,33 +98,20 @@ export default function NotificationsScreen() {
   const myNotifs = notifications
     .filter((n) => n.recipientId === currentUser?.id)
     .sort((a, b) => b.createdAt - a.createdAt);
-
   const unreadCount = getUnreadNotificationsCount();
 
   const handleNotifPress = (notif: AppNotification) => {
     markNotificationRead(notif.id);
     if (notif.type === "follow_request" || notif.type === "follow_accept") {
       router.push(`/profile/${notif.senderId}`);
-    } else if (notif.type === "like" || notif.type === "comment" || notif.type === "post" || notif.type === "mention") {
+    } else if (["like", "comment", "post", "mention"].includes(notif.type)) {
       if (notif.referenceId) router.push(`/post/${notif.referenceId}` as any);
       else router.push(`/profile/${notif.senderId}` as any);
-    } else if (notif.type === "story_mention") {
+    } else if (["story_mention", "story", "story_like"].includes(notif.type)) {
       router.push(`/story/${notif.senderId}` as any);
-    } else if (notif.type === "story" || notif.type === "story_like") {
-      router.push(`/story/${notif.senderId}` as any);
-    } else if (notif.type === "story_reply") {
+    } else if (["story_reply", "message"].includes(notif.type)) {
       const convo = conversations.find(
-        (c) =>
-          c.participants.includes(currentUser?.id ?? "") &&
-          c.participants.includes(notif.senderId)
-      );
-      if (convo) router.push(`/chat/${convo.id}`);
-      else router.push("/(tabs)/messages" as any);
-    } else if (notif.type === "message") {
-      const convo = conversations.find(
-        (c) =>
-          c.participants.includes(currentUser?.id ?? "") &&
-          c.participants.includes(notif.senderId)
+        (cv) => cv.participants.includes(currentUser?.id ?? "") && cv.participants.includes(notif.senderId)
       );
       if (convo) router.push(`/chat/${convo.id}`);
       else router.push("/(tabs)/messages" as any);
@@ -150,37 +119,33 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topPad }]}>
+    <View style={[s.container, { backgroundColor: c.background }]}>
+      <View style={[s.header, { paddingTop: topPad, borderBottomColor: c.border }]}>
         <TouchableOpacity
           onPress={() => router.back()}
-          style={styles.backBtn}
+          style={s.backBtn}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Feather name="arrow-left" size={22} color={TEXT} strokeWidth={1.5} />
+          <Feather name="arrow-left" size={22} color={c.text} strokeWidth={1.5} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t("notifications")}</Text>
+        <Text style={[s.headerTitle, { color: c.text }]}>{t("notifications")}</Text>
         {unreadCount > 0 && (
           <TouchableOpacity
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              markAllNotificationsRead();
-            }}
-            style={styles.markAllBtn}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); markAllNotificationsRead(); }}
+            style={[s.markAllBtn, { backgroundColor: c.backgroundTertiary }]}
           >
-            <Text style={styles.markAllText}>قراءة الكل</Text>
+            <Text style={[s.markAllText, { color: c.textSecondary }]}>قراءة الكل</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {myNotifs.length === 0 ? (
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIcon}>
-            <Feather name="bell-off" size={40} color={TEXT2} strokeWidth={1} />
+        <View style={s.emptyState}>
+          <View style={[s.emptyIcon, { backgroundColor: c.backgroundTertiary }]}>
+            <Feather name="bell-off" size={40} color={c.textSecondary} strokeWidth={1} />
           </View>
-          <Text style={styles.emptyTitle}>{t("noNotifications")}</Text>
-          <Text style={styles.emptyDesc}>ستظهر هنا إشعاراتك حين تصلك</Text>
+          <Text style={[s.emptyTitle, { color: c.text }]}>{t("noNotifications")}</Text>
+          <Text style={[s.emptyDesc, { color: c.textSecondary }]}>ستظهر هنا إشعاراتك حين تصلك</Text>
         </View>
       ) : (
         <FlatList
@@ -188,70 +153,44 @@ export default function NotificationsScreen() {
           keyExtractor={(n) => n.id}
           contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <NotifItem notif={item} onPress={() => handleNotifPress(item)} />
-          )}
+          renderItem={({ item }) => <NotifItem notif={item} onPress={() => handleNotifPress(item)} />}
         />
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+const s = StyleSheet.create({
+  container: { flex: 1 },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: BORDER,
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 0.5,
   },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerTitle: { flex: 1, fontSize: 22, fontFamily: "Inter_700Bold", color: TEXT },
-  markAllBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 100, backgroundColor: "#1C1C1C" },
-  markAllText: { fontSize: 13, fontFamily: "Inter_500Medium", color: TEXT2 },
+  headerTitle: { flex: 1, fontSize: 22, fontFamily: "Inter_700Bold" },
+  markAllBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 100 },
+  markAllText: { fontSize: 13, fontFamily: "Inter_500Medium" },
 
   notifItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: BORDER,
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5,
   },
   notifAvatarWrap: { position: "relative", width: 48, height: 48 },
   notifAvatar: { width: 48, height: 48, borderRadius: 24, overflow: "hidden" },
   notifAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
   notifTypeBadge: {
-    position: "absolute",
-    bottom: -2,
-    right: -2,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: BG,
+    position: "absolute", bottom: -2, right: -2,
+    width: 20, height: 20, borderRadius: 10,
+    alignItems: "center", justifyContent: "center", borderWidth: 1.5,
   },
   notifContent: { flex: 1, gap: 3 },
-  notifMessage: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT, lineHeight: 20 },
+  notifMessage: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
   notifSenderName: { fontFamily: "Inter_600SemiBold" },
-  notifTime: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2 },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#3D91F4" },
+  notifTime: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  unreadDot: { width: 8, height: 8, borderRadius: 4 },
 
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, padding: 40 },
-  emptyIcon: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: "#1C1C1C",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold", color: TEXT },
-  emptyDesc: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center" },
+  emptyIcon: { width: 84, height: 84, borderRadius: 42, alignItems: "center", justifyContent: "center" },
+  emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
+  emptyDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
 });

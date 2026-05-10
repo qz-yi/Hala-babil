@@ -24,37 +24,29 @@ import { IRAQI_GOVERNORATES, useApp, isUserVerified } from "@/context/AppContext
 import type { Restaurant, User } from "@/context/AppContext";
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useColors } from "@/hooks/useColors";
+import { useThemeStore } from "@/store/themeStore";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
-
-const BG = "#000000";
-const CARD = "#111111";
-const CARD2 = "#1A1A1A";
-const BORDER = "#222222";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
-const ACCENT = "#10B981";
-const RED = "#FF3B5C";
-const BLUE = "#3D91F4";
-const ORANGE = "#F59E0B";
 
 type Tab = "owners" | "restaurants" | "users" | "rooms" | "governorates";
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  const c = useThemeStore((s) => s.tokens);
   return (
     <View style={sec.wrap}>
-      <Text style={sec.title}>{title}</Text>
-      {subtitle ? <Text style={sec.sub}>{subtitle}</Text> : null}
+      <Text style={[sec.title, { color: c.text }]}>{title}</Text>
+      {subtitle ? <Text style={[sec.sub, { color: c.textSecondary }]}>{subtitle}</Text> : null}
     </View>
   );
 }
 
 const sec = StyleSheet.create({
   wrap: { paddingHorizontal: 16, paddingVertical: 14 },
-  title: { fontSize: 20, fontFamily: "Inter_700Bold", color: TEXT },
-  sub: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2, marginTop: 4 },
+  title: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  sub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 4 },
 });
 
 function CreateOwnerForm({ onCreated }: { onCreated: () => void }) {
+  const c = useThemeStore((s) => s.tokens);
   const { createOwnerAccount } = useApp();
   const { showToast } = useToast();
   const [name, setName] = useState("");
@@ -84,37 +76,37 @@ function CreateOwnerForm({ onCreated }: { onCreated: () => void }) {
   };
 
   return (
-    <View style={frm.card}>
-      <Text style={frm.label}>اسم صاحب المطعم *</Text>
-      <TextInput style={frm.input} value={name} onChangeText={setName} placeholder="الاسم الكامل" placeholderTextColor={TEXT2} textAlign="right" />
+    <View style={[frm.card, { backgroundColor: c.card, borderColor: c.border }]}>
+      <Text style={[frm.label, { color: c.textSecondary }]}>اسم صاحب المطعم *</Text>
+      <TextInput style={[frm.input, { backgroundColor: c.backgroundTertiary, borderColor: c.border, color: c.text }]} value={name} onChangeText={setName} placeholder="الاسم الكامل" placeholderTextColor={c.textSecondary} textAlign="right" />
 
-      <Text style={frm.label}>البريد الإلكتروني *</Text>
-      <TextInput style={frm.input} value={email} onChangeText={setEmail} placeholder="owner@example.com" placeholderTextColor={TEXT2} keyboardType="email-address" autoCapitalize="none" />
+      <Text style={[frm.label, { color: c.textSecondary }]}>البريد الإلكتروني *</Text>
+      <TextInput style={[frm.input, { backgroundColor: c.backgroundTertiary, borderColor: c.border, color: c.text }]} value={email} onChangeText={setEmail} placeholder="owner@example.com" placeholderTextColor={c.textSecondary} keyboardType="email-address" autoCapitalize="none" />
 
-      <Text style={frm.label}>المحافظة *</Text>
-      <TouchableOpacity style={[frm.input, frm.govBtn]} onPress={() => setGovModal(true)}>
-        <Text style={{ color: gov ? TEXT : TEXT2, fontFamily: "Inter_400Regular", fontSize: 15 }}>{gov || "اختر المحافظة"}</Text>
-        <Feather name="chevron-down" size={16} color={TEXT2} />
+      <Text style={[frm.label, { color: c.textSecondary }]}>المحافظة *</Text>
+      <TouchableOpacity style={[frm.input, frm.govBtn, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]} onPress={() => setGovModal(true)}>
+        <Text style={{ color: gov ? c.text : c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 15 }}>{gov || "اختر المحافظة"}</Text>
+        <Feather name="chevron-down" size={16} color={c.textSecondary} />
       </TouchableOpacity>
 
-      <Text style={frm.label}>كلمة المرور *</Text>
-      <TextInput style={frm.input} value={password} onChangeText={setPassword} placeholder="كلمة مرور قوية" placeholderTextColor={TEXT2} secureTextEntry />
+      <Text style={[frm.label, { color: c.textSecondary }]}>كلمة المرور *</Text>
+      <TextInput style={[frm.input, { backgroundColor: c.backgroundTertiary, borderColor: c.border, color: c.text }]} value={password} onChangeText={setPassword} placeholder="كلمة مرور قوية" placeholderTextColor={c.textSecondary} secureTextEntry />
 
-      <TouchableOpacity style={frm.btn} activeOpacity={0.85} onPress={handle} disabled={loading}>
-        <Feather name="user-plus" size={18} color={BG} strokeWidth={2} />
-        <Text style={frm.btnTxt}>{loading ? "جارٍ الإنشاء..." : "إنشاء حساب صاحب مطعم"}</Text>
+      <TouchableOpacity style={[frm.btn, { backgroundColor: c.text }]} activeOpacity={0.85} onPress={handle} disabled={loading}>
+        <Feather name="user-plus" size={18} color={c.background} strokeWidth={2} />
+        <Text style={[frm.btnTxt, { color: c.background }]}>{loading ? "جارٍ الإنشاء..." : "إنشاء حساب صاحب مطعم"}</Text>
       </TouchableOpacity>
 
       <Modal visible={govModal} transparent animationType="slide" onRequestClose={() => setGovModal(false)}>
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }} onPress={() => setGovModal(false)}>
-          <Pressable style={{ backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 }} onPress={() => {}}>
-            <Text style={{ color: TEXT, fontFamily: "Inter_700Bold", fontSize: 18, textAlign: "right", marginBottom: 16 }}>اختر المحافظة</Text>
+          <Pressable style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 }} onPress={() => {}}>
+            <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 18, textAlign: "right", marginBottom: 16 }}>اختر المحافظة</Text>
             <ScrollView style={{ maxHeight: 380 }}>
               {IRAQI_GOVERNORATES.map((g) => (
                 <TouchableOpacity key={g} onPress={() => { setGov(g); setGovModal(false); }}
-                  style={{ paddingVertical: 13, borderBottomWidth: 0.5, borderBottomColor: BORDER, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                  <Text style={{ color: g === gov ? ACCENT : TEXT, fontFamily: "Inter_500Medium", fontSize: 16 }}>{g}</Text>
-                  {g === gov && <Feather name="check" size={18} color={ACCENT} />}
+                  style={{ paddingVertical: 13, borderBottomWidth: 0.5, borderBottomColor: c.border, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={{ color: g === gov ? c.success : c.text, fontFamily: "Inter_500Medium", fontSize: 16 }}>{g}</Text>
+                  {g === gov && <Feather name="check" size={18} color={c.success} />}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -126,42 +118,43 @@ function CreateOwnerForm({ onCreated }: { onCreated: () => void }) {
 }
 
 const frm = StyleSheet.create({
-  card: { margin: 16, backgroundColor: CARD, borderRadius: 18, padding: 18, gap: 8, borderWidth: 0.5, borderColor: BORDER },
-  label: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT2, textAlign: "right", marginTop: 4 },
-  input: { backgroundColor: CARD2, borderRadius: 12, borderWidth: 0.5, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 13, color: TEXT, fontFamily: "Inter_400Regular", fontSize: 15 },
+  card: { margin: 16, borderRadius: 18, padding: 18, gap: 8, borderWidth: 0.5 },
+  label: { fontSize: 13, fontFamily: "Inter_600SemiBold", textAlign: "right", marginTop: 4 },
+  input: { borderRadius: 12, borderWidth: 0.5, paddingHorizontal: 14, paddingVertical: 13, fontFamily: "Inter_400Regular", fontSize: 15 },
   govBtn: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  btn: { backgroundColor: TEXT, borderRadius: 14, paddingVertical: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8 },
-  btnTxt: { color: BG, fontSize: 16, fontFamily: "Inter_700Bold" },
+  btn: { borderRadius: 14, paddingVertical: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8 },
+  btnTxt: { fontSize: 16, fontFamily: "Inter_700Bold" },
 });
 
 function OwnerCard({ user, restaurant, onToggleActive }: { user: User; restaurant: Restaurant | undefined; onToggleActive: () => void }) {
+  const c = useThemeStore((s) => s.tokens);
   const isActive = user.isActive !== false;
   return (
-    <View style={ow.card}>
+    <View style={[ow.card, { backgroundColor: c.card, borderColor: c.border }]}>
       <View style={ow.row}>
-        <View style={[ow.avatar, { backgroundColor: isActive ? `${ACCENT}22` : `${RED}22` }]}>
-          <Feather name="user" size={22} color={isActive ? ACCENT : RED} strokeWidth={1.5} />
+        <View style={[ow.avatar, { backgroundColor: isActive ? `${c.success}22` : `${c.danger}22` }]}>
+          <Feather name="user" size={22} color={isActive ? c.success : c.danger} strokeWidth={1.5} />
         </View>
         <View style={ow.info}>
-          <Text style={ow.name}>{user.name}</Text>
-          <Text style={ow.email}>{user.email}</Text>
-          <Text style={ow.gov}>📍 {user.primaryGovernorate}</Text>
+          <Text style={[ow.name, { color: c.text }]}>{user.name}</Text>
+          <Text style={[ow.email, { color: c.textSecondary }]}>{user.email}</Text>
+          <Text style={[ow.gov, { color: c.textSecondary }]}>📍 {user.primaryGovernorate}</Text>
         </View>
         <View style={ow.right}>
-          <View style={[ow.badge, { backgroundColor: isActive ? `${ACCENT}22` : `${RED}22` }]}>
-            <Text style={[ow.badgeTxt, { color: isActive ? ACCENT : RED }]}>{isActive ? "نشط" : "موقوف"}</Text>
+          <View style={[ow.badge, { backgroundColor: isActive ? `${c.success}22` : `${c.danger}22` }]}>
+            <Text style={[ow.badgeTxt, { color: isActive ? c.success : c.danger }]}>{isActive ? "نشط" : "موقوف"}</Text>
           </View>
-          <TouchableOpacity style={[ow.toggleBtn, { backgroundColor: isActive ? `${RED}22` : `${ACCENT}22`, borderColor: isActive ? RED : ACCENT }]}
+          <TouchableOpacity style={[ow.toggleBtn, { backgroundColor: isActive ? `${c.danger}22` : `${c.success}22`, borderColor: isActive ? c.danger : c.success }]}
             onPress={onToggleActive} activeOpacity={0.8}>
-            <Text style={[ow.toggleTxt, { color: isActive ? RED : ACCENT }]}>{isActive ? "إيقاف" : "تفعيل"}</Text>
+            <Text style={[ow.toggleTxt, { color: isActive ? c.danger : c.success }]}>{isActive ? "إيقاف" : "تفعيل"}</Text>
           </TouchableOpacity>
         </View>
       </View>
       {restaurant && (
-        <View style={ow.restRow}>
-          <Feather name="coffee" size={13} color={TEXT2} strokeWidth={1.5} />
-          <Text style={ow.restName}>{restaurant.name}</Text>
-          <Text style={ow.restGov}>{restaurant.governorate}</Text>
+        <View style={[ow.restRow, { backgroundColor: c.backgroundTertiary }]}>
+          <Feather name="coffee" size={13} color={c.textSecondary} strokeWidth={1.5} />
+          <Text style={[ow.restName, { color: c.text }]}>{restaurant.name}</Text>
+          <Text style={[ow.restGov, { color: c.textSecondary }]}>{restaurant.governorate}</Text>
         </View>
       )}
     </View>
@@ -169,21 +162,21 @@ function OwnerCard({ user, restaurant, onToggleActive }: { user: User; restauran
 }
 
 const ow = StyleSheet.create({
-  card: { marginHorizontal: 16, marginBottom: 10, backgroundColor: CARD, borderRadius: 16, padding: 14, borderWidth: 0.5, borderColor: BORDER, gap: 10 },
+  card: { marginHorizontal: 16, marginBottom: 10, borderRadius: 16, padding: 14, borderWidth: 0.5, gap: 10 },
   row: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   avatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   info: { flex: 1, gap: 3 },
-  name: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: TEXT },
-  email: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2 },
-  gov: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2 },
+  name: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  email: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  gov: { fontSize: 12, fontFamily: "Inter_400Regular" },
   right: { gap: 6, alignItems: "flex-end" },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   toggleBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1 },
   toggleTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  restRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: CARD2, borderRadius: 8, padding: 8 },
-  restName: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: TEXT },
-  restGov: { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT2 },
+  restRow: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, padding: 8 },
+  restName: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium" },
+  restGov: { fontSize: 11, fontFamily: "Inter_400Regular" },
 });
 
 function RestaurantManagerCard({
@@ -199,70 +192,71 @@ function RestaurantManagerCard({
   onClearDues: () => void;
   onDelete: () => void;
 }) {
+  const c = useThemeStore((s) => s.tokens);
   const [editingCommission, setEditingCommission] = useState(false);
   const [commInput, setCommInput] = useState((restaurant.commissionRate ?? 10).toString());
 
   const dues = restaurant.monthlyDues ?? 0;
 
   return (
-    <View style={rc.card}>
+    <View style={[rc.card, { backgroundColor: c.card, borderColor: c.border }]}>
       <View style={rc.row}>
         {restaurant.image ? (
-          <Image source={{ uri: restaurant.image }} style={rc.img} />
+          <Image source={{ uri: restaurant.image }} style={[rc.img, { backgroundColor: c.backgroundTertiary }]} />
         ) : (
-          <View style={rc.imgPlaceholder}><Text style={{ fontSize: 22 }}>🍽️</Text></View>
+          <View style={[rc.imgPlaceholder, { backgroundColor: c.backgroundTertiary }]}><Text style={{ fontSize: 22 }}>🍽️</Text></View>
         )}
         <View style={rc.info}>
-          <Text style={rc.name}>{restaurant.name}</Text>
-          <Text style={rc.gov}>📍 {restaurant.governorate} · {restaurant.category}</Text>
-          {ownerUser && <Text style={rc.owner}>👤 {ownerUser.name}</Text>}
-          <Text style={rc.menuCount}>{restaurant.menuItems.length} صنف في القائمة</Text>
+          <Text style={[rc.name, { color: c.text }]}>{restaurant.name}</Text>
+          <Text style={[rc.gov, { color: c.textSecondary }]}>📍 {restaurant.governorate} · {restaurant.category}</Text>
+          {ownerUser && <Text style={[rc.owner, { color: c.textSecondary }]}>👤 {ownerUser.name}</Text>}
+          <Text style={[rc.menuCount, { color: c.success }]}>{restaurant.menuItems.length} صنف في القائمة</Text>
         </View>
         <TouchableOpacity onPress={onDelete} style={rc.deleteBtn}>
-          <Feather name="trash-2" size={16} color={RED} strokeWidth={1.5} />
+          <Feather name="trash-2" size={16} color={c.danger} strokeWidth={1.5} />
         </TouchableOpacity>
       </View>
 
-      <View style={rc.statsRow}>
+      <View style={[rc.statsRow, { backgroundColor: c.backgroundTertiary }]}>
         <View style={rc.statBlock}>
-          <Text style={rc.statLabel}>المستحقات</Text>
-          <Text style={[rc.statValue, { color: dues > 0 ? ORANGE : ACCENT }]}>{dues.toLocaleString()} د.ع</Text>
+          <Text style={[rc.statLabel, { color: c.textSecondary }]}>المستحقات</Text>
+          <Text style={[rc.statValue, { color: dues > 0 ? "#F59E0B" : c.success }]}>{dues.toLocaleString()} د.ع</Text>
         </View>
-        <View style={rc.statDivider} />
+        <View style={[rc.statDivider, { backgroundColor: c.border }]} />
         <View style={rc.statBlock}>
-          <Text style={rc.statLabel}>العمولة</Text>
+          <Text style={[rc.statLabel, { color: c.textSecondary }]}>العمولة</Text>
           {editingCommission ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <TextInput
-                style={rc.commInput}
+                style={[rc.commInput, { backgroundColor: c.background, color: c.text }]}
                 value={commInput}
                 onChangeText={setCommInput}
                 keyboardType="numeric"
                 autoFocus
               />
-              <Text style={{ color: TEXT, fontFamily: "Inter_600SemiBold" }}>%</Text>
+              <Text style={{ color: c.text, fontFamily: "Inter_600SemiBold" }}>%</Text>
               <TouchableOpacity onPress={() => {
                 const v = parseFloat(commInput);
                 if (!isNaN(v) && v >= 0 && v <= 100) { onSetCommission(v); }
                 setEditingCommission(false);
               }}>
-                <Feather name="check" size={16} color={ACCENT} />
+                <Feather name="check" size={16} color={c.success} />
               </TouchableOpacity>
             </View>
           ) : (
             <TouchableOpacity onPress={() => { setCommInput((restaurant.commissionRate ?? 10).toString()); setEditingCommission(true); }}
               style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <Text style={rc.statValue}>{restaurant.commissionRate ?? 10}%</Text>
-              <Feather name="edit-2" size={12} color={TEXT2} strokeWidth={1.5} />
+              <Text style={[rc.statValue, { color: c.text }]}>{restaurant.commissionRate ?? 10}%</Text>
+              <Feather name="edit-2" size={12} color={c.textSecondary} strokeWidth={1.5} />
             </TouchableOpacity>
           )}
         </View>
       </View>
 
       {dues > 0 && (
-        <TouchableOpacity style={rc.clearBtn} onPress={onClearDues} activeOpacity={0.85}>
-          <Feather name="check-circle" size={15} color={ACCENT} strokeWidth={1.5} />
-          <Text style={rc.clearBtnTxt}>تصفية المستحقات</Text>
+        <TouchableOpacity style={[rc.clearBtn, { backgroundColor: `${c.success}15`, borderColor: `${c.success}44` }]} onPress={onClearDues} activeOpacity={0.85}>
+          <Feather name="check-circle" size={15} color={c.success} strokeWidth={1.5} />
+          <Text style={[rc.clearBtnTxt, { color: c.success }]}>تصفية المستحقات</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -270,24 +264,24 @@ function RestaurantManagerCard({
 }
 
 const rc = StyleSheet.create({
-  card: { marginHorizontal: 16, marginBottom: 12, backgroundColor: CARD, borderRadius: 16, padding: 14, borderWidth: 0.5, borderColor: BORDER, gap: 12 },
+  card: { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 14, borderWidth: 0.5, gap: 12 },
   row: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  img: { width: 60, height: 60, borderRadius: 12, backgroundColor: CARD2 },
-  imgPlaceholder: { width: 60, height: 60, borderRadius: 12, backgroundColor: CARD2, alignItems: "center", justifyContent: "center" },
+  img: { width: 60, height: 60, borderRadius: 12 },
+  imgPlaceholder: { width: 60, height: 60, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   info: { flex: 1, gap: 3 },
-  name: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: TEXT },
-  gov: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2 },
-  owner: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2 },
-  menuCount: { fontSize: 12, fontFamily: "Inter_500Medium", color: ACCENT },
+  name: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  gov: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  owner: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  menuCount: { fontSize: 12, fontFamily: "Inter_500Medium" },
   deleteBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  statsRow: { flexDirection: "row", backgroundColor: CARD2, borderRadius: 10, padding: 12 },
+  statsRow: { flexDirection: "row", borderRadius: 10, padding: 12 },
   statBlock: { flex: 1, alignItems: "center", gap: 4 },
-  statDivider: { width: 1, backgroundColor: BORDER },
-  statLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT2 },
-  statValue: { fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT },
-  commInput: { backgroundColor: BG, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, color: TEXT, fontFamily: "Inter_700Bold", fontSize: 16, width: 48, textAlign: "center" },
-  clearBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: `${ACCENT}15`, borderRadius: 10, paddingVertical: 10, borderWidth: 1, borderColor: `${ACCENT}44` },
-  clearBtnTxt: { color: ACCENT, fontFamily: "Inter_600SemiBold", fontSize: 14 },
+  statDivider: { width: 1 },
+  statLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  statValue: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  commInput: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, fontFamily: "Inter_700Bold", fontSize: 16, width: 48, textAlign: "center" },
+  clearBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 10, paddingVertical: 10, borderWidth: 1 },
+  clearBtnTxt: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
 });
 
 export default function AdminScreen() {
@@ -300,6 +294,7 @@ export default function AdminScreen() {
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
   const colors = useColors();
+  const c = useThemeStore((s) => s.tokens);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [tab, setTab] = useState<Tab>("owners");
   const [selectedGov, setSelectedGov] = useState<string | null>(null);
@@ -310,10 +305,10 @@ export default function AdminScreen() {
 
   if (!isManager) {
     return (
-      <View style={[styles.container, { alignItems: "center", justifyContent: "center" }]}>
-        <Text style={{ color: TEXT2 }}>غير مصرح لك بالدخول</Text>
+      <View style={[styles.container, { alignItems: "center", justifyContent: "center", backgroundColor: c.background }]}>
+        <Text style={{ color: c.textSecondary }}>غير مصرح لك بالدخول</Text>
         <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 16 }}>
-          <Text style={{ color: TEXT }}>رجوع</Text>
+          <Text style={{ color: c.text }}>رجوع</Text>
         </TouchableOpacity>
       </View>
     );
@@ -333,18 +328,18 @@ export default function AdminScreen() {
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: c.background }]}>
       {/* Header */}
       <LinearGradient colors={["#111111", "#000000"]} style={[styles.header, { paddingTop: topPad + 8 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color={TEXT} />
+          <Ionicons name="arrow-back" size={22} color={c.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>لوحة المدير</Text>
+        <Text style={[styles.headerTitle, { color: c.text }]}>لوحة المدير</Text>
         <View style={{ width: 40 }} />
       </LinearGradient>
 
       {/* Tab Grid — 3 columns */}
-      <View style={styles.adminGrid}>
+      <View style={[styles.adminGrid, { borderBottomColor: c.border }]}>
         {TABS.map((t) => {
           const active = tab === t.key;
           return (
@@ -354,10 +349,10 @@ export default function AdminScreen() {
               style={[styles.gridTile, active && styles.gridTileActive]}
               activeOpacity={0.75}
             >
-              <View style={[styles.gridIconBg, { backgroundColor: active ? "rgba(255,255,255,0.15)" : CARD2 }]}>
-                <Feather name={t.icon as any} size={22} color={active ? "#fff" : TEXT2} strokeWidth={1.5} />
+              <View style={[styles.gridIconBg, { backgroundColor: active ? "rgba(255,255,255,0.15)" : c.backgroundTertiary, borderColor: c.border }]}>
+                <Feather name={t.icon as any} size={22} color={active ? "#fff" : c.textSecondary} strokeWidth={1.5} />
               </View>
-              <Text style={[styles.gridTileLabel, { color: active ? "#fff" : TEXT2 }]} numberOfLines={1}>
+              <Text style={[styles.gridTileLabel, { color: active ? "#fff" : c.textSecondary }]} numberOfLines={1}>
                 {t.label}
               </Text>
             </TouchableOpacity>
@@ -397,8 +392,8 @@ export default function AdminScreen() {
 
               {ownerUsers.length === 0 && (
                 <View style={styles.emptyState}>
-                  <Feather name="users" size={48} color={BORDER} strokeWidth={1} />
-                  <Text style={styles.emptyTxt}>لا يوجد أصحاب مطاعم بعد</Text>
+                  <Feather name="users" size={48} color={c.border} strokeWidth={1} />
+                  <Text style={[styles.emptyTxt, { color: c.textSecondary }]}>لا يوجد أصحاب مطاعم بعد</Text>
                 </View>
               )}
             </View>
@@ -412,21 +407,21 @@ export default function AdminScreen() {
               {/* Gov filter */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: 12 }}>
                 <TouchableOpacity onPress={() => setSelectedGov(null)}
-                  style={[styles.govFilter, { borderColor: selectedGov === null ? ACCENT : BORDER, backgroundColor: selectedGov === null ? `${ACCENT}22` : CARD }]}>
-                  <Text style={[styles.govFilterTxt, { color: selectedGov === null ? ACCENT : TEXT2 }]}>الكل</Text>
+                  style={[styles.govFilter, { borderColor: selectedGov === null ? c.success : c.border, backgroundColor: selectedGov === null ? `${c.success}22` : c.card }]}>
+                  <Text style={[styles.govFilterTxt, { color: selectedGov === null ? c.success : c.textSecondary }]}>الكل</Text>
                 </TouchableOpacity>
                 {IRAQI_GOVERNORATES.map((g) => (
                   <TouchableOpacity key={g} onPress={() => setSelectedGov(selectedGov === g ? null : g)}
-                    style={[styles.govFilter, { borderColor: selectedGov === g ? ACCENT : BORDER, backgroundColor: selectedGov === g ? `${ACCENT}22` : CARD }]}>
-                    <Text style={[styles.govFilterTxt, { color: selectedGov === g ? ACCENT : TEXT2 }]}>{g}</Text>
+                    style={[styles.govFilter, { borderColor: selectedGov === g ? c.success : c.border, backgroundColor: selectedGov === g ? `${c.success}22` : c.card }]}>
+                    <Text style={[styles.govFilterTxt, { color: selectedGov === g ? c.success : c.textSecondary }]}>{g}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
 
               {filteredRestaurants.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Feather name="coffee" size={48} color={BORDER} strokeWidth={1} />
-                  <Text style={styles.emptyTxt}>لا توجد مطاعم</Text>
+                  <Feather name="coffee" size={48} color={c.border} strokeWidth={1} />
+                  <Text style={[styles.emptyTxt, { color: c.textSecondary }]}>لا توجد مطاعم</Text>
                 </View>
               ) : (
                 filteredRestaurants.map((r) => {
@@ -462,21 +457,21 @@ export default function AdminScreen() {
               {users.filter((u) => !u.role || u.role === "CUSTOMER").map((u) => {
                 const verified = isUserVerified(u);
                 return (
-                  <View key={u.id} style={styles.userCard}>
-                    <View style={styles.userAvatar}>
+                  <View key={u.id} style={[styles.userCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                    <View style={[styles.userAvatar, { backgroundColor: c.backgroundTertiary }]}>
                       {u.avatar ? <Image source={{ uri: u.avatar }} style={styles.userAvatarImg} /> : (
                         <Text style={{ fontSize: 18 }}>👤</Text>
                       )}
                     </View>
                     <View style={{ flex: 1, gap: 2 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                        <Text style={styles.userName}>{u.name}</Text>
+                        <Text style={[styles.userName, { color: c.text }]}>{u.name}</Text>
                         {verified && <VerifiedBadge size={13} />}
                       </View>
-                      <Text style={styles.userEmail}>{u.email}</Text>
-                      {u.primaryGovernorate && <Text style={styles.userGov}>📍 {u.primaryGovernorate}</Text>}
+                      <Text style={[styles.userEmail, { color: c.textSecondary }]}>{u.email}</Text>
+                      {u.primaryGovernorate && <Text style={[styles.userGov, { color: c.textSecondary }]}>📍 {u.primaryGovernorate}</Text>}
                       {verified && u.verifiedUntil && (
-                        <Text style={{ fontSize: 10, color: BLUE, fontFamily: "Inter_500Medium" }}>
+                        <Text style={{ fontSize: 10, color: c.accent, fontFamily: "Inter_500Medium" }}>
                           موثق حتى {new Date(u.verifiedUntil).toLocaleDateString("ar-IQ")}
                         </Text>
                       )}
@@ -484,36 +479,36 @@ export default function AdminScreen() {
                     <View style={{ gap: 6 }}>
                       <TouchableOpacity
                         onPress={() => { setVerifyModal({ userId: u.id, userName: u.name }); }}
-                        style={[styles.actionBtn, { borderColor: BLUE }]}
+                        style={[styles.actionBtn, { borderColor: c.accent }]}
                       >
-                        <Feather name="check-circle" size={12} color={BLUE} strokeWidth={2} />
-                        <Text style={[styles.actionBtnTxt, { color: BLUE }]}>{verified ? "تجديد" : "توثيق"}</Text>
+                        <Feather name="check-circle" size={12} color={c.accent} strokeWidth={2} />
+                        <Text style={[styles.actionBtnTxt, { color: c.accent }]}>{verified ? "تجديد" : "توثيق"}</Text>
                       </TouchableOpacity>
                       {verified && (
                         <TouchableOpacity
                           onPress={() => { revokeVerification(u.id); showToast("تم إلغاء التوثيق", "success"); }}
-                          style={[styles.actionBtn, { borderColor: ORANGE }]}
+                          style={[styles.actionBtn, { borderColor: "#F59E0B" }]}
                         >
-                          <Feather name="x-circle" size={12} color={ORANGE} strokeWidth={2} />
-                          <Text style={[styles.actionBtnTxt, { color: ORANGE }]}>إلغاء</Text>
+                          <Feather name="x-circle" size={12} color="#F59E0B" strokeWidth={2} />
+                          <Text style={[styles.actionBtnTxt, { color: "#F59E0B" }]}>إلغاء</Text>
                         </TouchableOpacity>
                       )}
                       <TouchableOpacity
                         onPress={() => { setPwModal({ userId: u.id, userName: u.name }); setNewPw(""); }}
-                        style={[styles.actionBtn, { borderColor: TEXT2 }]}
+                        style={[styles.actionBtn, { borderColor: c.textSecondary }]}
                       >
-                        <Feather name="lock" size={12} color={TEXT2} strokeWidth={2} />
-                        <Text style={[styles.actionBtnTxt, { color: TEXT2 }]}>كلمة المرور</Text>
+                        <Feather name="lock" size={12} color={c.textSecondary} strokeWidth={2} />
+                        <Text style={[styles.actionBtnTxt, { color: c.textSecondary }]}>كلمة المرور</Text>
                       </TouchableOpacity>
                       {u.isBanned ? (
                         <TouchableOpacity onPress={() => { unbanUser(u.id); showToast("تم رفع الحظر", "success"); }}
-                          style={[styles.actionBtn, { borderColor: ACCENT }]}>
-                          <Text style={[styles.actionBtnTxt, { color: ACCENT }]}>رفع الحظر</Text>
+                          style={[styles.actionBtn, { borderColor: c.success }]}>
+                          <Text style={[styles.actionBtnTxt, { color: c.success }]}>رفع الحظر</Text>
                         </TouchableOpacity>
                       ) : (
                         <TouchableOpacity onPress={() => { banUser(u.id); showToast("تم حظر المستخدم", "success"); }}
-                          style={[styles.actionBtn, { borderColor: RED }]}>
-                          <Text style={[styles.actionBtnTxt, { color: RED }]}>حظر</Text>
+                          style={[styles.actionBtn, { borderColor: c.danger }]}>
+                          <Text style={[styles.actionBtnTxt, { color: c.danger }]}>حظر</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -529,19 +524,19 @@ export default function AdminScreen() {
               <SectionHeader title={`الغرف النشطة (${rooms.length})`} />
               {rooms.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Feather name="mic" size={48} color={BORDER} strokeWidth={1} />
-                  <Text style={styles.emptyTxt}>لا توجد غرف</Text>
+                  <Feather name="mic" size={48} color={c.border} strokeWidth={1} />
+                  <Text style={[styles.emptyTxt, { color: c.textSecondary }]}>لا توجد غرف</Text>
                 </View>
               ) : (
                 rooms.map((room) => (
-                  <View key={room.id} style={styles.roomCard}>
-                    <Text style={styles.roomName}>{room.name}</Text>
-                    <Text style={styles.roomOwner}>بواسطة {room.ownerName}</Text>
-                    <Text style={styles.roomCode}>#{room.roomCode}</Text>
+                  <View key={room.id} style={[styles.roomCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                    <Text style={[styles.roomName, { color: c.text }]}>{room.name}</Text>
+                    <Text style={[styles.roomOwner, { color: c.textSecondary }]}>بواسطة {room.ownerName}</Text>
+                    <Text style={[styles.roomCode, { color: c.success }]}>#{room.roomCode}</Text>
                     <TouchableOpacity onPress={() => { deleteRoom(room.id); showToast("تم حذف الغرفة", "success"); }}
-                      style={[styles.actionBtn, { borderColor: RED, marginTop: 4 }]}>
-                      <Feather name="trash-2" size={13} color={RED} strokeWidth={1.5} />
-                      <Text style={[styles.actionBtnTxt, { color: RED }]}>حذف</Text>
+                      style={[styles.actionBtn, { borderColor: c.danger, marginTop: 4 }]}>
+                      <Feather name="trash-2" size={13} color={c.danger} strokeWidth={1.5} />
+                      <Text style={[styles.actionBtnTxt, { color: c.danger }]}>حذف</Text>
                     </TouchableOpacity>
                   </View>
                 ))
@@ -564,11 +559,11 @@ export default function AdminScreen() {
                         const res = await import("expo-image-picker").then((m) => m.launchImageLibraryAsync({ allowsEditing: true, quality: 0.7 }));
                         if (!res.canceled && res.assets[0]) { setGovernorateImage(g, res.assets[0].uri); showToast(`تم تحديث صورة ${g}`, "success"); }
                       }}
-                      style={styles.govCard}>
+                      style={[styles.govCard, { backgroundColor: c.card, borderColor: c.border }]}>
                       {img?.image ? <Image source={{ uri: img.image }} style={styles.govCardImg} /> : (
-                        <View style={styles.govCardPlaceholder}><Text style={{ fontSize: 20 }}>🏛️</Text></View>
+                        <View style={[styles.govCardPlaceholder, { backgroundColor: c.backgroundTertiary }]}><Text style={{ fontSize: 20 }}>🏛️</Text></View>
                       )}
-                      <Text style={styles.govCardName} numberOfLines={1}>{g}</Text>
+                      <Text style={[styles.govCardName, { color: c.text }]} numberOfLines={1}>{g}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -582,19 +577,19 @@ export default function AdminScreen() {
       {/* ── Verify User Modal ── */}
       <Modal visible={!!verifyModal} transparent animationType="slide" onRequestClose={() => setVerifyModal(null)}>
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }} onPress={() => setVerifyModal(null)}>
-          <Pressable style={{ backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 16 }} onPress={() => {}}>
+          <Pressable style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 16 }} onPress={() => {}}>
             <View style={{ alignItems: "center", gap: 8 }}>
-              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: `${BLUE}22`, alignItems: "center", justifyContent: "center" }}>
-                <Feather name="check-circle" size={26} color={BLUE} strokeWidth={1.5} />
+              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: `${c.accent}22`, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="check-circle" size={26} color={c.accent} strokeWidth={1.5} />
               </View>
-              <Text style={{ color: TEXT, fontFamily: "Inter_700Bold", fontSize: 18 }}>توثيق الحساب</Text>
-              <Text style={{ color: TEXT2, fontFamily: "Inter_400Regular", fontSize: 14 }}>{verifyModal?.userName}</Text>
+              <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 18 }}>توثيق الحساب</Text>
+              <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14 }}>{verifyModal?.userName}</Text>
             </View>
-            <Text style={{ color: TEXT2, fontFamily: "Inter_500Medium", fontSize: 14, textAlign: "center" }}>اختر مدة التوثيق</Text>
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium", fontSize: 14, textAlign: "center" }}>اختر مدة التوثيق</Text>
             {[{ label: "شهر واحد (1M)", months: 1 }, { label: "ثلاثة أشهر (3M)", months: 3 }, { label: "سنة كاملة (1Y)", months: 12 }].map((opt) => (
               <TouchableOpacity
                 key={opt.months}
-                style={{ backgroundColor: `${BLUE}22`, borderRadius: 14, paddingVertical: 14, alignItems: "center", borderWidth: 1, borderColor: `${BLUE}55` }}
+                style={{ backgroundColor: `${c.accent}22`, borderRadius: 14, paddingVertical: 14, alignItems: "center", borderWidth: 1, borderColor: `${c.accent}55` }}
                 onPress={() => {
                   if (verifyModal) {
                     verifyUser(verifyModal.userId, opt.months);
@@ -603,11 +598,11 @@ export default function AdminScreen() {
                   }
                 }}
               >
-                <Text style={{ color: BLUE, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>{opt.label}</Text>
+                <Text style={{ color: c.accent, fontFamily: "Inter_600SemiBold", fontSize: 15 }}>{opt.label}</Text>
               </TouchableOpacity>
             ))}
             <TouchableOpacity onPress={() => setVerifyModal(null)} style={{ paddingVertical: 12, alignItems: "center" }}>
-              <Text style={{ color: TEXT2, fontFamily: "Inter_500Medium" }}>إلغاء</Text>
+              <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium" }}>إلغاء</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -616,18 +611,18 @@ export default function AdminScreen() {
       {/* ── Change Password Modal ── */}
       <Modal visible={!!pwModal} transparent animationType="slide" onRequestClose={() => setPwModal(null)}>
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }} onPress={() => setPwModal(null)}>
-          <Pressable style={{ backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14 }} onPress={() => {}}>
+          <Pressable style={{ backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14 }} onPress={() => {}}>
             <View style={{ alignItems: "center", gap: 8 }}>
               <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: "#F59E0B22", alignItems: "center", justifyContent: "center" }}>
                 <Feather name="lock" size={24} color="#F59E0B" strokeWidth={1.5} />
               </View>
-              <Text style={{ color: TEXT, fontFamily: "Inter_700Bold", fontSize: 18 }}>تغيير كلمة المرور</Text>
-              <Text style={{ color: TEXT2, fontFamily: "Inter_400Regular", fontSize: 13 }}>{pwModal?.userName}</Text>
+              <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 18 }}>تغيير كلمة المرور</Text>
+              <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 13 }}>{pwModal?.userName}</Text>
             </View>
             <TextInput
-              style={{ backgroundColor: CARD2, borderRadius: 12, borderWidth: 0.5, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 13, color: TEXT, fontFamily: "Inter_400Regular", fontSize: 15 }}
+              style={{ backgroundColor: c.backgroundTertiary, borderRadius: 12, borderWidth: 0.5, borderColor: c.border, paddingHorizontal: 14, paddingVertical: 13, color: c.text, fontFamily: "Inter_400Regular", fontSize: 15 }}
               placeholder="كلمة المرور الجديدة"
-              placeholderTextColor={TEXT2}
+              placeholderTextColor={c.textSecondary}
               value={newPw}
               onChangeText={setNewPw}
               secureTextEntry
@@ -645,10 +640,10 @@ export default function AdminScreen() {
                 }
               }}
             >
-              <Text style={{ color: BG, fontFamily: "Inter_700Bold", fontSize: 15 }}>حفظ</Text>
+              <Text style={{ color: c.background, fontFamily: "Inter_700Bold", fontSize: 15 }}>حفظ</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setPwModal(null)} style={{ paddingVertical: 10, alignItems: "center" }}>
-              <Text style={{ color: TEXT2, fontFamily: "Inter_500Medium" }}>إلغاء</Text>
+              <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium" }}>إلغاء</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -658,13 +653,13 @@ export default function AdminScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+  container: { flex: 1 },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 16, paddingBottom: 14,
   },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: TEXT },
+  headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
   adminGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -673,7 +668,6 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     gap: 0,
     borderBottomWidth: 0.5,
-    borderBottomColor: BORDER,
   },
   gridTile: {
     width: "33.33%",
@@ -691,7 +685,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 0.5,
-    borderColor: BORDER,
   },
   gridTileLabel: {
     fontSize: 12,
@@ -701,21 +694,21 @@ const styles = StyleSheet.create({
   govFilter: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   govFilterTxt: { fontSize: 13, fontFamily: "Inter_500Medium" },
   emptyState: { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyTxt: { fontSize: 16, fontFamily: "Inter_500Medium", color: TEXT2 },
-  userCard: { flexDirection: "row", alignItems: "center", marginHorizontal: 16, marginBottom: 10, backgroundColor: CARD, borderRadius: 14, padding: 12, gap: 12, borderWidth: 0.5, borderColor: BORDER },
-  userAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: CARD2, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  emptyTxt: { fontSize: 16, fontFamily: "Inter_500Medium" },
+  userCard: { flexDirection: "row", alignItems: "center", marginHorizontal: 16, marginBottom: 10, borderRadius: 14, padding: 12, gap: 12, borderWidth: 0.5 },
+  userAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   userAvatarImg: { width: "100%", height: "100%" },
-  userName: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT },
-  userEmail: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2 },
-  userGov: { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT2 },
+  userName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  userEmail: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  userGov: { fontSize: 11, fontFamily: "Inter_400Regular" },
   actionBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1 },
   actionBtnTxt: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  roomCard: { marginHorizontal: 16, marginBottom: 10, backgroundColor: CARD, borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: BORDER, gap: 4 },
-  roomName: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: TEXT },
-  roomOwner: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2 },
-  roomCode: { fontSize: 11, fontFamily: "Inter_500Medium", color: ACCENT },
-  govCard: { width: 100, borderRadius: 12, overflow: "hidden", backgroundColor: CARD, borderWidth: 0.5, borderColor: BORDER },
+  roomCard: { marginHorizontal: 16, marginBottom: 10, borderRadius: 14, padding: 14, borderWidth: 0.5, gap: 4 },
+  roomName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  roomOwner: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  roomCode: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  govCard: { width: 100, borderRadius: 12, overflow: "hidden", borderWidth: 0.5 },
   govCardImg: { width: "100%", aspectRatio: 1, resizeMode: "cover" },
-  govCardPlaceholder: { width: "100%", aspectRatio: 1, backgroundColor: CARD2, alignItems: "center", justifyContent: "center" },
-  govCardName: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: TEXT, textAlign: "center", paddingVertical: 6, paddingHorizontal: 4 },
+  govCardPlaceholder: { width: "100%", aspectRatio: 1, alignItems: "center", justifyContent: "center" },
+  govCardName: { fontSize: 11, fontFamily: "Inter_600SemiBold", textAlign: "center", paddingVertical: 6, paddingHorizontal: 4 },
 });

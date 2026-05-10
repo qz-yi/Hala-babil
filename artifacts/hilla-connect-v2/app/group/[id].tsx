@@ -23,11 +23,8 @@ import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { GroupMessage } from "@/context/AppContext";
+import { useThemeStore } from "@/store/themeStore";
 
-const CARD = "#1C1C1E";
-const BORDER = "#2C2C2E";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
 const TINT = "#3D91F4";
 const QUICK_EMOJIS = ["❤️", "😂", "😮", "😢", "😡", "👍"];
 
@@ -57,12 +54,13 @@ function MsgContextMenu({
   onReply: () => void;
   onReact: (emoji: string) => void;
 }) {
+  const c = useThemeStore((s) => s.tokens);
   if (!visible || !msg) return null;
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={ctx.backdrop} onPress={onClose} />
-      <View style={ctx.sheet}>
-        <View style={ctx.handle} />
+      <View style={[ctx.sheet, { backgroundColor: c.card, borderColor: c.border }]}>
+        <View style={[ctx.handle, { backgroundColor: c.border }]} />
         <View style={ctx.emojiRow}>
           {QUICK_EMOJIS.map((e) => (
             <TouchableOpacity key={e} onPress={() => { onReact(e); onClose(); }} style={ctx.emojiBtn}>
@@ -70,12 +68,12 @@ function MsgContextMenu({
             </TouchableOpacity>
           ))}
         </View>
-        <View style={ctx.sep} />
+        <View style={[ctx.sep, { backgroundColor: c.border }]} />
         <TouchableOpacity style={ctx.row} onPress={() => { onReply(); onClose(); }}>
-          <View style={[ctx.icon, { backgroundColor: `${TINT}22` }]}>
-            <Feather name="corner-up-left" size={17} color={TINT} strokeWidth={1.5} />
+          <View style={[ctx.icon, { backgroundColor: `${c.accent}22` }]}>
+            <Feather name="corner-up-left" size={17} color={c.accent} strokeWidth={1.5} />
           </View>
-          <Text style={ctx.label}>رد</Text>
+          <Text style={[ctx.label, { color: c.text }]}>رد</Text>
         </TouchableOpacity>
         {(isMe || canDeleteAll) && (
           <TouchableOpacity style={ctx.row} onPress={() => { onDeleteForAll(); onClose(); }}>
@@ -100,17 +98,17 @@ const ctx = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)" },
   sheet: {
     position: "absolute", bottom: 0, left: 0, right: 0,
-    backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 20, paddingBottom: 36, gap: 4, borderWidth: 1, borderColor: BORDER,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 20, paddingBottom: 36, gap: 4, borderWidth: 1,
   },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: "center", marginBottom: 12 },
+  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 12 },
   emojiRow: { flexDirection: "row", justifyContent: "space-around", marginBottom: 8 },
   emojiBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 },
   emoji: { fontSize: 26 },
-  sep: { height: 1, backgroundColor: BORDER, marginVertical: 4 },
+  sep: { height: 1, marginVertical: 4 },
   row: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 12, paddingHorizontal: 4 },
   icon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  label: { fontSize: 15, fontFamily: "Inter_500Medium", color: TEXT },
+  label: { fontSize: 15, fontFamily: "Inter_500Medium" },
 });
 
 export default function GroupChatScreen() {
@@ -212,14 +210,14 @@ export default function GroupChatScreen() {
               style={[
                 s.bubble,
                 {
-                  backgroundColor: isMe ? TINT : colors.card,
+                  backgroundColor: isMe ? colors.tint : colors.card,
                   borderColor: isMe ? "transparent" : colors.border,
                 },
               ]}
             >
               {replyOrig && (
-                <View style={[s.replyBubble, { borderLeftColor: isMe ? "rgba(255,255,255,0.5)" : TINT, backgroundColor: isMe ? "rgba(255,255,255,0.1)" : `${TINT}15` }]}>
-                  <Text style={[s.replyText, { color: isMe ? "rgba(255,255,255,0.75)" : TEXT2 }]} numberOfLines={1}>
+                <View style={[s.replyBubble, { borderLeftColor: isMe ? "rgba(255,255,255,0.5)" : colors.tint, backgroundColor: isMe ? "rgba(255,255,255,0.1)" : `${colors.tint}15` }]}>
+                  <Text style={[s.replyText, { color: isMe ? "rgba(255,255,255,0.75)" : colors.textSecondary }]} numberOfLines={1}>
                     {replyOrig.type === "image" ? "📷 صورة" : replyOrig.content}
                   </Text>
                 </View>
@@ -230,23 +228,23 @@ export default function GroupChatScreen() {
                   <Image source={{ uri: msg.mediaUrl }} style={s.msgImage} resizeMode="cover" />
                 </View>
               ) : msg.type === "system" ? (
-                <Text style={[s.systemText, { color: TEXT2 }]}>{msg.content}</Text>
+                <Text style={[s.systemText, { color: colors.textSecondary }]}>{msg.content}</Text>
               ) : (
                 msg.content ? (
                   <Text style={[s.bubbleText, { color: isMe ? "#fff" : colors.text }]}>{msg.content}</Text>
                 ) : null
               )}
 
-              <Text style={[s.bubbleTime, { color: isMe ? "rgba(255,255,255,0.6)" : TEXT2 }]}>
+              <Text style={[s.bubbleTime, { color: isMe ? "rgba(255,255,255,0.6)" : colors.textSecondary }]}>
                 {formatTime(msg.timestamp)}
               </Text>
             </View>
             {msg.reactions && Object.keys(msg.reactions).length > 0 && (
               <View style={[s.reactRow, isMe ? { justifyContent: "flex-end" } : {}]}>
                 {Object.entries(msg.reactions).map(([emoji, uids]) => (
-                  <View key={emoji} style={s.reactChip}>
+                  <View key={emoji} style={[s.reactChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <Text style={s.reactEmoji}>{emoji}</Text>
-                    {(uids as string[]).length > 1 && <Text style={s.reactCount}>{(uids as string[]).length}</Text>}
+                    {(uids as string[]).length > 1 && <Text style={[s.reactCount, { color: colors.textSecondary }]}>{(uids as string[]).length}</Text>}
                   </View>
                 ))}
               </View>
@@ -269,11 +267,11 @@ export default function GroupChatScreen() {
           style={s.headerCenter}
           activeOpacity={0.8}
         >
-          <View style={[s.headerAvatar, { backgroundColor: `${TINT}25` }]}>
+          <View style={[s.headerAvatar, { backgroundColor: `${colors.tint}25` }]}>
             {group.photo ? (
               <Image source={{ uri: group.photo }} style={s.headerAvatarImg} />
             ) : (
-              <Feather name="users" size={20} color={TINT} strokeWidth={1.5} />
+              <Feather name="users" size={20} color={colors.tint} strokeWidth={1.5} />
             )}
           </View>
           <View style={s.headerInfo}>
@@ -318,7 +316,7 @@ export default function GroupChatScreen() {
             <View style={[s.replyPreview, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={s.replyPreviewBar} />
               <View style={{ flex: 1 }}>
-                <Text style={[s.replyPreviewName, { color: TINT }]}>{replyTo.senderName}</Text>
+                <Text style={[s.replyPreviewName, { color: colors.tint }]}>{replyTo.senderName}</Text>
                 <Text style={[s.replyPreviewText, { color: colors.textSecondary }]} numberOfLines={1}>
                   {replyTo.type === "image" ? "📷 صورة" : replyTo.content}
                 </Text>
@@ -330,8 +328,8 @@ export default function GroupChatScreen() {
           )}
           {muted ? (
             <View style={[s.mutedBar, { backgroundColor: colors.card }]}>
-              <Feather name="mic-off" size={16} color={TEXT2} strokeWidth={1.5} />
-              <Text style={[s.mutedText, { color: TEXT2 }]}>أنت مكتوم في هذه المجموعة</Text>
+              <Feather name="mic-off" size={16} color={colors.textSecondary} strokeWidth={1.5} />
+              <Text style={[s.mutedText, { color: colors.textSecondary }]}>أنت مكتوم في هذه المجموعة</Text>
             </View>
           ) : (
             <View style={[s.inputBar, { paddingBottom: botPad + 8 }]}>
@@ -356,7 +354,7 @@ export default function GroupChatScreen() {
               </View>
               <TouchableOpacity
                 onPress={handleSend}
-                style={[s.sendBtn, { backgroundColor: text.trim() ? TINT : colors.card, opacity: text.trim() ? 1 : 0.5 }]}
+                style={[s.sendBtn, { backgroundColor: text.trim() ? colors.tint : colors.card, opacity: text.trim() ? 1 : 0.5 }]}
                 activeOpacity={0.85}
                 disabled={!text.trim()}
               >
@@ -367,7 +365,7 @@ export default function GroupChatScreen() {
         </View>
       ) : (
         <View style={[s.nonMemberBar, { backgroundColor: colors.card, paddingBottom: botPad + 8 }]}>
-          <Text style={[s.nonMemberText, { color: TEXT2 }]}>لستَ عضواً في هذه المجموعة</Text>
+          <Text style={[s.nonMemberText, { color: c.textSecondary }]}>لستَ عضواً في هذه المجموعة</Text>
         </View>
       )}
 
@@ -433,18 +431,17 @@ const s = StyleSheet.create({
   reactRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 4, marginHorizontal: 4 },
   reactChip: {
     flexDirection: "row", alignItems: "center", gap: 2,
-    backgroundColor: "#1C1C1E", borderRadius: 12, paddingHorizontal: 6, paddingVertical: 3,
-    borderWidth: 1, borderColor: BORDER,
+    borderRadius: 12, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1,
   },
   reactEmoji: { fontSize: 14 },
-  reactCount: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: TEXT2 },
+  reactCount: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   emptyChat: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 80 },
 
   replyPreview: {
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 0.5,
   },
-  replyPreviewBar: { width: 3, height: 36, borderRadius: 2, backgroundColor: TINT },
+  replyPreviewBar: { width: 3, height: 36, borderRadius: 2, backgroundColor: "#3D91F4" },
   replyPreviewName: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   replyPreviewText: { fontSize: 13, fontFamily: "Inter_400Regular" },
 

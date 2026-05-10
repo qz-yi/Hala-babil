@@ -24,11 +24,6 @@ import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import type { GroupMember } from "@/context/AppContext";
 
-const CARD = "#1C1C1E";
-const BORDER = "#2C2C2E";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
-const TINT = "#3D91F4";
 
 export default function GroupInfoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -157,7 +152,7 @@ export default function GroupInfoScreen() {
         <Text style={[s.headerTitle, { color: colors.text }]}>معلومات المجموعة</Text>
         {isOwnerOrAdmin && (
           <TouchableOpacity onPress={handleOpenEdit} style={[s.editBtn, { borderColor: colors.border }]} activeOpacity={0.8}>
-            <Feather name="edit-2" size={18} color={TINT} strokeWidth={1.5} />
+            <Feather name="edit-2" size={18} color={colors.tint} strokeWidth={1.5} />
           </TouchableOpacity>
         )}
       </View>
@@ -165,18 +160,18 @@ export default function GroupInfoScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: botPad + 40 }} showsVerticalScrollIndicator={false}>
         {/* Group Avatar + Info */}
         <View style={s.topSection}>
-          <View style={[s.groupAvatar, { backgroundColor: `${TINT}25` }]}>
+          <View style={[s.groupAvatar, { backgroundColor: `${colors.tint}25` }]}>
             {group.photo ? (
               <Image source={{ uri: group.photo }} style={s.groupAvatarImg} />
             ) : (
-              <Feather name="users" size={36} color={TINT} strokeWidth={1.5} />
+              <Feather name="users" size={36} color={colors.tint} strokeWidth={1.5} />
             )}
           </View>
           <Text style={[s.groupName, { color: colors.text }]}>{group.name}</Text>
           <View style={s.groupMeta}>
-            <View style={[s.badge, { backgroundColor: `${TINT}22` }]}>
-              <Feather name={group.privacy === "public" ? "globe" : "lock"} size={12} color={TINT} strokeWidth={1.5} />
-              <Text style={[s.badgeText, { color: TINT }]}>{group.privacy === "public" ? "عامة" : "خاصة"}</Text>
+            <View style={[s.badge, { backgroundColor: `${colors.tint}22` }]}>
+              <Feather name={group.privacy === "public" ? "globe" : "lock"} size={12} color={colors.tint} strokeWidth={1.5} />
+              <Text style={[s.badgeText, { color: colors.tint }]}>{group.privacy === "public" ? "عامة" : "خاصة"}</Text>
             </View>
             <Text style={[s.groupIdText, { color: colors.textSecondary }]}>@{group.groupId}</Text>
           </View>
@@ -213,21 +208,21 @@ export default function GroupInfoScreen() {
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     <Text style={[s.memberName, { color: colors.text }]}>{user?.name || "مجهول"}</Text>
-                    {isCurrentUser && <Text style={[s.youBadge, { color: TINT }]}>(أنت)</Text>}
+                    {isCurrentUser && <Text style={[s.youBadge, { color: colors.tint }]}>(أنت)</Text>}
                   </View>
                   {user?.username && (
                     <Text style={[s.memberUsername, { color: colors.textSecondary }]}>@{user.username}</Text>
                   )}
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  {member.isMuted && <Feather name="mic-off" size={14} color={TEXT2} strokeWidth={1.5} />}
+                  {member.isMuted && <Feather name="mic-off" size={14} color={colors.textSecondary} strokeWidth={1.5} />}
                   {roleBadge && (
-                    <View style={[s.roleBadge, { backgroundColor: member.role === "owner" ? "#F59E0B22" : `${TINT}22` }]}>
-                      <Text style={[s.roleBadgeText, { color: member.role === "owner" ? "#F59E0B" : TINT }]}>{roleBadge}</Text>
+                    <View style={[s.roleBadge, { backgroundColor: member.role === "owner" ? "#F59E0B22" : `${colors.tint}22` }]}>
+                      <Text style={[s.roleBadgeText, { color: member.role === "owner" ? "#F59E0B" : colors.tint }]}>{roleBadge}</Text>
                     </View>
                   )}
                   {!isCurrentUser && isOwnerOrAdmin && member.role !== "owner" && (
-                    <Feather name="more-vertical" size={16} color={TEXT2} strokeWidth={1.5} />
+                    <Feather name="more-vertical" size={16} color={colors.textSecondary} strokeWidth={1.5} />
                   )}
                 </View>
               </TouchableOpacity>
@@ -256,19 +251,19 @@ export default function GroupInfoScreen() {
           <Text style={[s.modalTitle, { color: colors.text }]}>تعديل المجموعة</Text>
 
           <TouchableOpacity onPress={handlePickPhoto} style={s.editPhotoWrap} activeOpacity={0.85}>
-            <View style={[s.editPhoto, { backgroundColor: `${TINT}22` }]}>
+            <View style={[s.editPhoto, { backgroundColor: `${colors.tint}22` }]}>
               {editPhoto ? (
                 <Image source={{ uri: editPhoto }} style={s.editPhotoImg} />
               ) : group.photo ? (
                 <Image source={{ uri: group.photo }} style={s.editPhotoImg} />
               ) : (
-                <Feather name="camera" size={24} color={TINT} strokeWidth={1.5} />
+                <Feather name="camera" size={24} color={colors.tint} strokeWidth={1.5} />
               )}
             </View>
-            <Text style={[s.editPhotoLabel, { color: TINT }]}>تغيير الصورة</Text>
+            <Text style={[s.editPhotoLabel, { color: colors.tint }]}>تغيير الصورة</Text>
           </TouchableOpacity>
 
-          <View style={[s.editInput, { backgroundColor: colors.backgroundSecondary || "#111", borderColor: colors.border }]}>
+          <View style={[s.editInput, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <TextInput
               style={[s.editInputText, { color: colors.text }]}
               value={editName}
@@ -287,19 +282,19 @@ export default function GroupInfoScreen() {
                 onPress={() => setEditPrivacy(p)}
                 style={[
                   s.privacyBtn,
-                  { borderColor: editPrivacy === p ? TINT : BORDER, backgroundColor: editPrivacy === p ? `${TINT}22` : "transparent" },
+                  { borderColor: editPrivacy === p ? colors.tint : colors.border, backgroundColor: editPrivacy === p ? `${colors.tint}22` : "transparent" },
                 ]}
                 activeOpacity={0.8}
               >
-                <Feather name={p === "public" ? "globe" : "lock"} size={16} color={editPrivacy === p ? TINT : TEXT2} strokeWidth={1.5} />
-                <Text style={[s.privacyLabel, { color: editPrivacy === p ? TINT : TEXT2 }]}>
+                <Feather name={p === "public" ? "globe" : "lock"} size={16} color={editPrivacy === p ? colors.tint : colors.textSecondary} strokeWidth={1.5} />
+                <Text style={[s.privacyLabel, { color: editPrivacy === p ? colors.tint : colors.textSecondary }]}>
                   {p === "public" ? "عامة" : "خاصة"}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <TouchableOpacity onPress={handleSaveEdit} style={[s.saveBtn, { backgroundColor: TINT }]} activeOpacity={0.85}>
+          <TouchableOpacity onPress={handleSaveEdit} style={[s.saveBtn, { backgroundColor: colors.tint }]} activeOpacity={0.85}>
             <Text style={s.saveBtnText}>حفظ التغييرات</Text>
           </TouchableOpacity>
         </View>
@@ -321,8 +316,8 @@ export default function GroupInfoScreen() {
 
           {myRole === "owner" && memberAction?.role === "member" && (
             <TouchableOpacity style={s.actionRow} onPress={() => handleMemberAction("promote")} activeOpacity={0.8}>
-              <View style={[s.actionIcon, { backgroundColor: `${TINT}22` }]}>
-                <Feather name="shield" size={18} color={TINT} strokeWidth={1.5} />
+              <View style={[s.actionIcon, { backgroundColor: `${colors.tint}22` }]}>
+                <Feather name="shield" size={18} color={colors.tint} strokeWidth={1.5} />
               </View>
               <Text style={[s.actionLabel, { color: colors.text }]}>ترقية لمشرف</Text>
             </TouchableOpacity>

@@ -26,16 +26,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToast } from "@/components/Toast";
 import { useApp } from "@/context/AppContext";
 import type { MenuItem } from "@/context/AppContext";
-
-const BG = "#000000";
-const CARD = "#111111";
-const CARD2 = "#181818";
-const BORDER = "#222222";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
-const ACCENT = "#10B981";
-const RED = "#FF3B5C";
-const ORANGE = "#F59E0B";
+import { useThemeStore } from "@/store/themeStore";
 
 async function pickImg(): Promise<string | null> {
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -51,16 +42,17 @@ async function pickImg(): Promise<string | null> {
 }
 
 function DisabledScreen() {
+  const c = useThemeStore((s) => s.tokens);
   const insets = useSafeAreaInsets();
   const MANAGER_WA = "9647719820537";
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 20, alignItems: "center", justifyContent: "center", gap: 24 }]}>
+    <View style={[styles.container, { paddingTop: insets.top + 20, alignItems: "center", justifyContent: "center", gap: 24, backgroundColor: c.background }]}>
       <LinearGradient colors={["#FF3B5C22", "#FF3B5C05"]} style={styles.disabledGrad}>
         <View style={styles.disabledIcon}>
-          <Feather name="slash" size={48} color={RED} strokeWidth={1.5} />
+          <Feather name="slash" size={48} color={c.danger} strokeWidth={1.5} />
         </View>
-        <Text style={styles.disabledTitle}>حسابك موقوف</Text>
-        <Text style={styles.disabledDesc}>
+        <Text style={[styles.disabledTitle, { color: c.text }]}>حسابك موقوف</Text>
+        <Text style={[styles.disabledDesc, { color: c.textSecondary }]}>
           تم إيقاف حسابك بواسطة المدير. يرجى التواصل مع الإدارة لمعرفة السبب وإعادة التفعيل.
         </Text>
         <TouchableOpacity
@@ -87,6 +79,7 @@ function AddEditItemModal({
   onClose: () => void;
   onSave: (data: Omit<MenuItem, "id">) => void;
 }) {
+  const c = useThemeStore((s) => s.tokens);
   const [name, setName] = useState(item?.name ?? "");
   const [price, setPrice] = useState(item?.price?.toString() ?? "");
   const [desc, setDesc] = useState(item?.description ?? "");
@@ -109,59 +102,59 @@ function AddEditItemModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <Pressable style={styles.modalOverlay} onPress={onClose}>
-          <Pressable style={styles.modalSheet} onPress={() => {}}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>{item ? "تعديل الصنف" : "إضافة صنف جديد"}</Text>
+          <Pressable style={[styles.modalSheet, { backgroundColor: c.card }]} onPress={() => {}}>
+            <View style={[styles.sheetHandle, { backgroundColor: c.border }]} />
+            <Text style={[styles.sheetTitle, { color: c.text }]}>{item ? "تعديل الصنف" : "إضافة صنف جديد"}</Text>
 
             <TouchableOpacity style={styles.itemImgPicker} onPress={async () => { const uri = await pickImg(); if (uri) setImage(uri); }}>
               {image ? (
                 <Image source={{ uri: image }} style={styles.itemImgPreview} />
               ) : (
-                <View style={styles.itemImgPlaceholder}>
-                  <Feather name="image" size={28} color={TEXT2} strokeWidth={1.5} />
-                  <Text style={styles.itemImgPlaceholderTxt}>اضف صورة</Text>
+                <View style={[styles.itemImgPlaceholder, { backgroundColor: c.backgroundTertiary }]}>
+                  <Feather name="image" size={28} color={c.textSecondary} strokeWidth={1.5} />
+                  <Text style={[styles.itemImgPlaceholderTxt, { color: c.textSecondary }]}>اضف صورة</Text>
                 </View>
               )}
             </TouchableOpacity>
 
             <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>اسم الصنف *</Text>
+              <Text style={[styles.fieldLabel, { color: c.textSecondary }]}>اسم الصنف *</Text>
               <TextInput
-                style={styles.fieldInput}
+                style={[styles.fieldInput, { backgroundColor: c.backgroundTertiary, borderColor: c.border, color: c.text }]}
                 value={name}
                 onChangeText={setName}
                 placeholder="مثال: برجر كلاسيك"
-                placeholderTextColor={TEXT2}
+                placeholderTextColor={c.textSecondary}
                 textAlign="right"
               />
             </View>
             <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>السعر (د.ع) *</Text>
+              <Text style={[styles.fieldLabel, { color: c.textSecondary }]}>السعر (د.ع) *</Text>
               <TextInput
-                style={styles.fieldInput}
+                style={[styles.fieldInput, { backgroundColor: c.backgroundTertiary, borderColor: c.border, color: c.text }]}
                 value={price}
                 onChangeText={setPrice}
                 placeholder="5000"
-                placeholderTextColor={TEXT2}
+                placeholderTextColor={c.textSecondary}
                 keyboardType="numeric"
                 textAlign="right"
               />
             </View>
             <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>الوصف</Text>
+              <Text style={[styles.fieldLabel, { color: c.textSecondary }]}>الوصف</Text>
               <TextInput
-                style={[styles.fieldInput, { height: 72 }]}
+                style={[styles.fieldInput, { height: 72, backgroundColor: c.backgroundTertiary, borderColor: c.border, color: c.text }]}
                 value={desc}
                 onChangeText={setDesc}
                 placeholder="وصف مختصر (اختياري)"
-                placeholderTextColor={TEXT2}
+                placeholderTextColor={c.textSecondary}
                 multiline
                 textAlign="right"
               />
             </View>
 
-            <TouchableOpacity style={styles.saveItemBtn} activeOpacity={0.85} onPress={handleSave}>
-              <Text style={styles.saveItemBtnTxt}>حفظ</Text>
+            <TouchableOpacity style={[styles.saveItemBtn, { backgroundColor: c.text }]} activeOpacity={0.85} onPress={handleSave}>
+              <Text style={[styles.saveItemBtnTxt, { color: c.background }]}>حفظ</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -171,6 +164,7 @@ function AddEditItemModal({
 }
 
 export default function MyRestaurantScreen() {
+  const c = useThemeStore((s) => s.tokens);
   const {
     currentUser, isRestaurantOwner, getMyRestaurant,
     updateRestaurantProfile,
@@ -203,12 +197,12 @@ export default function MyRestaurantScreen() {
 
   if (!restaurant) {
     return (
-      <View style={[styles.container, { alignItems: "center", justifyContent: "center", paddingTop: topPad }]}>
-        <Feather name="alert-circle" size={48} color={TEXT2} strokeWidth={1} />
-        <Text style={{ color: TEXT2, marginTop: 16, fontFamily: "Inter_500Medium", fontSize: 16 }}>
+      <View style={[styles.container, { alignItems: "center", justifyContent: "center", paddingTop: topPad, backgroundColor: c.background }]}>
+        <Feather name="alert-circle" size={48} color={c.textSecondary} strokeWidth={1} />
+        <Text style={{ color: c.textSecondary, marginTop: 16, fontFamily: "Inter_500Medium", fontSize: 16 }}>
           لم يتم ربط مطعم بحسابك بعد
         </Text>
-        <Text style={{ color: TEXT2, marginTop: 8, fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center", paddingHorizontal: 40 }}>
+        <Text style={{ color: c.textSecondary, marginTop: 8, fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "center", paddingHorizontal: 40 }}>
           تواصل مع المدير لإنشاء مطعمك
         </Text>
       </View>
@@ -269,25 +263,25 @@ export default function MyRestaurantScreen() {
   const commission = restaurant.commissionRate ?? 10;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: c.background }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
         {/* Header */}
-        <View style={[styles.header, { paddingTop: topPad + 8 }]}>
-          <Text style={styles.headerTitle}>مطعمي</Text>
-          <TouchableOpacity style={styles.editProfileBtn} onPress={openEditProfile} activeOpacity={0.8}>
-            <Feather name="edit-2" size={16} color={TEXT} strokeWidth={1.5} />
-            <Text style={styles.editProfileBtnTxt}>تعديل</Text>
+        <View style={[styles.header, { paddingTop: topPad + 8, borderBottomColor: c.border }]}>
+          <Text style={[styles.headerTitle, { color: c.text }]}>مطعمي</Text>
+          <TouchableOpacity style={[styles.editProfileBtn, { borderColor: c.border, backgroundColor: c.card }]} onPress={openEditProfile} activeOpacity={0.8}>
+            <Feather name="edit-2" size={16} color={c.text} strokeWidth={1.5} />
+            <Text style={[styles.editProfileBtnTxt, { color: c.text }]}>تعديل</Text>
           </TouchableOpacity>
         </View>
 
         {/* Cover + Identity */}
-        <TouchableOpacity style={styles.coverWrap} onPress={handlePickCover} activeOpacity={0.85}>
+        <TouchableOpacity style={[styles.coverWrap, { backgroundColor: c.card }]} onPress={handlePickCover} activeOpacity={0.85}>
           {restaurant.image ? (
             <Image source={{ uri: restaurant.image }} style={styles.coverImg} />
           ) : (
-            <View style={styles.coverPlaceholder}>
-              <Feather name="camera" size={36} color={TEXT2} strokeWidth={1} />
-              <Text style={styles.coverPlaceholderTxt}>اضغط لإضافة صورة المطعم</Text>
+            <View style={[styles.coverPlaceholder, { backgroundColor: c.backgroundTertiary }]}>
+              <Feather name="camera" size={36} color={c.textSecondary} strokeWidth={1} />
+              <Text style={[styles.coverPlaceholderTxt, { color: c.textSecondary }]}>اضغط لإضافة صورة المطعم</Text>
             </View>
           )}
           <LinearGradient colors={["transparent", "rgba(0,0,0,0.75)"]} style={StyleSheet.absoluteFill} />
@@ -296,7 +290,7 @@ export default function MyRestaurantScreen() {
             {restaurant.description ? (
               <Text style={styles.coverDesc} numberOfLines={2}>{restaurant.description}</Text>
             ) : null}
-            <View style={styles.coverBadge}>
+            <View style={[styles.coverBadge, { backgroundColor: `${c.success}cc` }]}>
               <Text style={styles.coverBadgeTxt}>{restaurant.category}</Text>
             </View>
           </View>
@@ -306,21 +300,21 @@ export default function MyRestaurantScreen() {
         </TouchableOpacity>
 
         {/* Dues Card */}
-        <View style={styles.duesCard}>
+        <View style={[styles.duesCard, { backgroundColor: c.card, borderColor: c.border }]}>
           <View style={styles.duesRow}>
             <View style={styles.duesBlock}>
-              <Text style={styles.duesLabel}>المستحقات الشهرية</Text>
-              <Text style={[styles.duesValue, { color: dues > 0 ? ORANGE : ACCENT }]}>
+              <Text style={[styles.duesLabel, { color: c.textSecondary }]}>المستحقات الشهرية</Text>
+              <Text style={[styles.duesValue, { color: dues > 0 ? "#F59E0B" : c.success }]}>
                 {dues.toLocaleString("ar-IQ")} د.ع
               </Text>
             </View>
-            <View style={[styles.duesDivider]} />
+            <View style={[styles.duesDivider, { backgroundColor: c.border }]} />
             <View style={styles.duesBlock}>
-              <Text style={styles.duesLabel}>نسبة العمولة</Text>
-              <Text style={[styles.duesValue, { color: TEXT }]}>{commission}%</Text>
+              <Text style={[styles.duesLabel, { color: c.textSecondary }]}>نسبة العمولة</Text>
+              <Text style={[styles.duesValue, { color: c.text }]}>{commission}%</Text>
             </View>
           </View>
-          <Text style={styles.duesNote}>
+          <Text style={[styles.duesNote, { color: c.textSecondary }]}>
             يتم احتساب العمولة تلقائياً على كل طلب واردة عبر التطبيق
           </Text>
         </View>
@@ -328,22 +322,22 @@ export default function MyRestaurantScreen() {
         {/* Menu Section */}
         <View style={styles.menuSection}>
           <View style={styles.menuHeader}>
-            <Text style={styles.menuTitle}>قائمة الطعام ({restaurant.menuItems.length} صنف)</Text>
+            <Text style={[styles.menuTitle, { color: c.text }]}>قائمة الطعام ({restaurant.menuItems.length} صنف)</Text>
             <TouchableOpacity
-              style={styles.addItemBtn}
+              style={[styles.addItemBtn, { backgroundColor: c.text }]}
               activeOpacity={0.85}
               onPress={() => { setEditingItem(null); setAddItemModal(true); }}
             >
-              <Feather name="plus" size={18} color={BG} strokeWidth={2.5} />
-              <Text style={styles.addItemBtnTxt}>إضافة صنف</Text>
+              <Feather name="plus" size={18} color={c.background} strokeWidth={2.5} />
+              <Text style={[styles.addItemBtnTxt, { color: c.background }]}>إضافة صنف</Text>
             </TouchableOpacity>
           </View>
 
           {restaurant.menuItems.length === 0 ? (
             <View style={styles.emptyMenu}>
-              <Feather name="coffee" size={48} color={BORDER} strokeWidth={1} />
-              <Text style={styles.emptyMenuTxt}>لا توجد أصناف بعد</Text>
-              <Text style={styles.emptyMenuSub}>أضف أصناف قائمة طعامك الآن</Text>
+              <Feather name="coffee" size={48} color={c.border} strokeWidth={1} />
+              <Text style={[styles.emptyMenuTxt, { color: c.textSecondary }]}>لا توجد أصناف بعد</Text>
+              <Text style={[styles.emptyMenuSub, { color: c.textSecondary }]}>أضف أصناف قائمة طعامك الآن</Text>
             </View>
           ) : (
             restaurant.menuItems.map((item, idx) => (
@@ -372,47 +366,47 @@ export default function MyRestaurantScreen() {
       <Modal visible={editProfileModal} transparent animationType="slide" onRequestClose={() => setEditProfileModal(false)}>
         <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
           <Pressable style={styles.modalOverlay} onPress={() => setEditProfileModal(false)}>
-            <Pressable style={styles.modalSheet} onPress={() => {}}>
-              <View style={styles.sheetHandle} />
-              <Text style={styles.sheetTitle}>تعديل بيانات المطعم</Text>
+            <Pressable style={[styles.modalSheet, { backgroundColor: c.card }]} onPress={() => {}}>
+              <View style={[styles.sheetHandle, { backgroundColor: c.border }]} />
+              <Text style={[styles.sheetTitle, { color: c.text }]}>تعديل بيانات المطعم</Text>
 
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>اسم المطعم *</Text>
+                <Text style={[styles.fieldLabel, { color: c.textSecondary }]}>اسم المطعم *</Text>
                 <TextInput
-                  style={styles.fieldInput}
+                  style={[styles.fieldInput, { backgroundColor: c.backgroundTertiary, borderColor: c.border, color: c.text }]}
                   value={editName}
                   onChangeText={setEditName}
                   placeholder="اسم مطعمك"
-                  placeholderTextColor={TEXT2}
+                  placeholderTextColor={c.textSecondary}
                   textAlign="right"
                 />
               </View>
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>الفئة</Text>
+                <Text style={[styles.fieldLabel, { color: c.textSecondary }]}>الفئة</Text>
                 <TextInput
-                  style={styles.fieldInput}
+                  style={[styles.fieldInput, { backgroundColor: c.backgroundTertiary, borderColor: c.border, color: c.text }]}
                   value={editCategory}
                   onChangeText={setEditCategory}
                   placeholder="مثال: مشاوي، وجبات سريعة"
-                  placeholderTextColor={TEXT2}
+                  placeholderTextColor={c.textSecondary}
                   textAlign="right"
                 />
               </View>
               <View style={styles.fieldRow}>
-                <Text style={styles.fieldLabel}>وصف المطعم</Text>
+                <Text style={[styles.fieldLabel, { color: c.textSecondary }]}>وصف المطعم</Text>
                 <TextInput
-                  style={[styles.fieldInput, { height: 90 }]}
+                  style={[styles.fieldInput, { height: 90, backgroundColor: c.backgroundTertiary, borderColor: c.border, color: c.text }]}
                   value={editDesc}
                   onChangeText={setEditDesc}
                   placeholder="صف مطعمك ومميزاته..."
-                  placeholderTextColor={TEXT2}
+                  placeholderTextColor={c.textSecondary}
                   multiline
                   textAlign="right"
                 />
               </View>
 
-              <TouchableOpacity style={styles.saveItemBtn} activeOpacity={0.85} onPress={handleSaveProfile}>
-                <Text style={styles.saveItemBtnTxt}>حفظ التغييرات</Text>
+              <TouchableOpacity style={[styles.saveItemBtn, { backgroundColor: c.text }]} activeOpacity={0.85} onPress={handleSaveProfile}>
+                <Text style={[styles.saveItemBtnTxt, { color: c.background }]}>حفظ التغييرات</Text>
               </TouchableOpacity>
             </Pressable>
           </Pressable>
@@ -437,27 +431,28 @@ function MenuItemRow({
   onDelete: () => void;
   onToggleVisibility: () => void;
 }) {
+  const c = useThemeStore((s) => s.tokens);
   const isVisible = item.isVisible !== false;
 
   return (
-    <View style={[styles.menuItemRow, !isVisible && styles.menuItemHidden]}>
-      <Text style={styles.menuItemNum}>#{index}</Text>
+    <View style={[styles.menuItemRow, { backgroundColor: c.card, borderColor: c.border }, !isVisible && styles.menuItemHidden]}>
+      <Text style={[styles.menuItemNum, { color: c.textSecondary }]}>#{index}</Text>
 
       {item.image ? (
-        <Image source={{ uri: item.image }} style={styles.menuItemImg} />
+        <Image source={{ uri: item.image }} style={[styles.menuItemImg, { backgroundColor: c.backgroundTertiary }]} />
       ) : (
-        <View style={styles.menuItemImgPlaceholder}>
+        <View style={[styles.menuItemImgPlaceholder, { backgroundColor: c.backgroundTertiary }]}>
           <Text style={{ fontSize: 20 }}>🍽️</Text>
         </View>
       )}
 
       <View style={styles.menuItemInfo}>
-        <Text style={[styles.menuItemName, !isVisible && { color: TEXT2 }]} numberOfLines={1}>
+        <Text style={[styles.menuItemName, { color: c.text }, !isVisible && { color: c.textSecondary }]} numberOfLines={1}>
           {item.name}
         </Text>
-        <Text style={styles.menuItemPrice}>{item.price.toLocaleString()} د.ع</Text>
+        <Text style={[styles.menuItemPrice, { color: c.success }]}>{item.price.toLocaleString()} د.ع</Text>
         {item.description ? (
-          <Text style={styles.menuItemDesc} numberOfLines={1}>{item.description}</Text>
+          <Text style={[styles.menuItemDesc, { color: c.textSecondary }]} numberOfLines={1}>{item.description}</Text>
         ) : null}
       </View>
 
@@ -465,15 +460,15 @@ function MenuItemRow({
         <Switch
           value={isVisible}
           onValueChange={onToggleVisibility}
-          trackColor={{ false: BORDER, true: `${ACCENT}88` }}
-          thumbColor={isVisible ? ACCENT : TEXT2}
-          ios_backgroundColor={BORDER}
+          trackColor={{ false: c.border, true: `${c.success}88` }}
+          thumbColor={isVisible ? c.success : c.textSecondary}
+          ios_backgroundColor={c.border}
         />
         <TouchableOpacity onPress={onEdit} style={styles.iconBtn}>
-          <Feather name="edit-2" size={16} color={TEXT2} strokeWidth={1.5} />
+          <Feather name="edit-2" size={16} color={c.textSecondary} strokeWidth={1.5} />
         </TouchableOpacity>
         <TouchableOpacity onPress={onDelete} style={styles.iconBtn}>
-          <Feather name="trash-2" size={16} color={RED} strokeWidth={1.5} />
+          <Feather name="trash-2" size={16} color={c.danger} strokeWidth={1.5} />
         </TouchableOpacity>
       </View>
     </View>
@@ -481,28 +476,28 @@ function MenuItemRow({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+  container: { flex: 1 },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 16, paddingBottom: 12,
-    borderBottomWidth: 0.5, borderBottomColor: BORDER,
+    borderBottomWidth: 0.5,
   },
-  headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: TEXT },
+  headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
   editProfileBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD,
+    borderRadius: 20, borderWidth: 1,
   },
-  editProfileBtnTxt: { color: TEXT, fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  editProfileBtnTxt: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
 
-  coverWrap: { margin: 16, borderRadius: 20, overflow: "hidden", height: 200, backgroundColor: CARD },
+  coverWrap: { margin: 16, borderRadius: 20, overflow: "hidden", height: 200 },
   coverImg: { width: "100%", height: "100%", resizeMode: "cover" },
-  coverPlaceholder: { width: "100%", height: "100%", alignItems: "center", justifyContent: "center", gap: 12, backgroundColor: CARD2 },
-  coverPlaceholderTxt: { color: TEXT2, fontFamily: "Inter_400Regular", fontSize: 14 },
+  coverPlaceholder: { width: "100%", height: "100%", alignItems: "center", justifyContent: "center", gap: 12 },
+  coverPlaceholderTxt: { fontFamily: "Inter_400Regular", fontSize: 14 },
   coverOverlay: { position: "absolute", bottom: 16, left: 16, right: 16, gap: 6 },
   coverName: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff" },
   coverDesc: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)" },
-  coverBadge: { alignSelf: "flex-start", backgroundColor: `${ACCENT}cc`, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  coverBadge: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   coverBadgeTxt: { color: "#fff", fontSize: 11, fontFamily: "Inter_600SemiBold" },
   cameraIcon: {
     position: "absolute", top: 12, right: 12,
@@ -510,63 +505,63 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center",
   },
 
-  duesCard: { marginHorizontal: 16, marginBottom: 16, borderRadius: 16, backgroundColor: CARD, borderWidth: 0.5, borderColor: BORDER, padding: 16, gap: 10 },
+  duesCard: { marginHorizontal: 16, marginBottom: 16, borderRadius: 16, borderWidth: 0.5, padding: 16, gap: 10 },
   duesRow: { flexDirection: "row", alignItems: "center" },
   duesBlock: { flex: 1, alignItems: "center", gap: 4 },
-  duesDivider: { width: 1, height: 44, backgroundColor: BORDER },
-  duesLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2 },
+  duesDivider: { width: 1, height: 44 },
+  duesLabel: { fontSize: 12, fontFamily: "Inter_400Regular" },
   duesValue: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  duesNote: { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center" },
+  duesNote: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center" },
 
   menuSection: { paddingHorizontal: 16 },
   menuHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  menuTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT },
+  menuTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
   addItemBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: TEXT, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
   },
-  addItemBtnTxt: { color: BG, fontSize: 13, fontFamily: "Inter_700Bold" },
+  addItemBtnTxt: { fontSize: 13, fontFamily: "Inter_700Bold" },
   emptyMenu: { alignItems: "center", paddingVertical: 48, gap: 10 },
-  emptyMenuTxt: { fontSize: 17, fontFamily: "Inter_600SemiBold", color: TEXT2 },
-  emptyMenuSub: { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2 },
+  emptyMenuTxt: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  emptyMenuSub: { fontSize: 13, fontFamily: "Inter_400Regular" },
 
   menuItemRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: CARD, borderRadius: 14, padding: 12, marginBottom: 10,
-    borderWidth: 0.5, borderColor: BORDER,
+    borderRadius: 14, padding: 12, marginBottom: 10,
+    borderWidth: 0.5,
   },
   menuItemHidden: { opacity: 0.5 },
-  menuItemNum: { fontSize: 12, fontFamily: "Inter_700Bold", color: TEXT2, minWidth: 22 },
-  menuItemImg: { width: 52, height: 52, borderRadius: 10, backgroundColor: CARD2 },
-  menuItemImgPlaceholder: { width: 52, height: 52, borderRadius: 10, backgroundColor: CARD2, alignItems: "center", justifyContent: "center" },
+  menuItemNum: { fontSize: 12, fontFamily: "Inter_700Bold", minWidth: 22 },
+  menuItemImg: { width: 52, height: 52, borderRadius: 10 },
+  menuItemImgPlaceholder: { width: 52, height: 52, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   menuItemInfo: { flex: 1, gap: 3 },
-  menuItemName: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT },
-  menuItemPrice: { fontSize: 13, fontFamily: "Inter_700Bold", color: ACCENT },
-  menuItemDesc: { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT2 },
+  menuItemName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  menuItemPrice: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  menuItemDesc: { fontSize: 11, fontFamily: "Inter_400Regular" },
   menuItemActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   iconBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-  modalSheet: { backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 14 },
-  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: "center", marginBottom: 4 },
-  sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT, textAlign: "right" },
+  modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 14 },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+  sheetTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "right" },
   fieldRow: { gap: 6 },
-  fieldLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT2, textAlign: "right" },
+  fieldLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", textAlign: "right" },
   fieldInput: {
-    backgroundColor: CARD2, borderRadius: 12, borderWidth: 0.5, borderColor: BORDER,
-    paddingHorizontal: 14, paddingVertical: 12, color: TEXT, fontFamily: "Inter_400Regular", fontSize: 15,
+    borderRadius: 12, borderWidth: 0.5,
+    paddingHorizontal: 14, paddingVertical: 12, fontFamily: "Inter_400Regular", fontSize: 15,
   },
   itemImgPicker: { alignSelf: "center", width: 100, height: 100, borderRadius: 16, overflow: "hidden" },
   itemImgPreview: { width: "100%", height: "100%", resizeMode: "cover" },
-  itemImgPlaceholder: { width: "100%", height: "100%", backgroundColor: CARD2, alignItems: "center", justifyContent: "center", gap: 6 },
-  itemImgPlaceholderTxt: { fontSize: 11, color: TEXT2, fontFamily: "Inter_400Regular" },
-  saveItemBtn: { backgroundColor: TEXT, borderRadius: 14, paddingVertical: 16, alignItems: "center" },
-  saveItemBtnTxt: { color: BG, fontSize: 16, fontFamily: "Inter_700Bold" },
+  itemImgPlaceholder: { width: "100%", height: "100%", alignItems: "center", justifyContent: "center", gap: 6 },
+  itemImgPlaceholderTxt: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  saveItemBtn: { borderRadius: 14, paddingVertical: 16, alignItems: "center" },
+  saveItemBtnTxt: { fontSize: 16, fontFamily: "Inter_700Bold" },
 
   disabledGrad: { borderRadius: 24, padding: 32, margin: 24, alignItems: "center", gap: 16 },
-  disabledIcon: { width: 88, height: 88, borderRadius: 44, backgroundColor: `${RED}15`, alignItems: "center", justifyContent: "center" },
-  disabledTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: TEXT },
-  disabledDesc: { fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2, textAlign: "center", lineHeight: 22 },
+  disabledIcon: { width: 88, height: 88, borderRadius: 44, backgroundColor: "#FF3B5C15", alignItems: "center", justifyContent: "center" },
+  disabledTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  disabledDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 22 },
   waBtn: {
     flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: "#25D366", paddingHorizontal: 24, paddingVertical: 14, borderRadius: 100,

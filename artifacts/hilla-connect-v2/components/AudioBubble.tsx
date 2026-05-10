@@ -5,8 +5,6 @@ import { Alert, PanResponder, StyleSheet, Text, TouchableOpacity, View } from "r
 
 import type { PrivateMessage } from "@/context/AppContext";
 
-const TEXT2 = "#A0A0A0";
-
 /**
  * AudioBubble
  * ───────────
@@ -97,10 +95,10 @@ export function AudioBubble({
 
   const waveHeights = [4, 8, 12, 6, 14, 8, 10, 5, 12, 7, 9, 4, 11, 6, 8, 10, 6, 12, 7, 9, 5, 11, 8];
   const palette = tone === "light"
-    ? { btnBg: "#3D91F422", btnIcon: "#3D91F4", barOn: "#3D91F4", barOff: "#3D91F455", txt: TEXT2 }
+    ? { btnBg: "#3D91F422", btnIcon: "#3D91F4", barOn: "#3D91F4", barOff: "#3D91F455", txt: "#8E8E93" }
     : isMe
       ? { btnBg: "rgba(255,255,255,0.25)", btnIcon: "#fff", barOn: "#fff", barOff: "rgba(255,255,255,0.4)", txt: "rgba(255,255,255,0.8)" }
-      : { btnBg: "#3D91F422", btnIcon: "#3D91F4", barOn: "#3D91F4", barOff: "#3D91F455", txt: TEXT2 };
+      : { btnBg: "#3D91F422", btnIcon: "#3D91F4", barOn: "#3D91F4", barOff: "#3D91F455", txt: "#8E8E93" };
 
   return (
     <View style={s.audioMsg}>

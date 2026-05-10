@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useColors } from "@/hooks/useColors";
+import { useThemeStore } from "@/store/themeStore";
 import { useApp, isUserVerified } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 import { VerifiedBadge, VerifiedAvatarFrame } from "@/components/VerifiedBadge";
@@ -45,7 +46,7 @@ function GridPostItem({ post, colors }: { post: any; colors: any }) {
           )}
         </>
       ) : post.mediaUrl && post.mediaType === "video" ? (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111", alignItems: "center", justifyContent: "center" }]}>
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card, alignItems: "center", justifyContent: "center" }]}>
           <Ionicons name="play-circle" size={32} color="rgba(255,255,255,0.8)" />
         </View>
       ) : (
@@ -60,13 +61,14 @@ function GridPostItem({ post, colors }: { post: any; colors: any }) {
 }
 
 function GridReelItem({ reelId }: { reelId: string }) {
+  const c = useThemeStore((s) => s.tokens);
   return (
     <TouchableOpacity
-      style={styles.gridItem}
+      style={[styles.gridItem, { backgroundColor: c.card }]}
       onPress={() => router.push("/(tabs)/reels" as any)}
       activeOpacity={0.85}
     >
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: "#111", alignItems: "center", justifyContent: "center" }]}>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: c.card, alignItems: "center", justifyContent: "center" }]}>
         <Ionicons name="play-circle" size={32} color="rgba(255,255,255,0.8)" />
       </View>
       <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.2)", alignItems: "center", justifyContent: "center" }]}>
@@ -444,7 +446,7 @@ const styles = StyleSheet.create({
   bellBtn: { width: 44, height: 44, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   gridTabs: { flexDirection: "row", borderBottomWidth: 1 },
   gridTab: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 12 },
-  gridItem: { width: GRID_SIZE, height: GRID_SIZE, backgroundColor: "#111", overflow: "hidden" },
+  gridItem: { width: GRID_SIZE, height: GRID_SIZE, overflow: "hidden" },
   privateContent: { alignItems: "center", justifyContent: "center", paddingVertical: 60, gap: 14 },
   privateTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
   privateDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },

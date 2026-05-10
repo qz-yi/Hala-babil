@@ -20,12 +20,7 @@ import { ACCENT_COLORS } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import type { PrivateMessage, User } from "@/context/AppContext";
 import { AudioBubble } from "@/components/AudioBubble";
-
-const BG = "#000000";
-const CARD = "#121212";
-const BORDER = "#262626";
-const TEXT = "#FFFFFF";
-const TEXT2 = "#8E8E93";
+import { useThemeStore } from "@/store/themeStore";
 
 type Tab = "media" | "audio" | "reels";
 
@@ -84,6 +79,7 @@ const fsStyles = StyleSheet.create({
 });
 
 export default function ChatInfoScreen() {
+  const c = useThemeStore((s) => s.tokens);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { conversations, currentUser, reels } = useApp();
   const insets = useSafeAreaInsets();
@@ -124,10 +120,10 @@ export default function ChatInfoScreen() {
 
   if (!convo || !otherUser) {
     return (
-      <View style={[s.container, { backgroundColor: BG, justifyContent: "center", alignItems: "center" }]}>
-        <Text style={{ color: TEXT2 }}>المحادثة غير موجودة</Text>
+      <View style={[s.container, { backgroundColor: c.background, justifyContent: "center", alignItems: "center" }]}>
+        <Text style={{ color: c.textSecondary }}>المحادثة غير موجودة</Text>
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={{ color: "#3D91F4", marginTop: 12 }}>رجوع</Text>
+          <Text style={{ color: c.accent, marginTop: 12 }}>رجوع</Text>
         </TouchableOpacity>
       </View>
     );
@@ -145,7 +141,7 @@ export default function ChatInfoScreen() {
   };
 
   return (
-    <View style={[s.container, { backgroundColor: BG }]}>
+    <View style={[s.container, { backgroundColor: c.background }]}>
       {/* Header */}
       <LinearGradient
         colors={[`${accentColor}20`, "transparent"]}
@@ -153,11 +149,11 @@ export default function ChatInfoScreen() {
       >
         <TouchableOpacity
           onPress={() => router.back()}
-          style={[s.backBtn, { backgroundColor: CARD, borderColor: BORDER }]}
+          style={[s.backBtn, { backgroundColor: c.card, borderColor: c.border }]}
         >
-          <Feather name="arrow-left" size={20} color={TEXT} strokeWidth={1.5} />
+          <Feather name="arrow-left" size={20} color={c.text} strokeWidth={1.5} />
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: TEXT }]}>معلومات المحادثة</Text>
+        <Text style={[s.headerTitle, { color: c.text }]}>معلومات المحادثة</Text>
         <View style={{ width: 40 }} />
       </LinearGradient>
 
@@ -173,28 +169,28 @@ export default function ChatInfoScreen() {
               </Text>
             )}
           </View>
-          <Text style={[s.profileName, { color: TEXT }]}>{otherUser.name}</Text>
+          <Text style={[s.profileName, { color: c.text }]}>{otherUser.name}</Text>
           {otherUser.username ? (
-            <Text style={[s.profileUsername, { color: TEXT2 }]}>@{otherUser.username}</Text>
+            <Text style={[s.profileUsername, { color: c.textSecondary }]}>@{otherUser.username}</Text>
           ) : null}
           {otherUser.bio ? (
-            <Text style={[s.profileBio, { color: TEXT2 }]}>{otherUser.bio}</Text>
+            <Text style={[s.profileBio, { color: c.textSecondary }]}>{otherUser.bio}</Text>
           ) : null}
 
-          <View style={s.statsRow}>
+          <View style={[s.statsRow, { backgroundColor: c.card, borderColor: c.border }]}>
             <View style={s.stat}>
               <Text style={[s.statNum, { color: accentColor }]}>{messages.length}</Text>
-              <Text style={[s.statLabel, { color: TEXT2 }]}>رسالة</Text>
+              <Text style={[s.statLabel, { color: c.textSecondary }]}>رسالة</Text>
             </View>
-            <View style={s.statDivider} />
+            <View style={[s.statDivider, { backgroundColor: c.border }]} />
             <View style={s.stat}>
               <Text style={[s.statNum, { color: accentColor }]}>{mediaItems.length}</Text>
-              <Text style={[s.statLabel, { color: TEXT2 }]}>وسائط</Text>
+              <Text style={[s.statLabel, { color: c.textSecondary }]}>وسائط</Text>
             </View>
-            <View style={s.statDivider} />
+            <View style={[s.statDivider, { backgroundColor: c.border }]} />
             <View style={s.stat}>
               <Text style={[s.statNum, { color: accentColor }]}>{audioItems.length}</Text>
-              <Text style={[s.statLabel, { color: TEXT2 }]}>صوتيات</Text>
+              <Text style={[s.statLabel, { color: c.textSecondary }]}>صوتيات</Text>
             </View>
           </View>
 
@@ -208,7 +204,7 @@ export default function ChatInfoScreen() {
         </View>
 
         {/* Tabs */}
-        <View style={[s.tabRow, { borderBottomColor: BORDER }]}>
+        <View style={[s.tabRow, { borderBottomColor: c.border }]}>
           {tabs.map((tab) => (
             <TouchableOpacity
               key={tab.key}
@@ -218,10 +214,10 @@ export default function ChatInfoScreen() {
               <Feather
                 name={tab.icon as any}
                 size={15}
-                color={activeTab === tab.key ? accentColor : TEXT2}
+                color={activeTab === tab.key ? accentColor : c.textSecondary}
                 strokeWidth={1.5}
               />
-              <Text style={[s.tabLabel, { color: activeTab === tab.key ? accentColor : TEXT2 }]}>
+              <Text style={[s.tabLabel, { color: activeTab === tab.key ? accentColor : c.textSecondary }]}>
                 {tab.label}
               </Text>
               {tab.count > 0 && (
@@ -238,8 +234,8 @@ export default function ChatInfoScreen() {
           <View style={s.gridSection}>
             {mediaItems.length === 0 ? (
               <View style={s.empty}>
-                <Feather name="image" size={36} color={BORDER} strokeWidth={1} />
-                <Text style={[s.emptyText, { color: TEXT2 }]}>لا توجد وسائط مشتركة</Text>
+                <Feather name="image" size={36} color={c.border} strokeWidth={1} />
+                <Text style={[s.emptyText, { color: c.textSecondary }]}>لا توجد وسائط مشتركة</Text>
               </View>
             ) : (
               <View style={s.grid}>
@@ -272,22 +268,22 @@ export default function ChatInfoScreen() {
           <View style={s.listSection}>
             {audioItems.length === 0 ? (
               <View style={s.empty}>
-                <Feather name="mic" size={36} color={BORDER} strokeWidth={1} />
-                <Text style={[s.emptyText, { color: TEXT2 }]}>لا توجد رسائل صوتية مشتركة</Text>
+                <Feather name="mic" size={36} color={c.border} strokeWidth={1} />
+                <Text style={[s.emptyText, { color: c.textSecondary }]}>لا توجد رسائل صوتية مشتركة</Text>
               </View>
             ) : (
               audioItems.map((item) => {
                 const isMine = item.senderId === currentUser?.id;
                 return (
-                  <View key={item.id} style={[s.audioRow, { borderBottomColor: BORDER, flexDirection: "column", alignItems: "stretch", gap: 8 }]}>
+                  <View key={item.id} style={[s.audioRow, { borderBottomColor: c.border, flexDirection: "column", alignItems: "stretch", gap: 8 }]}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                       <View style={[s.audioIcon, { backgroundColor: `${accentColor}22` }]}>
                         <Feather name="mic" size={16} color={accentColor} strokeWidth={1.5} />
                       </View>
-                      <Text style={[s.audioSender, { color: TEXT, flex: 1 }]}>
+                      <Text style={[s.audioSender, { color: c.text, flex: 1 }]}>
                         {isMine ? "أنت" : otherUser.name}
                       </Text>
-                      <Text style={[s.audioDate, { color: TEXT2 }]}>{formatTime(item.timestamp)}</Text>
+                      <Text style={[s.audioDate, { color: c.textSecondary }]}>{formatTime(item.timestamp)}</Text>
                     </View>
                     {/* In-place player — same component as the chat bubble so seek
                         + drag gestures behave identically here. */}
@@ -304,29 +300,29 @@ export default function ChatInfoScreen() {
           <View style={s.listSection}>
             {reelItems.length === 0 ? (
               <View style={s.empty}>
-                <Feather name="play-circle" size={36} color={BORDER} strokeWidth={1} />
-                <Text style={[s.emptyText, { color: TEXT2 }]}>لا توجد ريلز مشتركة</Text>
+                <Feather name="play-circle" size={36} color={c.border} strokeWidth={1} />
+                <Text style={[s.emptyText, { color: c.textSecondary }]}>لا توجد ريلز مشتركة</Text>
               </View>
             ) : (
               reelItems.map(({ msg, reel }) => (
-                <View key={msg.id} style={[s.reelRow, { borderBottomColor: BORDER }]}>
-                  <View style={s.reelThumb}>
+                <View key={msg.id} style={[s.reelRow, { borderBottomColor: c.border }]}>
+                  <View style={[s.reelThumb, { backgroundColor: c.card }]}>
                     {reel?.videoUrl ? (
                       <VideoThumb uri={reel.videoUrl} />
                     ) : (
                       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-                        <Feather name="play" size={20} color={TEXT2} />
+                        <Feather name="play" size={20} color={c.textSecondary} />
                       </View>
                     )}
                   </View>
                   <View style={{ flex: 1, gap: 4 }}>
-                    <Text style={[s.reelTitle, { color: TEXT }]} numberOfLines={2}>
+                    <Text style={[s.reelTitle, { color: c.text }]} numberOfLines={2}>
                       {reel?.title || "ريل"}
                     </Text>
-                    <Text style={[s.reelDate, { color: TEXT2 }]}>{formatTime(msg.timestamp)}</Text>
+                    <Text style={[s.reelDate, { color: c.textSecondary }]}>{formatTime(msg.timestamp)}</Text>
                   </View>
                   <TouchableOpacity onPress={() => router.push("/(tabs)/reels" as any)}>
-                    <Feather name="external-link" size={16} color={TEXT2} />
+                    <Feather name="external-link" size={16} color={c.textSecondary} />
                   </TouchableOpacity>
                 </View>
               ))
@@ -362,11 +358,11 @@ const s = StyleSheet.create({
   profileName: { fontSize: 22, fontFamily: "Inter_700Bold" },
   profileUsername: { fontSize: 14, fontFamily: "Inter_400Regular", marginTop: -4 },
   profileBio: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20, paddingHorizontal: 20 },
-  statsRow: { flexDirection: "row", alignItems: "center", gap: 0, backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, marginTop: 8, overflow: "hidden" },
+  statsRow: { flexDirection: "row", alignItems: "center", gap: 0, borderRadius: 16, borderWidth: 1, marginTop: 8, overflow: "hidden" },
   stat: { flex: 1, alignItems: "center", paddingVertical: 14 },
   statNum: { fontSize: 20, fontFamily: "Inter_700Bold" },
   statLabel: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
-  statDivider: { width: 1, height: 36, backgroundColor: BORDER },
+  statDivider: { width: 1, height: 36 },
   viewProfileBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
     borderWidth: 1, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 9, marginTop: 4,
@@ -396,7 +392,7 @@ const s = StyleSheet.create({
   audioDate: { fontSize: 11, fontFamily: "Inter_400Regular" },
 
   reelRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, borderBottomWidth: 1 },
-  reelThumb: { width: 56, height: 56, borderRadius: 12, overflow: "hidden", backgroundColor: CARD },
+  reelThumb: { width: 56, height: 56, borderRadius: 12, overflow: "hidden" },
   reelTitle: { fontSize: 13, fontFamily: "Inter_500Medium" },
   reelDate: { fontSize: 11, fontFamily: "Inter_400Regular" },
 

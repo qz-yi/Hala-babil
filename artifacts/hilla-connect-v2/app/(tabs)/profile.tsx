@@ -228,18 +228,6 @@ function ProfileDrawer({
                 <Feather name="chevron-right" size={16} color={colors.textSecondary} strokeWidth={1.5} />
               </TouchableOpacity>
 
-              <View style={[styles.drawerItem, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-                <View style={[styles.drawerItemIcon, { backgroundColor: `${colors.accent}22` }]}>
-                  <Feather name={theme === "dark" ? "moon" : "sun"} size={18} color={colors.accent} strokeWidth={1.5} />
-                </View>
-                <Text style={[styles.drawerItemText, { color: colors.text }]}>{theme === "dark" ? t("darkMode") : t("lightMode")}</Text>
-                <Switch
-                  value={theme === "dark"}
-                  onValueChange={toggleTheme}
-                  trackColor={{ false: colors.border, true: colors.accent }}
-                  thumbColor="#fff"
-                />
-              </View>
 
               <View style={[styles.drawerItem, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
                 <View style={[styles.drawerItemIcon, { backgroundColor: "#34D39922" }]}>

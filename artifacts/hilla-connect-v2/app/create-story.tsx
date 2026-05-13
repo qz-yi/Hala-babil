@@ -1407,9 +1407,6 @@ export default function CreateStoryScreen() {
   const [draftAlign, setDraftAlign] = useState<AlignId>("center");
   const [showSidebar, setShowSidebar] = useState(false);
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-  const [showCrop, setShowCrop] = useState(false);
-  const [showVideoCropSheet, setShowVideoCropSheet] = useState(false);
-  const [videoCropRect, setVideoCropRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [bakeProgress, setBakeProgress] = useState(0);
   const [showCFModal, setShowCFModal] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -1682,7 +1679,6 @@ export default function CreateStoryScreen() {
       setMediaUri(result.assets[0].uri);
       setMediaType(result.assets[0].type === "video" ? "video" : "image");
       setSelectedFilter("none");
-      setVideoCropRect(null);
       setTextMode(false);
     }
   };
@@ -1790,21 +1786,6 @@ export default function CreateStoryScreen() {
     arabicLabel: string;
   };
   const allSidebarTools: Tool[] = [
-    {
-      id: "crop",
-      iconType: "ion",
-      icon: "crop-outline",
-      color: Z_BLUE,
-      arabicLabel: "قص",
-      onPress: () => {
-        if (!mediaUri) return;
-        if (mediaType === "video") {
-          setShowVideoCropSheet(true);
-        } else {
-          setShowCrop(true);
-        }
-      },
-    },
     {
       id: "rotate",
       iconType: "ion",
@@ -2009,8 +1990,7 @@ export default function CreateStoryScreen() {
         // behavior). Skip baking entirely when there is nothing to bake.
         const needsBaking =
           selectedFilter !== "none" ||
-          overlays.length > 0 ||
-          videoCropRect !== null;
+          overlays.length > 0;
 
         if (Platform.OS === "web" && needsBaking) {
           setBakeProgress(0);
@@ -2024,7 +2004,6 @@ export default function CreateStoryScreen() {
               scale: o.scale,
               rotation: o.rotation ?? 0,
             })),
-            cropRect: videoCropRect ?? undefined,
             canvasWidth: SCREEN.width,
             canvasHeight: SCREEN.height,
             onProgress: setBakeProgress,
@@ -2344,14 +2323,6 @@ export default function CreateStoryScreen() {
                   ) : (
                     <MaterialCommunityIcons name={t.icon} size={22} color={t.color} />
                   )}
-                  {/* Green dot when video crop is applied */}
-                  {t.id === "crop" && videoCropRect !== null && (
-                    <View style={{
-                      position: "absolute", top: -2, right: -2,
-                      width: 8, height: 8, borderRadius: 4,
-                      backgroundColor: Z_GREEN, borderWidth: 1, borderColor: "#000",
-                    }} />
-                  )}
                 </View>
               </TouchableOpacity>
             ))}
@@ -2573,26 +2544,6 @@ export default function CreateStoryScreen() {
         </View>
       )}
 
-      {/* ════════ Crop modal (images) ════════ */}
-      {/* The crop frame's aspect mirrors the editor's bakeable canvas so the
-          user can never select a region that contradicts the final aspect. */}
-      <CropModal
-        visible={showCrop}
-        uri={mediaUri}
-        aspect={effectiveAspectRatio ?? 9 / 16}
-        onClose={() => setShowCrop(false)}
-        onApply={(uri) => { setMediaUri(uri); setShowCrop(false); }}
-      />
-
-      {/* ════════ Video crop sheet ════════ */}
-      {mediaUri && mediaType === "video" && (
-        <VideoCropSheet
-          visible={showVideoCropSheet}
-          videoUri={mediaUri}
-          onApply={(rect) => setVideoCropRect(rect)}
-          onClose={() => setShowVideoCropSheet(false)}
-        />
-      )}
 
       {/* ════════ Video baking progress overlay ════════ */}
       {publishing && mediaType === "video" && Platform.OS === "web" && (

@@ -1,4 +1,6 @@
-modules = ["nodejs-20", "web", "bash"]
+modules = ["nodejs-20", "bash"] # حذفنا موديول web لتقليل التعارض
+
+run = "pnpm start" # هذا السطر سيقوم بتشغيل Expo مباشرة
 
 [[artifacts]]
 id = "artifacts/api-server"
@@ -14,16 +16,10 @@ deploymentTarget = "autoscale"
 args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
-[workflows]
-
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
 
-[postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 20000
-
 [nix]
-packages = ["zip", "nano"]
+packages = ["zip", "nano", "openssl"]
 channel = "stable-25_05"

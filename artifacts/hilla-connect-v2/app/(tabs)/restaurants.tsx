@@ -167,9 +167,34 @@ function RestaurantCard({ restaurant, onPress }: { restaurant: Restaurant; onPre
   );
 }
 
+function ComingSoonScreen() {
+  const c = useThemeStore((s) => s.tokens);
+  const insets = useSafeAreaInsets();
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  return (
+    <View style={[s.container, { backgroundColor: c.background }]}>
+      <View style={[s.header, { paddingTop: topPad, borderBottomColor: c.border }]}>
+        <Text style={[s.headerTitle, { color: c.text }]}>المطاعم</Text>
+      </View>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 20, padding: 40 }}>
+        <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: `${c.accent}18`, alignItems: "center", justifyContent: "center" }}>
+          <Feather name="clock" size={44} color={c.accent} strokeWidth={1.2} />
+        </View>
+        <Text style={{ fontSize: 28, fontFamily: "Inter_700Bold", color: c.text, textAlign: "center" }}>
+          قريباً
+        </Text>
+        <Text style={{ fontSize: 15, fontFamily: "Inter_400Regular", color: c.textSecondary, textAlign: "center", lineHeight: 24 }}>
+          نعمل على إطلاق قسم المطاعم قريباً.{"\n"}ترقّب التحديثات!
+        </Text>
+        <View style={{ width: 56, height: 4, borderRadius: 2, backgroundColor: c.accent, marginTop: 8 }} />
+      </View>
+    </View>
+  );
+}
+
 export default function RestaurantsScreen() {
   const c = useThemeStore((s) => s.tokens);
-  const { restaurants, isSuperAdmin, t, governorateImages, currentUser } = useApp();
+  const { restaurants, isSuperAdmin, t, governorateImages, currentUser, restaurantsEnabled } = useApp();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [selectedGov, setSelectedGov] = useState<string | null>(
@@ -179,6 +204,8 @@ export default function RestaurantsScreen() {
   const filtered = selectedGov
     ? restaurants.filter((r) => r.governorate === selectedGov)
     : restaurants;
+
+  if (!restaurantsEnabled) return <ComingSoonScreen />;
 
   return (
     <View style={[s.container, { backgroundColor: c.background }]}>

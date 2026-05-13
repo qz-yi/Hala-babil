@@ -448,6 +448,8 @@ interface AppContextValue {
   addRestaurant: (restaurant: Omit<Restaurant, "id" | "createdAt">) => void;
   updateRestaurant: (id: string, data: Partial<Restaurant>) => void;
   deleteRestaurant: (id: string) => void;
+  restaurantsEnabled: boolean;
+  toggleRestaurantsEnabled: () => void;
   banUser: (userId: string) => void;
   unbanUser: (userId: string) => void;
   resetUserPassword: (userId: string, newPassword: string) => void;
@@ -1110,6 +1112,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [floatingRoomPos, setFloatingRoomPos] = useState<{ x: number; y: number } | null>(null);
   const [groups, setGroups] = useState<GroupChat[]>([]);
   const [privacySettingsMap, setPrivacySettingsMap] = useState<Record<string, UserPrivacySettings>>({});
+  const [restaurantsEnabled, setRestaurantsEnabled] = useState(true);
 
   const minimizeRoom = useCallback((roomId: string, roomName: string, roomImage?: string) => {
     setIsRoomMinimized(true);
@@ -1136,7 +1139,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         "restaurants", "passwords", "blockedUsers", "reels", "reelLikes",
         "reelComments", "posts", "postLikes", "postComments", "stories",
         "closeFriendsLists", "follows", "notifications", "savedPosts", "governorateImages",
-        "groupChats", "privacySettings",
+        "groupChats", "privacySettings", "restaurantsEnabled",
       ];
       const values = await AsyncStorage.multiGet(keys);
       const data = Object.fromEntries(values.map(([k, v]) => [k, v]));
@@ -1184,6 +1187,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.governorateImages) setGovernorateImagesState(JSON.parse(data.governorateImages));
       if (data.groupChats) setGroups(JSON.parse(data.groupChats));
       if (data.privacySettings) setPrivacySettingsMap(JSON.parse(data.privacySettings));
+      if (data.restaurantsEnabled !== null && data.restaurantsEnabled !== undefined) setRestaurantsEnabled(JSON.parse(data.restaurantsEnabled));
     } catch (e) {}
   };
 
@@ -1191,6 +1195,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const saveRooms = (r: Room[]) => { setRooms(r); AsyncStorage.setItem("rooms", JSON.stringify(r)); };
   const saveConversations = (c: Conversation[]) => { setConversations(c); AsyncStorage.setItem("conversations", JSON.stringify(c)); };
   const saveRestaurants = (r: Restaurant[]) => { setRestaurants(r); AsyncStorage.setItem("restaurants", JSON.stringify(r)); };
+
+  const toggleRestaurantsEnabled = useCallback(() => {
+    setRestaurantsEnabled((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem("restaurantsEnabled", JSON.stringify(next));
+      return next;
+    });
+  }, []);
   const saveReels = (r: Reel[]) => { setReels(r); AsyncStorage.setItem("reels", JSON.stringify(r)); };
   const saveLikes = (l: ReelLike[]) => { setReelLikes(l); AsyncStorage.setItem("reelLikes", JSON.stringify(l)); };
   const saveComments = (c: ReelComment[]) => { setReelComments(c); AsyncStorage.setItem("reelComments", JSON.stringify(c)); };
@@ -4074,7 +4086,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addMenuItemToRestaurant, updateMenuItemInRestaurant, deleteMenuItemFromRestaurant, toggleMenuItemVisibility,
       updateRestaurantProfile,
       cart, addToCart, removeFromCart, updateCartQty, clearCart, getCartTotal, placeOrder,
-      addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
+      addRestaurant, updateRestaurant, deleteRestaurant, restaurantsEnabled, toggleRestaurantsEnabled, banUser, unbanUser, resetUserPassword,
       verifyUser, revokeVerification,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, deleteReelComment, getReelComments,
       likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers, getPostCommentLikers,
@@ -4120,7 +4132,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addMenuItemToRestaurant, updateMenuItemInRestaurant, deleteMenuItemFromRestaurant, toggleMenuItemVisibility,
       updateRestaurantProfile,
       cart, addToCart, removeFromCart, updateCartQty, clearCart, getCartTotal, placeOrder,
-      addRestaurant, updateRestaurant, deleteRestaurant, banUser, unbanUser, resetUserPassword,
+      addRestaurant, updateRestaurant, deleteRestaurant, restaurantsEnabled, toggleRestaurantsEnabled, banUser, unbanUser, resetUserPassword,
       verifyUser, revokeVerification,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, deleteReelComment, getReelComments,
       likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers, getPostCommentLikers,
@@ -4142,7 +4154,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       searchGroupByPublicId, getMyGroups, getGroupMemberRole, isGroupMuted, joinGroup,
       addGroupReaction,
       updatePrivacySettings, canViewStory, canViewProfilePhoto, canAddToGroup, canMention, addStrike,
-      privacySettingsMap,
+      privacySettingsMap, restaurantsEnabled, toggleRestaurantsEnabled,
     ]
   );
 

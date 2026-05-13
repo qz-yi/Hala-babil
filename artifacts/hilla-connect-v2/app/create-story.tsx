@@ -131,9 +131,9 @@ function modeConfig(mode: EditorMode) {
         landingMediaLabel: T.photoVideo,
         landingTextLabel: T.textPost,
         successMsg: T.postedPost,
-        preserveAspect: false,       // posts are square — cover-fit any media
-        aspectMode: "square" as AspectMode,
-        fallbackAspect: 1,            // 1:1 square posts (Instagram-style)
+        preserveAspect: true,        // preserve original media aspect ratio
+        aspectMode: "natural" as AspectMode,
+        fallbackAspect: 4 / 5,       // sensible fallback (portrait) if dimensions unknown
         needsFinalize: true,         // posts go through caption/mentions screen
         publishLabel: T.next,
       };

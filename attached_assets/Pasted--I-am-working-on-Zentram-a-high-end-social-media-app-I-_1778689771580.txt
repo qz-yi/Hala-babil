@@ -1,0 +1,43 @@
+
+
+I am working on Zentram, a high-end social media app. I need to fix a critical media bug and add specific administrative and visual features.
+
+​1. Disable Automatic Video/Reels Cropping:
+
+​The Issue: Referring to files 1000067527.jpg and 1000067528.jpg, the app currently forces a square crop on feed videos and a vertical crop on Reels automatically upon selection. This is causing a "stupid" auto-crop that ruins the content.
+
+​The Fix: 
+
+​Completely remove any logic that forces an aspectRatio during the selection process.
+
+​Videos must be imported in their Original Aspect Ratio by default.
+
+​The cropping interface should only appear and be interactive if the user explicitly clicks the "Crop/Edit" button.
+
+​Ensure the player handles varied ratios using resizeMode: 'contain' so no part of the video is hidden.
+
+​2. Admin "Restaurant Feature" Toggle:
+
+​Feature Requirement: In the Admin interface of Zentram, add a master switch to enable/disable the Restaurants (المطاعم) section.
+
+​Logic: 
+
+​When the toggle is OFF: The Restaurants tab should display a high-end "Coming Soon / تفتح قريباً" placeholder screen.
+
+​When ON: The full restaurant list and booking features should be active.
+
+​3. Beyond Colors: Full Theme Immersion:
+
+​Requirement: Currently, themes only change colors. I want them to change the "soul" of Zentram.
+
+​Deep Styling: 
+
+​Shapes: Link borderRadius to the theme (e.g., 'Red Hacker' = Sharp 0px, 'Blue Ocean' = Rounded 20px).
+
+​Transitions: Different animation speeds for each mode (Snappy for 'Neon', Fluid/Slow for 'Cinematic').
+
+​Icons: Switch icon sets or weights (Light/Bold) based on the active theme to match the visual vibe.
+
+​Global Effects: Ensure 'Glass Mode' applies a consistent blur effect (expo-blur) across all headers, cards, and navigation bars globally
+
+The app is currently launching in Web preview. I need it to launch in the Expo Go mobile environment by default. Please update the .replit configuration and package.json scripts to use expo start without the --web flag. Ensure the QR code for Expo Go is generated when I press Run

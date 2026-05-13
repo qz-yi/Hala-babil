@@ -12,6 +12,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -27,7 +28,7 @@ import { useColors } from "@/hooks/useColors";
 import { useThemeStore } from "@/store/themeStore";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 
-type Tab = "owners" | "restaurants" | "users" | "rooms" | "governorates";
+type Tab = "owners" | "restaurants" | "users" | "rooms" | "governorates" | "settings";
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   const c = useThemeStore((s) => s.tokens);
@@ -290,6 +291,7 @@ export default function AdminScreen() {
     setOwnerActive, setCommissionRate, clearDues, deleteRestaurant,
     setGovernorateImage, theme, banUser, unbanUser, resetUserPassword,
     deleteRoom, verifyUser, revokeVerification,
+    restaurantsEnabled, toggleRestaurantsEnabled,
   } = useApp();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
@@ -325,6 +327,7 @@ export default function AdminScreen() {
     { key: "users", label: "المستخدمون", icon: "user" },
     { key: "rooms", label: "الغرف", icon: "mic" },
     { key: "governorates", label: "المحافظات", icon: "map" },
+    { key: "settings", label: "إعدادات", icon: "settings" },
   ];
 
   return (
@@ -571,6 +574,37 @@ export default function AdminScreen() {
             </View>
           )}
 
+          {/* ── SETTINGS TAB ── */}
+          {tab === "settings" && (
+            <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+              <SectionHeader title="إعدادات التطبيق" subtitle="تحكم في ميزات وأقسام التطبيق" />
+              {/* Restaurants feature toggle */}
+              <View style={[styles.settingsRow, { backgroundColor: c.card, borderColor: c.border }]}>
+                <View style={styles.settingsRowLeft}>
+                  <View style={[styles.settingsIconBox, { backgroundColor: `${c.accent}22` }]}>
+                    <Feather name="coffee" size={18} color={c.accent} strokeWidth={1.5} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.settingsRowTitle, { color: c.text }]}>قسم المطاعم</Text>
+                    <Text style={[styles.settingsRowSubtitle, { color: c.textSecondary }]}>
+                      {restaurantsEnabled ? "مفعّل — المستخدمون يرون قائمة المطاعم" : "معطّل — سيظهر للمستخدمين شاشة \"قريباً\""}
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={restaurantsEnabled}
+                  onValueChange={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    toggleRestaurantsEnabled();
+                    showToast(restaurantsEnabled ? "تم تعطيل قسم المطاعم" : "تم تفعيل قسم المطاعم", restaurantsEnabled ? "error" : "success");
+                  }}
+                  trackColor={{ false: c.border, true: c.accent }}
+                  thumbColor="#fff"
+                />
+              </View>
+            </View>
+          )}
+
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -711,4 +745,12 @@ const styles = StyleSheet.create({
   govCardImg: { width: "100%", aspectRatio: 1, resizeMode: "cover" },
   govCardPlaceholder: { width: "100%", aspectRatio: 1, alignItems: "center", justifyContent: "center" },
   govCardName: { fontSize: 11, fontFamily: "Inter_600SemiBold", textAlign: "center", paddingVertical: 6, paddingHorizontal: 4 },
+  settingsRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    borderWidth: 0.5, borderRadius: 16, padding: 14, marginBottom: 12, gap: 12,
+  },
+  settingsRowLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
+  settingsIconBox: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  settingsRowTitle: { fontFamily: "Inter_600SemiBold", fontSize: 15, marginBottom: 2 },
+  settingsRowSubtitle: { fontFamily: "Inter_400Regular", fontSize: 12, lineHeight: 16 },
 });

@@ -44,9 +44,14 @@ export interface ThemeTokens {
   glowSoft: string;
   gradientStart: string;
   gradientEnd: string;
-  // Layout
+  // ── DEEP IMMERSION ──────────────────────────────────────────────────────────
+  // Layout: per-theme border radius (0 = sharp, 20 = very rounded)
   radius: number;
-  // Font hint for Red Hacker monospace
+  // Animation: transition duration in ms (80 = brutal snappy, 400 = cinematic)
+  animationDuration: number;
+  // Icons: weight hint for icon sets (light / regular / bold)
+  iconWeight: "light" | "regular" | "bold";
+  // Font hint (Red Hacker uses monospace terminal font)
   fontFamily?: string;
 }
 
@@ -56,7 +61,10 @@ const SHARED = {
   warning: "#FBBF24",
   superAdmin: "#FFD700",
   superAdminGlow: "rgba(255,215,0,0.25)",
-  radius: 16,
+  // These are overridden per-theme below for full immersion
+  radius: 14,
+  animationDuration: 200,
+  iconWeight: "regular" as const,
 };
 
 export const THEMES: Record<ThemeName, ThemeTokens> = {
@@ -83,6 +91,10 @@ export const THEMES: Record<ThemeName, ThemeTokens> = {
     glowSoft: "rgba(0,255,136,0.12)",
     gradientStart: "#00FF88",
     gradientEnd: "#00CC6A",
+    // Deep immersion
+    radius: 8,
+    animationDuration: 150,
+    iconWeight: "regular",
   },
 
   blueOcean: {
@@ -108,6 +120,10 @@ export const THEMES: Record<ThemeName, ThemeTokens> = {
     glowSoft: "rgba(79,172,254,0.12)",
     gradientStart: "#4FACFE",
     gradientEnd: "#00F2FE",
+    // Deep immersion
+    radius: 20,
+    animationDuration: 400,
+    iconWeight: "light",
   },
 
   goldLuxury: {
@@ -135,6 +151,10 @@ export const THEMES: Record<ThemeName, ThemeTokens> = {
     gradientEnd: "#FFD700",
     superAdmin: "#FFD700",
     superAdminGlow: "rgba(255,215,0,0.35)",
+    // Deep immersion
+    radius: 14,
+    animationDuration: 300,
+    iconWeight: "regular",
   },
 
   purpleNight: {
@@ -160,6 +180,10 @@ export const THEMES: Record<ThemeName, ThemeTokens> = {
     glowSoft: "rgba(180,79,232,0.12)",
     gradientStart: "#9B59B6",
     gradientEnd: "#B44FE8",
+    // Deep immersion
+    radius: 18,
+    animationDuration: 250,
+    iconWeight: "light",
   },
 
   redHacker: {
@@ -187,6 +211,10 @@ export const THEMES: Record<ThemeName, ThemeTokens> = {
     gradientEnd: "#CC0000",
     danger: "#FF0000",
     fontFamily: "monospace",
+    // Deep immersion — sharp 0px edges, brutal speed
+    radius: 0,
+    animationDuration: 80,
+    iconWeight: "bold",
   },
 
   classicDark: {
@@ -212,6 +240,10 @@ export const THEMES: Record<ThemeName, ThemeTokens> = {
     glowSoft: "rgba(61,145,244,0.12)",
     gradientStart: "#3D91F4",
     gradientEnd: "#1A6CD4",
+    // Deep immersion
+    radius: 14,
+    animationDuration: 200,
+    iconWeight: "regular",
   },
 
   classicLight: {
@@ -237,6 +269,10 @@ export const THEMES: Record<ThemeName, ThemeTokens> = {
     glowSoft: "rgba(61,145,244,0.1)",
     gradientStart: "#3D91F4",
     gradientEnd: "#1A6CD4",
+    // Deep immersion
+    radius: 14,
+    animationDuration: 220,
+    iconWeight: "regular",
   },
 };
 

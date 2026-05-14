@@ -123,7 +123,6 @@ function ReelPlayerItem({
   const [paused, setPaused] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [showFullscreen, setShowFullscreen] = useState(false);
   const [seekBarWidth, setSeekBarWidth] = useState(1);
   const seekingRef = useRef(false);
 
@@ -220,40 +219,6 @@ function ReelPlayerItem({
         style={styles.reelGradient}
         pointerEvents="none"
       />
-
-      {/* Fullscreen toggle (top-right). Sits above all overlays. */}
-      <TouchableOpacity
-        onPress={() => setShowFullscreen(true)}
-        style={[styles.reelFsBtn, { top: insets.top + 12 }]}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-      >
-        <Ionicons name="expand-outline" size={20} color="#fff" />
-      </TouchableOpacity>
-
-      {/* Fullscreen modal — same player instance keeps position synced. */}
-      <Modal
-        visible={showFullscreen}
-        animationType="fade"
-        onRequestClose={() => setShowFullscreen(false)}
-        supportedOrientations={["portrait", "landscape"]}
-      >
-        <View style={{ flex: 1, backgroundColor: "#000" }}>
-          <VideoView
-            player={player}
-            style={{ flex: 1, backgroundColor: "#000" }}
-            contentFit="contain"
-            nativeControls
-            allowsFullscreen
-          />
-          <TouchableOpacity
-            onPress={() => setShowFullscreen(false)}
-            style={[styles.reelFsCloseBtn, { top: insets.top + 12 }]}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Ionicons name="close" size={28} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </Modal>
 
       <View style={[styles.reelMeta, { paddingBottom: insets.bottom + 80 }]}>
         <TouchableOpacity
@@ -1149,26 +1114,6 @@ const styles = StyleSheet.create({
     width: 80, height: 80, borderRadius: 40,
     backgroundColor: "rgba(0,0,0,0.5)",
     alignItems: "center", justifyContent: "center",
-  },
-  reelFsBtn: {
-    position: "absolute",
-    right: 12,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  reelFsCloseBtn: {
-    position: "absolute",
-    right: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center",
-    justifyContent: "center",
   },
   reelSeekRow: {
     position: "absolute",

@@ -25,6 +25,12 @@ import {
   View,
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ViewShot, { captureRef } from "react-native-view-shot";
 
@@ -1431,6 +1437,66 @@ export default function CreateStoryScreen() {
   // root causes of the "black on publish" bug.
   const [sharedMediaReady, setSharedMediaReady] = useState<boolean>(true);
 
+  // ─ Story image gesture (pinch · rotate · pan) — only active in story mode
+  const imgScale = useSharedValue(1);
+  const imgRotation = useSharedValue(0);
+  const imgTranslateX = useSharedValue(0);
+  const imgTranslateY = useSharedValue(0);
+  const savedScale = useSharedValue(1);
+  const savedRotation = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+
+  useEffect(() => {
+    if (!mediaUri) return;
+    imgScale.value = withSpring(1);
+    imgRotation.value = withTiming(0);
+    imgTranslateX.value = withTiming(0);
+    imgTranslateY.value = withTiming(0);
+    savedScale.value = 1;
+    savedRotation.value = 0;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaUri]);
+
+  const imgAnimStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: imgTranslateX.value },
+      { translateY: imgTranslateY.value },
+      { rotate: `${imgRotation.value}rad` },
+      { scale: imgScale.value },
+    ],
+  }));
+
+  const storyImgGesture = useMemo(() => {
+    const pan = Gesture.Pan()
+      .onUpdate((e) => {
+        imgTranslateX.value = savedTranslateX.value + e.translationX;
+        imgTranslateY.value = savedTranslateY.value + e.translationY;
+      })
+      .onEnd(() => {
+        savedTranslateX.value = imgTranslateX.value;
+        savedTranslateY.value = imgTranslateY.value;
+      });
+    const pinch = Gesture.Pinch()
+      .onUpdate((e) => {
+        imgScale.value = Math.max(0.3, Math.min(8, savedScale.value * e.scale));
+      })
+      .onEnd(() => {
+        savedScale.value = imgScale.value;
+      });
+    const rotation = Gesture.Rotation()
+      .onUpdate((e) => {
+        imgRotation.value = savedRotation.value + e.rotation;
+      })
+      .onEnd(() => {
+        savedRotation.value = imgRotation.value;
+      });
+    return Gesture.Simultaneous(pan, Gesture.Simultaneous(pinch, rotation));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ─ Bridge-delivered shared content (preferred over router params).
   //   Source screens (feed share-sheet, reels, story viewer) stash the full
   //   share payload via `setSharedContent(...)` and navigate here with just
@@ -2169,6 +2235,42 @@ export default function CreateStoryScreen() {
           mediaType === "video" ? (
             <>
               <VideoPreview uri={mediaUri} filter={selectedFilter} />
+              <FilterOverlay filter={selectedFilter} />
+            </>
+          ) : editorMode === "story" ? (
+            <>
+              {/* Adaptive blurred background — matches the photo's palette */}
+              <Image
+                source={{ uri: mediaUri }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="cover"
+                blurRadius={Platform.OS === "web" ? 0 : 28}
+              />
+              {/* Darken the blur so the main photo pops */}
+              <View
+                style={[
+                  StyleSheet.absoluteFill,
+                  {
+                    backgroundColor: "rgba(0,0,0,0.38)",
+                    ...(Platform.OS === "web"
+                      ? ({ backdropFilter: "blur(28px)" } as any)
+                      : {}),
+                  },
+                ]}
+                pointerEvents="none"
+              />
+              {/* Gesture-controlled foreground image */}
+              <GestureDetector gesture={storyImgGesture}>
+                <Reanimated.View
+                  style={[StyleSheet.absoluteFill, imgAnimStyle, { alignItems: "center", justifyContent: "center" }]}
+                >
+                  <Image
+                    source={{ uri: mediaUri }}
+                    style={[StyleSheet.absoluteFill, webFilterCss(selectedFilter)]}
+                    resizeMode="contain"
+                  />
+                </Reanimated.View>
+              </GestureDetector>
               <FilterOverlay filter={selectedFilter} />
             </>
           ) : (

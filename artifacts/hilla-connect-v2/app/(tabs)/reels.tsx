@@ -34,8 +34,7 @@ import MentionText from "@/components/MentionText";
 import { useThemeStore } from "@/store/themeStore";
 
 
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
-const REEL_HEIGHT = Platform.OS === "web" ? Math.min(SCREEN_HEIGHT, 700) : SCREEN_HEIGHT;
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const FILTERS: { key: ReelFilter; label: string; overlay: string }[] = [
   { key: "none", label: "بدون", overlay: "transparent" },
@@ -103,6 +102,7 @@ function ReelPlayerItem({
   creatorAvatar,
   isCreatorVerified,
   insets,
+  containerHeight,
 }: {
   reel: Reel;
   isActive: boolean;
@@ -118,6 +118,7 @@ function ReelPlayerItem({
   creatorAvatar?: string;
   isCreatorVerified?: boolean;
   insets: any;
+  containerHeight: number;
 }) {
   const [paused, setPaused] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -182,11 +183,11 @@ function ReelPlayerItem({
   };
 
   return (
-    <View style={[styles.reelItem, { height: REEL_HEIGHT }]}>
+    <View style={[styles.reelItem, { height: containerHeight }]}>
       <VideoView
         player={player}
         style={StyleSheet.absoluteFill}
-        contentFit="contain"
+        contentFit="cover"
         nativeControls={false}
       />
 
@@ -923,6 +924,7 @@ export default function ReelsScreen() {
   const { reelId: deepLinkReelId } = useLocalSearchParams<{ reelId?: string }>();
   const flatListRef = useRef<FlatList>(null);
 
+  const [containerHeight, setContainerHeight] = useState(Dimensions.get("window").height);
   const [activeIndex, setActiveIndex] = useState(0);
   const [commentReel, setCommentReel] = useState<string | null>(null);
   const [commentReelOwnerId, setCommentReelOwnerId] = useState<string>("");
@@ -1005,20 +1007,23 @@ export default function ReelsScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: "#000" }]}>
+    <View
+      style={[styles.container, { backgroundColor: "#000" }]}
+      onLayout={(e) => setContainerHeight(e.nativeEvent.layout.height)}
+    >
       <FlatList
         ref={flatListRef}
         data={reels}
         keyExtractor={(r) => r.id}
         showsVerticalScrollIndicator={false}
-        snapToInterval={REEL_HEIGHT}
+        snapToInterval={containerHeight}
         snapToAlignment="start"
         decelerationRate={0.88}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig.current}
         getItemLayout={(_, index) => ({
-          length: REEL_HEIGHT,
-          offset: REEL_HEIGHT * index,
+          length: containerHeight,
+          offset: containerHeight * index,
           index,
         })}
         refreshControl={
@@ -1047,6 +1052,7 @@ export default function ReelsScreen() {
               creatorAvatar={creator?.avatar}
               isCreatorVerified={isUserVerified(creator)}
               insets={insets}
+              containerHeight={containerHeight}
             />
           );
         }}

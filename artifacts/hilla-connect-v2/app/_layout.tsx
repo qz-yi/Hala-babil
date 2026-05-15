@@ -135,6 +135,7 @@ function RootLayoutNav() {
         <Stack.Screen name="group/info/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="group/create" options={{ headerShown: false, animation: "slide_from_bottom", presentation: "modal" }} />
         <Stack.Screen name="user-posts/[userId]" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="call/[id]" options={{ presentation: "fullScreenModal", headerShown: false, animation: "fade" }} />
       </Stack>
       <FloatingRoomWidget />
     </View>

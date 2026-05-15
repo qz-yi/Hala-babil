@@ -1368,7 +1368,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
     ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : "http://localhost:3000";
+    : "https://almalke4.replit.app";
 
   // Resilient fetch: 15s timeout + retry على أخطاء الشبكة المؤقتة (EAI_AGAIN, network errors)
   const apiFetch = useCallback(
@@ -3019,19 +3019,87 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   // ============================
+  // MEDIA UPLOAD (PostgreSQL temporary storage)
+  // ============================
+  const uploadMediaToServer = useCallback(
+    async (localUri: string, mimeType = "image/jpeg"): Promise<string> => {
+      try {
+        // If already an http/https URL, no upload needed
+        if (localUri.startsWith("http://") || localUri.startsWith("https://")) {
+          return localUri;
+        }
+
+        let base64Data: string;
+
+        if (localUri.startsWith("data:")) {
+          // Already a data URI — extract the base64 part
+          base64Data = localUri.split(",")[1] || localUri;
+          const match = localUri.match(/data:([^;]+);base64,/);
+          if (match) mimeType = match[1];
+        } else {
+          // Local file URI — fetch and convert to base64
+          const response = await fetch(localUri);
+          const blob = await response.blob();
+          mimeType = blob.type || mimeType;
+          base64Data = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const result = reader.result as string;
+              resolve(result.split(",")[1] || "");
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
+
+        const res = await apiFetch(`${API_BASE}/api/media/upload`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileData: base64Data, mimeType }),
+        });
+
+        if (!res.ok) {
+          console.warn("[media] Upload failed, using original URI as fallback");
+          return localUri;
+        }
+
+        const data = await res.json();
+        return `${API_BASE}${data.url}`;
+      } catch (err) {
+        console.warn("[media] Upload error, using original URI:", err);
+        return localUri;
+      }
+    },
+    [API_BASE, apiFetch],
+  );
+
+  // ============================
   // STORIES
   // ============================
   const addStory = useCallback(
     async (mediaUrl: string, mediaType: "image" | "video", caption?: string, filter = "none", isCloseFriends = false, mentions: string[] = [], sharedPost?: StorySharedPost, overlays: { text: string }[] = []) => {
       if (!currentUser) return;
       let story: Story;
+
+      // Upload local/base64 media to server so other devices can load it
+      let finalMediaUrl = mediaUrl;
+      if (mediaUrl && !mediaUrl.startsWith("http")) {
+        try {
+          const mimeType = mediaType === "video" ? "video/mp4" : "image/jpeg";
+          finalMediaUrl = await uploadMediaToServer(mediaUrl, mimeType);
+          console.log("[stories] Media uploaded to server:", finalMediaUrl);
+        } catch (err) {
+          console.warn("[stories] Media upload failed, proceeding with original URI:", err);
+        }
+      }
+
       try {
         const res = await apiFetch(`${API_BASE}/api/stories`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             creatorId: currentUser.id,
-            imageUrl: mediaUrl,
+            imageUrl: finalMediaUrl,
             content: caption,
             mediaType,
             filter,

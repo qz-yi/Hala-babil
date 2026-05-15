@@ -5,6 +5,7 @@ import roomsRouter from "./rooms.js";
 import authRouter from "./auth.js";
 import storiesRouter from "./stories.js";
 import moderationRouter from "./moderation.js";
+import mediaRouter from "./media.js";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(roomsRouter);
 router.use(authRouter);
 router.use(storiesRouter);
 router.use(moderationRouter);
+router.use(mediaRouter);
 
 export default router;

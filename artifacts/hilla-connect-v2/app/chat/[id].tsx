@@ -1209,13 +1209,35 @@ export default function ChatScreen() {
           <View style={styles.callBtns}>
             <TouchableOpacity
               style={[styles.callBtn, { backgroundColor: `${accentColor}22` }]}
-              onPress={() => Alert.alert(t("voiceCall"), "قريباً")}
+              onPress={() => {
+                if (!otherUser) return;
+                router.push({
+                  pathname: "/call/[id]",
+                  params: {
+                    id: otherUser.id,
+                    type: "audio",
+                    name: encodeURIComponent(otherUser.name || ""),
+                    avatar: encodeURIComponent(otherUser.avatar || ""),
+                  },
+                } as any);
+              }}
             >
               <Feather name="phone" size={18} color={accentColor} strokeWidth={1.5} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.callBtn, { backgroundColor: `${accentColor}22` }]}
-              onPress={() => Alert.alert(t("videoCall"), "قريباً")}
+              onPress={() => {
+                if (!otherUser) return;
+                router.push({
+                  pathname: "/call/[id]",
+                  params: {
+                    id: otherUser.id,
+                    type: "video",
+                    name: encodeURIComponent(otherUser.name || ""),
+                    avatar: encodeURIComponent(otherUser.avatar || ""),
+                  },
+                } as any);
+              }}
             >
               <Feather name="video" size={18} color={accentColor} strokeWidth={1.5} />
             </TouchableOpacity>

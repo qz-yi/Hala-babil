@@ -1,3 +1,5 @@
+import { createServer } from "http";
+import { Server as SocketIOServer } from "socket.io";
 import app from "./app";
 import { logger } from "./lib/logger";
 
@@ -15,18 +17,66 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// الاستماع على جميع الواجهات (0.0.0.0) لضمان الوصول من الشبكة المحلية والـ container
-const host = "0.0.0.0";
-app.listen(port, host, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+const httpServer = createServer(app);
 
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+  path: "/socket.io/",
+});
+
+// WebRTC Signaling events
+io.on("connection", (socket) => {
+  logger.info({ socketId: socket.id }, "[socket.io] Client connected");
+
+  // Join a call room
+  socket.on("join-room", (roomId: string, userId: string) => {
+    socket.join(roomId);
+    logger.info({ roomId, userId, socketId: socket.id }, "[socket.io] User joined room");
+    socket.to(roomId).emit("user-connected", userId);
+
+    socket.on("disconnect", () => {
+      socket.to(roomId).emit("user-disconnected", userId);
+      logger.info({ roomId, userId }, "[socket.io] User disconnected from room");
+    });
+  });
+
+  // WebRTC offer
+  socket.on("offer", (roomId: string, offer: RTCSessionDescriptionInit, fromUserId: string) => {
+    logger.info({ roomId, fromUserId }, "[socket.io] Relaying offer");
+    socket.to(roomId).emit("offer", offer, fromUserId);
+  });
+
+  // WebRTC answer
+  socket.on("answer", (roomId: string, answer: RTCSessionDescriptionInit, fromUserId: string) => {
+    logger.info({ roomId, fromUserId }, "[socket.io] Relaying answer");
+    socket.to(roomId).emit("answer", answer, fromUserId);
+  });
+
+  // ICE candidates
+  socket.on("ice-candidate", (roomId: string, candidate: RTCIceCandidateInit, fromUserId: string) => {
+    socket.to(roomId).emit("ice-candidate", candidate, fromUserId);
+  });
+
+  // Call ended
+  socket.on("end-call", (roomId: string) => {
+    socket.to(roomId).emit("call-ended");
+  });
+
+  socket.on("disconnect", () => {
+    logger.info({ socketId: socket.id }, "[socket.io] Client disconnected");
+  });
+});
+
+export { io };
+
+const host = "0.0.0.0";
+httpServer.listen(port, host, () => {
   logger.info({ port, host }, "Server listening");
 });
 
-// لا تسمح بانقطاع العملية عند خطأ غير ملتقط في وعد
 process.on("unhandledRejection", (reason) => {
   logger.error({ reason }, "Unhandled promise rejection");
 });

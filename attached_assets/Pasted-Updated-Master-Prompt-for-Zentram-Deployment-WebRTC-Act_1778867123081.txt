@@ -1,0 +1,25 @@
+Updated Master Prompt for Zentram Deployment & WebRTC Activation
+​Context:
+We need to transition Zentram from a local mockup into a live cloud-connected application for multi-device testing. Follow these instructions carefully:
+​1. Fix the Global Connection (Mismatched Instances):
+​Stop hardcoding 'localhost' or local bundler IPs for API requests and WebSockets in the mobile frontend.
+​Update the API client config to dynamically use my live Replit production URL: https://almalke4.replit.app (or read it from env).
+​Ensure that when a user logs in from an external phone, all HTTP requests and socket connections hit this centralized Replit live server, sharing the same PostgreSQL instance.
+​2. Set up Temporary File Storage in PostgreSQL:
+​I want to use the existing DATABASE_URL from Replit Secrets to temporarily store images/media until I configure an external cloud provider.
+​Create a temporary_media table in PostgreSQL with columns: id, file_data (use BYTEA or TEXT for Base64), mime_type, and created_at.
+​Build an API endpoint /api/media/upload that saves the media to this table, and /api/media/:id to fetch and serve it. Update the Stories and Reels upload flows to use this database fallback.
+​3. WebRTC Signaling Server Configuration:
+​Configure the Node.js backend to act as a WebRTC Signaling Server using socket.io.
+​Implement event listeners for room communications: join-room, offer, answer, and ice-candidate to bridge connections between two distinct peers.
+​In the frontend WebRTC configuration, inject Google's free public STUN servers to handle NAT traversal between different mobile networks:
+{ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+​4. Unlock Call Functionality (CRITICAL - Fix "Coming Soon" Bug):
+​The Issue: Currently, pressing the audio or video call button inside chats/rooms triggers a "Coming Soon" (قريباً) alert or hardcoded placeholder view.
+​The Fix: Completely remove this restriction. Delete any dummy alerts or navigation blocks that block the feature.
+​Wiring up the Buttons: Connect the call buttons directly to the WebRTC flow. Clicking the button must instantly:
+​Request microphone/camera permissions.
+​Initialize the local stream.
+​Open the Active Call UI screen (showing local/remote video placeholders).
+​Fire the initialization signal (offer) to the backend via socket.io to notify the other user in the room.
+​Verify all endpoints and ensure that running the app syncs data dynamically across two separate devices and allows real calling sequences instantly

@@ -18,6 +18,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { ToastProvider } from "@/components/Toast";
 import { FloatingRoomWidget } from "@/components/FloatingRoomWidget";
+import { FloatingCallBanner } from "@/components/FloatingCallBanner";
 import { useThemeStore } from "@/store/themeStore";
 
 SplashScreen.preventAutoHideAsync();
@@ -137,6 +138,7 @@ function RootLayoutNav() {
         <Stack.Screen name="user-posts/[userId]" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="call/[id]" options={{ presentation: "fullScreenModal", headerShown: false, animation: "fade" }} />
       </Stack>
+      <FloatingCallBanner />
       <FloatingRoomWidget />
     </View>
   );

@@ -20,20 +20,38 @@ export function getSocket(): Socket {
   return sharedSocket;
 }
 
-export function useSocket() {
+/** Register user in their personal socket room so they can receive invite-to-call events */
+export function registerUserSocket(userId: string) {
+  const socket = getSocket();
+  const doRegister = () => socket.emit("register-user", userId);
+  if (socket.connected) {
+    doRegister();
+  } else {
+    socket.once("connect", doRegister);
+  }
+}
+
+export function useSocket(userId?: string) {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     const socket = getSocket();
     socketRef.current = socket;
 
-    return () => {
-      // Don't disconnect shared socket on unmount
-    };
-  }, []);
+    if (userId) {
+      registerUserSocket(userId);
+      socket.on("reconnect", () => registerUserSocket(userId));
+    }
 
-  const joinRoom = useCallback((roomId: string, userId: string) => {
-    socketRef.current?.emit("join-room", roomId, userId);
+    return () => {
+      if (userId) {
+        socket.off("reconnect");
+      }
+    };
+  }, [userId]);
+
+  const joinRoom = useCallback((roomId: string, uid: string) => {
+    socketRef.current?.emit("join-room", roomId, uid);
   }, []);
 
   const sendOffer = useCallback((roomId: string, offer: RTCSessionDescriptionInit, fromUserId: string) => {
@@ -52,12 +70,5 @@ export function useSocket() {
     socketRef.current?.emit("end-call", roomId);
   }, []);
 
-  return {
-    socket: socketRef,
-    joinRoom,
-    sendOffer,
-    sendAnswer,
-    sendIceCandidate,
-    endCall,
-  };
+  return { socket: socketRef, joinRoom, sendOffer, sendAnswer, sendIceCandidate, endCall };
 }

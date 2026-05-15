@@ -1,0 +1,27 @@
+Master Prompt: Audio-Visual Communication Immersion & Global Sync Fix
+​Objective:
+Upgrade Zentram's communication architecture to perfectly mimic Telegram's advanced calling features, incorporate sound feedback, implement system call logging, and fix the multi-device database sync issue.
+​1. Advanced Call Audio Feedback (Telegram Style)
+​Integration: Use expo-av to handle system-level audio playback during calls.
+​Sound Triggers: Implement and play unique high-quality audio files (.mp3) for the following events:
+​Ringing/Outgoing (صوت الانتظار): Plays loop audio while waiting for the remote peer to answer.
+​Connected/Answered (عند الرد): A short, crisp confirmation tone when the call connects successfully.
+​Disconnected/Rejected (عند الرفض/الإنهاء): A specific tone indicating the call has been ended or declined.
+​Ensure audio routes correctly through headphones or speaker based on the UI state.
+​2. Group Calling Expansion (Add Members)
+​UI Action: Referencing file 1000068114.jpg, activate the "Add Member (+)" icon in the call overlay.
+​Architecture: Wire the button to pull the user's contact list. Selecting a user must emit a socket event (invite-to-call) to dynamically mesh-connect the new peer into the active WebRTC room instance.
+​3. Telegram-Style Call Logs, Timers & Floating UI
+​Call Duration Timer: Ensure the active call screen (1000068110.jpg) running a continuous, accurate upward ticker (MM:SS) using dynamic state counters.
+​In-Chat Call Event Messages: When a call concludes or fails, instantly inject a system message block into the chat thread (1000068113.jpg / 1000068115.jpg) specifying:
+​Completed Calls: "Voice/Video Call - [Duration, e.g., 20 minutes]".
+​Cancelled Calls: "Cancelled Voice/Video Call" (مكالمة ملغاة).
+​Missed Calls: "Missed Voice/Video Call" (مكالمة فائتة).
+​Floating Ongoing Call Banner: If a user navigates away from the Call Screen while a call is active:
+​Render a sleek, global floating banner/bar at the top of Zentram stating "Ongoing Call • [Live Timer]".
+​Clicking this banner must instantly navigate the user back to the active Call Screen context.
+​4. Critical Database Synchronization & Expo Enforcement Audit
+​The Bug: Accounts created on Device B are invisible on Device A. This means the mobile clients are interacting with disjointed local contexts or mismatched API endpoints.
+​The Fix: * Audit the absolute configuration of process.env.EXPO_PUBLIC_API_URL or your base API URL instance. Force it globally to utilize the shared cloud backend domain.
+​Ensure all PostgreSQL pool connections safely write and read from the single, unified DATABASE_URL instance in Replit Secrets.
+​Confirm the project default start command runs strictly on the Expo Go ecosystem (npx expo start or pnpm start), ensuring proper native bundler compilation.

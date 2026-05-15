@@ -1295,24 +1295,49 @@ export default function ChatScreen() {
               </Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <SwipeableMessage
-              onSwipe={() => setReplyTo(item)}
-              isMe={item.senderId === currentUser?.id}
-            >
-              <MessageBubble
-                msg={item}
+          renderItem={({ item }) => {
+            // System message (call log, etc.) — centered pill
+            if (item.type === "system" || item.senderId === "system") {
+              const isCall = item.content?.includes("📞") || item.content?.includes("📹");
+              return (
+                <View style={{ alignItems: "center", marginVertical: 6, paddingHorizontal: 24 }}>
+                  <View style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    backgroundColor: isCall ? "rgba(74,222,128,0.12)" : "rgba(255,255,255,0.06)",
+                    borderRadius: 20,
+                    paddingHorizontal: 14,
+                    paddingVertical: 6,
+                    borderWidth: 1,
+                    borderColor: isCall ? "rgba(74,222,128,0.25)" : "rgba(255,255,255,0.1)",
+                  }}>
+                    <Text style={{ color: isCall ? "#4ade80" : "rgba(255,255,255,0.5)", fontSize: 12.5, textAlign: "center" }}>
+                      {item.content}
+                    </Text>
+                  </View>
+                </View>
+              );
+            }
+            return (
+              <SwipeableMessage
+                onSwipe={() => setReplyTo(item)}
                 isMe={item.senderId === currentUser?.id}
-                accentColor={accentColor}
-                allMessages={messages}
-                onMediaPress={(uri, type) => setMediaModal({ uri, type })}
-                onLongPress={handleLongPress}
-                onTap={handleTap}
-                onReplyScrollTo={scrollToMessage}
-                senderUser={item.senderId === currentUser?.id ? undefined : otherUser}
-              />
-            </SwipeableMessage>
-          )}
+              >
+                <MessageBubble
+                  msg={item}
+                  isMe={item.senderId === currentUser?.id}
+                  accentColor={accentColor}
+                  allMessages={messages}
+                  onMediaPress={(uri, type) => setMediaModal({ uri, type })}
+                  onLongPress={handleLongPress}
+                  onTap={handleTap}
+                  onReplyScrollTo={scrollToMessage}
+                  senderUser={item.senderId === currentUser?.id ? undefined : otherUser}
+                />
+              </SwipeableMessage>
+            );
+          }}
         />
 
         {/* Reply Preview Bar */}

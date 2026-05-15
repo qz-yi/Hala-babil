@@ -65,6 +65,29 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("call-ended");
   });
 
+  // Invite a user to join an existing call
+  socket.on("invite-to-call", (payload: {
+    targetUserId: string;
+    fromUserId: string;
+    fromName: string;
+    callRoomId: string;
+    callType: string;
+  }) => {
+    logger.info({ payload }, "[socket.io] Call invitation sent");
+    // Broadcast to all sockets in the target user's personal room
+    io.to(`user_${payload.targetUserId}`).emit("invite-to-call", {
+      fromName: payload.fromName,
+      newRoomId: payload.callRoomId,
+      callType: payload.callType,
+    });
+  });
+
+  // Each socket joins its personal room (for targeted invites)
+  socket.on("register-user", (userId: string) => {
+    socket.join(`user_${userId}`);
+    logger.info({ userId, socketId: socket.id }, "[socket.io] User registered to personal room");
+  });
+
   socket.on("disconnect", () => {
     logger.info({ socketId: socket.id }, "[socket.io] Client disconnected");
   });

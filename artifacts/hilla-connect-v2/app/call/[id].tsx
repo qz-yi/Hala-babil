@@ -8,48 +8,66 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Modal,
+  FlatList,
+  ScrollView,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
-import { useThemeStore } from "@/store/themeStore";
+import { useCallStore } from "@/store/callStore";
+import { useCallAudio } from "@/hooks/useCallAudio";
+import { callManager } from "@/lib/callManager";
 import { getSocket } from "@/hooks/useSocket";
 
 const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" },
   ],
 };
 
 type CallType = "audio" | "video";
+type CallStatus = "connecting" | "ringing" | "active" | "ended";
 
 export default function CallScreen() {
-  const { id, type: callType, name, avatar } = useLocalSearchParams<{
+  const { id, type: callType, name, avatar, resume } = useLocalSearchParams<{
     id: string;
     type: CallType;
     name: string;
     avatar: string;
+    resume?: string;
   }>();
 
-  const { currentUser } = useApp();
+  const { currentUser, users, getConversation, injectCallLog } = useApp();
+  const { setActiveCall } = useCallStore();
+  const { startRinging, playConnected, playDisconnected, stopAll } = useCallAudio();
   const insets = useSafeAreaInsets();
-  const c = useThemeStore((s) => s.tokens);
 
-  const [status, setStatus] = useState<"connecting" | "ringing" | "active" | "ended">("connecting");
+  const isResume = resume === "1";
+
+  const [status, setStatus] = useState<CallStatus>(isResume ? "active" : "connecting");
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeaker, setIsSpeaker] = useState(false);
   const [isCamOff, setIsCamOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [showInvite, setShowInvite] = useState(false);
 
-  const peerRef = useRef<RTCPeerConnection | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const callStartedAt = useRef<number>(Date.now());
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const callRoomId = `call_${[currentUser?.id, id].sort().join("_")}`;
+  const decodedName = decodeURIComponent(name || "");
+  const decodedAvatar = decodeURIComponent(avatar || "");
+
+  // Contacts list for group invite (exclude self and current callee)
+  const contacts = users.filter(
+    (u) => u.id !== currentUser?.id && u.id !== id
+  );
 
   const formatDuration = (secs: number) => {
     const m = Math.floor(secs / 60).toString().padStart(2, "0");
@@ -57,144 +75,267 @@ export default function CallScreen() {
     return `${m}:${s}`;
   };
 
-  const endCall = useCallback(() => {
-    getSocket().emit("end-call", callRoomId);
-    cleanup();
-    router.back();
-  }, [callRoomId]);
-
-  const cleanup = () => {
+  const startTimer = useCallback(() => {
+    callStartedAt.current = Date.now();
     if (timerRef.current) clearInterval(timerRef.current);
-    localStreamRef.current?.getTracks().forEach((t) => t.stop());
-    peerRef.current?.close();
-    peerRef.current = null;
-    setStatus("ended");
-  };
-
-  const startTimer = () => {
     timerRef.current = setInterval(() => {
       setCallDuration((d) => d + 1);
     }, 1000);
-  };
+  }, []);
+
+  const buildCallLog = useCallback(
+    (outcome: "completed" | "cancelled" | "missed") => {
+      const icon = callType === "video" ? "📹" : "📞";
+      const durSecs = Math.floor((Date.now() - callStartedAt.current) / 1000);
+      const dur = formatDuration(durSecs);
+
+      if (outcome === "completed") {
+        return `${icon} ${callType === "video" ? "مكالمة مرئية" : "مكالمة صوتية"} • ${dur}`;
+      }
+      if (outcome === "cancelled") {
+        return `${icon} مكالمة ملغاة`;
+      }
+      return `${icon} مكالمة فائتة`;
+    },
+    [callType],
+  );
+
+  const cleanup = useCallback(
+    (outcome: "completed" | "cancelled" | "missed" = "cancelled") => {
+      stopAll();
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+
+      // Inject call log message into the conversation
+      if (currentUser && id) {
+        try {
+          const convo = getConversation(id);
+          if (convo?.id) {
+            injectCallLog(convo.id, id, buildCallLog(outcome));
+          }
+        } catch {}
+      }
+
+      // Clear global call state
+      setActiveCall(null);
+
+      // Cleanup WebRTC
+      if (!isResume) {
+        callManager.cleanup();
+      }
+    },
+    [currentUser, id, getConversation, injectCallLog, buildCallLog, setActiveCall, stopAll, isResume],
+  );
+
+  const endCall = useCallback(() => {
+    getSocket().emit("end-call", callRoomId);
+    const outcome = status === "active" ? "completed" : "cancelled";
+    cleanup(outcome);
+    router.back();
+  }, [callRoomId, status, cleanup]);
 
   const initWebRTC = useCallback(async () => {
     if (!currentUser) return;
 
     if (Platform.OS !== "web") {
+      // Native: show active state without real WebRTC (requires native build)
       setStatus("active");
       startTimer();
+      setActiveCall({
+        callRoomId,
+        otherUserId: id,
+        otherUserName: decodedName,
+        otherUserAvatar: decodedAvatar,
+        callType: callType as CallType,
+        startedAt: Date.now(),
+        conversationId: getConversation(id)?.id || id,
+      });
       return;
     }
 
     try {
-      const constraints: MediaStreamConstraints = {
-        audio: true,
-        video: callType === "video",
-      };
+      let stream = callManager.localStream;
 
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch {
-        Alert.alert("خطأ", "تعذر الوصول إلى الميكروفون/الكاميرا. تحقق من الصلاحيات.");
-        router.back();
-        return;
+      if (!stream) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: callType === "video",
+          });
+          callManager.localStream = stream;
+        } catch {
+          Alert.alert("خطأ", "تعذر الوصول للميكروفون/الكاميرا. تحقق من الصلاحيات.");
+          router.back();
+          return;
+        }
       }
 
-      localStreamRef.current = stream;
-
+      // Attach local video
       if (localVideoRef.current && callType === "video") {
         localVideoRef.current.srcObject = stream;
+        callManager.localVideoEl = localVideoRef.current;
       }
 
-      const pc = new RTCPeerConnection(ICE_SERVERS);
-      peerRef.current = pc;
+      let pc = callManager.pc;
 
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      if (!pc || pc.connectionState === "closed" || pc.connectionState === "failed") {
+        pc = new RTCPeerConnection(ICE_SERVERS);
+        callManager.pc = pc;
+        stream.getTracks().forEach((track) => pc!.addTrack(track, stream!));
 
-      pc.ontrack = (event) => {
-        remoteStreamRef.current = event.streams[0];
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = event.streams[0];
+        pc.ontrack = (event) => {
+          const remoteStream = event.streams[0];
+          callManager.remoteStream = remoteStream;
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = remoteStream;
+            callManager.remoteVideoEl = remoteVideoRef.current;
+          }
+          playConnected();
+          stopAll();
+          setStatus("active");
+          startTimer();
+          setActiveCall({
+            callRoomId,
+            otherUserId: id,
+            otherUserName: decodedName,
+            otherUserAvatar: decodedAvatar,
+            callType: callType as CallType,
+            startedAt: Date.now(),
+            conversationId: getConversation(id)?.id || id,
+          });
+        };
+
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            getSocket().emit("ice-candidate", callRoomId, event.candidate, currentUser.id);
+          }
+        };
+      } else if (isResume) {
+        // Resuming — reattach video elements
+        if (remoteVideoRef.current && callManager.remoteStream) {
+          remoteVideoRef.current.srcObject = callManager.remoteStream;
         }
-        setStatus("active");
-        startTimer();
-      };
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          getSocket().emit("ice-candidate", callRoomId, event.candidate, currentUser.id);
+        if (localVideoRef.current && callManager.localStream) {
+          localVideoRef.current.srcObject = callManager.localStream;
         }
-      };
+        // Restart timer from saved startedAt
+        const saved = useCallStore.getState().activeCall;
+        if (saved) {
+          callStartedAt.current = saved.startedAt;
+          if (timerRef.current) clearInterval(timerRef.current);
+          timerRef.current = setInterval(() => {
+            setCallDuration(Math.floor((Date.now() - saved.startedAt) / 1000));
+          }, 1000);
+        }
+        return;
+      }
 
       const socket = getSocket();
       socket.emit("join-room", callRoomId, currentUser.id);
 
+      // Start ringing while waiting
+      startRinging();
+      setStatus("ringing");
+
       socket.on("user-connected", async (_userId: string) => {
-        setStatus("ringing");
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
+        if (!callManager.pc) return;
+        const offer = await callManager.pc.createOffer();
+        await callManager.pc.setLocalDescription(offer);
         socket.emit("offer", callRoomId, offer, currentUser.id);
       });
 
       socket.on("offer", async (offer: RTCSessionDescriptionInit) => {
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
+        if (!callManager.pc) return;
+        await callManager.pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await callManager.pc.createAnswer();
+        await callManager.pc.setLocalDescription(answer);
         socket.emit("answer", callRoomId, answer, currentUser.id);
+        playConnected();
+        stopAll();
         setStatus("active");
         startTimer();
+        setActiveCall({
+          callRoomId,
+          otherUserId: id,
+          otherUserName: decodedName,
+          otherUserAvatar: decodedAvatar,
+          callType: callType as CallType,
+          startedAt: Date.now(),
+          conversationId: getConversation(id)?.id || id,
+        });
       });
 
       socket.on("answer", async (answer: RTCSessionDescriptionInit) => {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
-        setStatus("active");
-        startTimer();
+        if (!callManager.pc) return;
+        await callManager.pc.setRemoteDescription(new RTCSessionDescription(answer));
       });
 
       socket.on("ice-candidate", async (candidate: RTCIceCandidateInit) => {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch {}
+        try { await callManager.pc?.addIceCandidate(new RTCIceCandidate(candidate)); } catch {}
       });
 
       socket.on("call-ended", () => {
-        cleanup();
-        router.back();
+        playDisconnected();
+        cleanup("completed");
+        setTimeout(() => router.back(), 800);
       });
 
-      setStatus("ringing");
+      // Incoming invite to a group call
+      socket.on("invite-to-call", ({ fromName, newRoomId }: { fromName: string; newRoomId: string }) => {
+        Alert.alert(
+          "دعوة لمكالمة جماعية",
+          `${fromName} يدعوك للانضمام للمكالمة`,
+          [
+            { text: "رفض", style: "cancel" },
+            {
+              text: "قبول",
+              onPress: () => {
+                socket.emit("join-room", newRoomId, currentUser.id);
+              },
+            },
+          ],
+        );
+      });
     } catch (err) {
       console.error("[call] WebRTC init error:", err);
+      playDisconnected();
       router.back();
     }
-  }, [currentUser, callType, callRoomId]);
+  }, [currentUser, callType, callRoomId, id, decodedName, decodedAvatar, isResume, startRinging, playConnected, playDisconnected, stopAll, startTimer, setActiveCall, getConversation]);
 
   useEffect(() => {
     initWebRTC();
     return () => {
-      cleanup();
+      // Only remove socket listeners, do NOT cleanup WebRTC (user may have navigated away)
       const socket = getSocket();
       socket.off("user-connected");
       socket.off("offer");
       socket.off("answer");
       socket.off("ice-candidate");
       socket.off("call-ended");
+      socket.off("invite-to-call");
     };
   }, []);
 
   const toggleMute = () => {
-    localStreamRef.current?.getAudioTracks().forEach((t) => {
-      t.enabled = !t.enabled;
-    });
+    callManager.localStream?.getAudioTracks().forEach((t) => { t.enabled = !t.enabled; });
     setIsMuted((m) => !m);
   };
 
   const toggleCamera = () => {
-    localStreamRef.current?.getVideoTracks().forEach((t) => {
-      t.enabled = !t.enabled;
-    });
+    callManager.localStream?.getVideoTracks().forEach((t) => { t.enabled = !t.enabled; });
     setIsCamOff((c) => !c);
+  };
+
+  const inviteContact = (contactId: string, contactName: string) => {
+    setShowInvite(false);
+    getSocket().emit("invite-to-call", {
+      targetUserId: contactId,
+      fromUserId: currentUser?.id,
+      fromName: currentUser?.name || "مستخدم",
+      callRoomId,
+      callType,
+    });
+    Alert.alert("", `تم إرسال الدعوة إلى ${contactName}`);
   };
 
   const statusLabel =
@@ -208,172 +349,285 @@ export default function CallScreen() {
       {/* Background */}
       <View style={styles.bg} />
 
-      {/* Remote video (web only) */}
+      {/* Remote video full screen (web + video call) */}
       {Platform.OS === "web" && callType === "video" && (
         <video
-          ref={remoteVideoRef as any}
+          ref={(el) => { remoteVideoRef.current = el; callManager.attachRemoteVideo(el); }}
           autoPlay
           playsInline
           style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" } as any}
         />
       )}
 
-      {/* Avatar / caller info */}
-      <View style={styles.callerInfo}>
-        {avatar ? (
-          <Image source={{ uri: decodeURIComponent(avatar) }} style={styles.avatar} />
+      {/* Caller info overlay */}
+      <View style={[styles.callerInfo, callType === "video" && status === "active" && styles.callerInfoVideo]}>
+        {decodedAvatar ? (
+          <Image source={{ uri: decodedAvatar }} style={styles.avatar} />
         ) : (
           <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarInitial}>{name?.[0] || "?"}</Text>
+            <Text style={styles.avatarInitial}>{decodedName?.[0] || "?"}</Text>
           </View>
         )}
-        <Text style={styles.callerName}>{decodeURIComponent(name || "")}</Text>
+        <Text style={styles.callerName}>{decodedName}</Text>
         <Text style={styles.statusText}>{statusLabel}</Text>
-        {status === "connecting" && <ActivityIndicator color="white" style={{ marginTop: 12 }} />}
+        {(status === "connecting" || status === "ringing") && (
+          <ActivityIndicator color="rgba(255,255,255,0.7)" style={{ marginTop: 12 }} />
+        )}
       </View>
 
-      {/* Local video preview (web only, video call) */}
+      {/* Local video preview (top-right corner) */}
       {Platform.OS === "web" && callType === "video" && (
         <View style={styles.localVideoContainer}>
           <video
-            ref={localVideoRef as any}
+            ref={(el) => { localVideoRef.current = el; callManager.attachLocalVideo(el); }}
             autoPlay
             playsInline
             muted
             style={{ width: "100%", height: "100%", objectFit: "cover" } as any}
           />
+          {isCamOff && (
+            <View style={styles.camOffOverlay}>
+              <Feather name="video-off" size={20} color="rgba(255,255,255,0.7)" />
+            </View>
+          )}
         </View>
       )}
 
-      {/* Controls */}
-      <View style={[styles.controls, { paddingBottom: insets.bottom + 20 }]}>
+      {/* Controls bar */}
+      <View style={[styles.controls, { paddingBottom: insets.bottom + 24 }]}>
+
         {/* Mute */}
-        <TouchableOpacity
-          style={[styles.ctrlBtn, isMuted && styles.ctrlBtnActive]}
-          onPress={toggleMute}
-        >
-          <Feather name={isMuted ? "mic-off" : "mic"} size={24} color="white" />
+        <View style={styles.ctrlWrap}>
+          <TouchableOpacity
+            style={[styles.ctrlBtn, isMuted && styles.ctrlBtnOn]}
+            onPress={toggleMute}
+          >
+            <Feather name={isMuted ? "mic-off" : "mic"} size={22} color="white" />
+          </TouchableOpacity>
           <Text style={styles.ctrlLabel}>{isMuted ? "إلغاء الكتم" : "كتم"}</Text>
-        </TouchableOpacity>
+        </View>
 
         {/* Camera toggle (video only) */}
         {callType === "video" && (
-          <TouchableOpacity
-            style={[styles.ctrlBtn, isCamOff && styles.ctrlBtnActive]}
-            onPress={toggleCamera}
-          >
-            <Feather name={isCamOff ? "video-off" : "video"} size={24} color="white" />
+          <View style={styles.ctrlWrap}>
+            <TouchableOpacity
+              style={[styles.ctrlBtn, isCamOff && styles.ctrlBtnOn]}
+              onPress={toggleCamera}
+            >
+              <Feather name={isCamOff ? "video-off" : "video"} size={22} color="white" />
+            </TouchableOpacity>
             <Text style={styles.ctrlLabel}>{isCamOff ? "تشغيل الكاميرا" : "إيقاف الكاميرا"}</Text>
-          </TouchableOpacity>
+          </View>
         )}
 
         {/* Speaker */}
-        <TouchableOpacity
-          style={[styles.ctrlBtn, isSpeaker && styles.ctrlBtnActive]}
-          onPress={() => setIsSpeaker((s) => !s)}
-        >
-          <Ionicons name={isSpeaker ? "volume-high" : "volume-medium"} size={24} color="white" />
+        <View style={styles.ctrlWrap}>
+          <TouchableOpacity
+            style={[styles.ctrlBtn, isSpeaker && styles.ctrlBtnOn]}
+            onPress={() => setIsSpeaker((s) => !s)}
+          >
+            <Ionicons name={isSpeaker ? "volume-high" : "volume-medium-outline"} size={22} color="white" />
+          </TouchableOpacity>
           <Text style={styles.ctrlLabel}>مكبر الصوت</Text>
-        </TouchableOpacity>
+        </View>
 
-        {/* End Call */}
-        <TouchableOpacity style={styles.endBtn} onPress={endCall}>
-          <Feather name="phone-off" size={28} color="white" />
-        </TouchableOpacity>
+        {/* Add member */}
+        <View style={styles.ctrlWrap}>
+          <TouchableOpacity
+            style={styles.ctrlBtn}
+            onPress={() => setShowInvite(true)}
+          >
+            <Feather name="user-plus" size={22} color="white" />
+          </TouchableOpacity>
+          <Text style={styles.ctrlLabel}>إضافة</Text>
+        </View>
+
+        {/* End call */}
+        <View style={styles.ctrlWrap}>
+          <TouchableOpacity style={styles.endBtn} onPress={endCall}>
+            <Feather name="phone-off" size={26} color="white" />
+          </TouchableOpacity>
+          <Text style={styles.ctrlLabel}>إنهاء</Text>
+        </View>
       </View>
+
+      {/* Invite contacts modal */}
+      <Modal
+        visible={showInvite}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowInvite(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>دعوة جهة اتصال</Text>
+              <TouchableOpacity onPress={() => setShowInvite(false)}>
+                <Feather name="x" size={20} color="rgba(255,255,255,0.7)" />
+              </TouchableOpacity>
+            </View>
+
+            {contacts.length === 0 ? (
+              <Text style={styles.emptyContacts}>لا توجد جهات اتصال</Text>
+            ) : (
+              <FlatList
+                data={contacts}
+                keyExtractor={(u) => u.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.contactRow}
+                    onPress={() => inviteContact(item.id, item.name)}
+                  >
+                    {item.avatar ? (
+                      <Image source={{ uri: item.avatar }} style={styles.contactAvatar} />
+                    ) : (
+                      <View style={[styles.contactAvatar, styles.contactAvatarFallback]}>
+                        <Text style={styles.contactInitial}>{item.name?.[0] || "?"}</Text>
+                      </View>
+                    )}
+                    <Text style={styles.contactName}>{item.name}</Text>
+                    <Feather name="phone-call" size={16} color="#4ade80" />
+                  </TouchableOpacity>
+                )}
+                style={{ maxHeight: 360 }}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#1a1a2e",
-  },
-  bg: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#1a1a2e",
-  },
+  container: { flex: 1, backgroundColor: "#0d1117" },
+  bg: { ...StyleSheet.absoluteFillObject, backgroundColor: "#0d1117" },
+
   callerInfo: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
+    gap: 10,
+    paddingHorizontal: 32,
   },
+  callerInfoVideo: {
+    position: "absolute",
+    top: 80,
+    left: 0,
+    right: 0,
+  },
+
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 108,
+    height: 108,
+    borderRadius: 54,
     borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.3)",
+    borderColor: "rgba(255,255,255,0.25)",
   },
   avatarPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    backgroundColor: "rgba(255,255,255,0.12)",
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarInitial: {
-    color: "white",
-    fontSize: 40,
-    fontWeight: "700",
-  },
-  callerName: {
-    color: "white",
-    fontSize: 28,
-    fontWeight: "700",
-    marginTop: 8,
-  },
-  statusText: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 16,
-  },
+  avatarInitial: { color: "white", fontSize: 44, fontWeight: "700" },
+  callerName: { color: "white", fontSize: 26, fontWeight: "700", marginTop: 6, textAlign: "center" },
+  statusText: { color: "rgba(255,255,255,0.65)", fontSize: 16, fontVariant: ["tabular-nums"] },
+
   localVideoContainer: {
     position: "absolute",
-    top: 100,
+    top: 90,
     right: 16,
-    width: 100,
-    height: 140,
-    borderRadius: 12,
+    width: 96,
+    height: 136,
+    borderRadius: 14,
     overflow: "hidden",
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.3)",
+    borderColor: "rgba(255,255,255,0.2)",
     backgroundColor: "#000",
   },
+  camOffOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   controls: {
     flexDirection: "row",
     justifyContent: "center",
-    alignItems: "center",
-    gap: 24,
-    paddingHorizontal: 24,
-    paddingTop: 20,
+    alignItems: "flex-start",
+    gap: 20,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
   },
+  ctrlWrap: { alignItems: "center", gap: 8 },
   ctrlBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,255,255,0.14)",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: 50,
-    padding: 16,
+    justifyContent: "center",
   },
-  ctrlBtnActive: {
-    backgroundColor: "rgba(255,255,255,0.35)",
-  },
-  ctrlLabel: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 10,
-    textAlign: "center",
-  },
+  ctrlBtnOn: { backgroundColor: "rgba(255,255,255,0.32)" },
+  ctrlLabel: { color: "rgba(255,255,255,0.7)", fontSize: 11, textAlign: "center", maxWidth: 60 },
+
   endBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: "#FF3B30",
-    borderRadius: 50,
-    padding: 20,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#FF3B30",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.55,
+    shadowRadius: 14,
+    elevation: 14,
   },
+
+  // Invite modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#161b22",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 32,
+    paddingTop: 6,
+    maxHeight: "65%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  modalTitle: { color: "white", fontSize: 16, fontWeight: "700" },
+  emptyContacts: { color: "rgba(255,255,255,0.5)", textAlign: "center", marginTop: 32, fontSize: 14 },
+  contactRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+  contactAvatar: { width: 42, height: 42, borderRadius: 21 },
+  contactAvatarFallback: { backgroundColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center" },
+  contactInitial: { color: "white", fontSize: 16, fontWeight: "600" },
+  contactName: { flex: 1, color: "white", fontSize: 15 },
 });

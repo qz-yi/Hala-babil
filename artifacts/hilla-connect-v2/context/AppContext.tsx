@@ -115,7 +115,7 @@ export interface PrivateMessage {
   receiverId: string;
   content: string;
   mediaUrl?: string;
-  type: "text" | "image" | "video" | "audio" | "shared" | "location";
+  type: "text" | "image" | "video" | "audio" | "shared" | "location" | "system";
   duration?: number;
   timestamp: number;
   read: boolean;
@@ -411,7 +411,8 @@ interface AppContextValue {
   shareRoomToDM: (roomId: string, receiverId: string) => void;
   searchRoomByCode: (code: string) => Room | null;
   getConversation: (otherUserId: string) => Conversation;
-  sendPrivateMessage: (conversationId: string, receiverId: string, content: string, type?: "text" | "image" | "video" | "audio" | "shared" | "location", mediaUrl?: string, duration?: number, sharedContent?: SharedContent, storyRef?: string, replyToId?: string, location?: MessageLocation) => void;
+  sendPrivateMessage: (conversationId: string, receiverId: string, content: string, type?: "text" | "image" | "video" | "audio" | "shared" | "location" | "system", mediaUrl?: string, duration?: number, sharedContent?: SharedContent, storyRef?: string, replyToId?: string, location?: MessageLocation) => void;
+  injectCallLog: (conversationId: string, otherUserId: string, content: string) => void;
   deleteMessage: (conversationId: string, messageId: string, forBoth: boolean) => void;
   pinMessage: (conversationId: string, messageId: string) => void;
   addReaction: (conversationId: string, messageId: string, emoji: string) => void;
@@ -1969,12 +1970,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [currentUser, conversations, users]
   );
 
+  const injectCallLog = useCallback(
+    (conversationId: string, otherUserId: string, content: string) => {
+      const msg: PrivateMessage = {
+        id: generateId(),
+        senderId: "system",
+        receiverId: otherUserId,
+        content,
+        type: "system",
+        timestamp: Date.now(),
+        read: true,
+      };
+      const updated = conversations.map((c) => {
+        if (c.id !== conversationId) return c;
+        const msgs = c.messages || [];
+        return { ...c, messages: [...msgs, msg], lastMessage: msg, updatedAt: Date.now() };
+      });
+      saveConversations(updated);
+    },
+    [conversations],
+  );
+
   const sendPrivateMessage = useCallback(
     (
       conversationId: string,
       receiverId: string,
       content: string,
-      type: "text" | "image" | "video" | "audio" | "shared" | "location" = "text",
+      type: "text" | "image" | "video" | "audio" | "shared" | "location" | "system" = "text",
       mediaUrl?: string,
       duration?: number,
       sharedContent?: SharedContent,
@@ -4146,7 +4168,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
       kickFromRoom, banFromRoom, muteUserInRoom,
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, lockSeatsInRoom, shareRoomToDM, searchRoomByCode,
-      getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
+      getConversation, sendPrivateMessage, injectCallLog, deleteMessage, pinMessage, addReaction,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       markConversationRead, archiveConversation, unarchiveConversation, setConversationTheme,
       governorateImages, setGovernorateImage,
@@ -4192,7 +4214,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sendRoomMessage, deleteRoomMessage, pinRoomMessage, editRoomMessage, addRoomReaction,
       kickFromRoom, banFromRoom, muteUserInRoom,
       updateRoomBackground, setRoomAnnouncement, lockSeat, unlockSeat, lockSeatsInRoom, shareRoomToDM, searchRoomByCode,
-      getConversation, sendPrivateMessage, deleteMessage, pinMessage, addReaction,
+      getConversation, sendPrivateMessage, injectCallLog, deleteMessage, pinMessage, addReaction,
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       markConversationRead, archiveConversation, unarchiveConversation, setConversationTheme,
       governorateImages, setGovernorateImage,

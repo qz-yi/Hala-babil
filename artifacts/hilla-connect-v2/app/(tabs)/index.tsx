@@ -33,6 +33,7 @@ import type { Post, PostComment, Story, User } from "@/context/AppContext";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import MentionInput from "@/components/MentionInput";
 import MentionText from "@/components/MentionText";
+import CreationHub from "@/components/CreationHub";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -1101,6 +1102,7 @@ export default function HomeScreen() {
   const topPad = Platform.OS === "web" ? 20 : insets.top;
 
   const [refreshing, setRefreshing] = useState(false);
+  const [showCreationHub, setShowCreationHub] = useState(false);
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setTimeout(() => setRefreshing(false), 800);
@@ -1202,7 +1204,7 @@ export default function HomeScreen() {
               style={styles.headerIconBtn}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push("/create-post");
+                setShowCreationHub(true);
               }}
             >
               <Feather name="plus-square" size={24} color={colors.text} strokeWidth={1.5} />
@@ -1314,7 +1316,7 @@ export default function HomeScreen() {
               تابع أشخاصاً لترى منشوراتهم هنا
             </Text>
             <TouchableOpacity
-              onPress={() => router.push("/create-post")}
+              onPress={() => setShowCreationHub(true)}
               style={[styles.createFirstPost, { backgroundColor: colors.tint }]}
             >
               <Text style={[styles.createFirstPostText, { color: colors.background }]}>
@@ -1330,6 +1332,14 @@ export default function HomeScreen() {
             highlighted={highlightedPostId === item.id}
           />
         )}
+      />
+
+      <CreationHub
+        visible={showCreationHub}
+        onClose={() => setShowCreationHub(false)}
+        onSelectStory={() => router.push("/create-story")}
+        onSelectPost={() => router.push({ pathname: "/create-story", params: { mode: "post" } } as any)}
+        onSelectReel={() => router.push({ pathname: "/create-story", params: { mode: "reel" } } as any)}
       />
     </View>
   );

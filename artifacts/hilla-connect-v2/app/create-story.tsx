@@ -45,6 +45,8 @@ import {
   type SharedContentPayload,
 } from "@/lib/sharedContentBridge";
 import { useMediaStore } from "@/store/mediaStore";
+import { useThemeStore } from "@/store/themeStore";
+import * as Haptics from "expo-haptics";
 
 // ────────────────────────────────────────────────────────────────────────────
 // THEME (Strict Zentram Dark)
@@ -1392,6 +1394,8 @@ export default function CreateStoryScreen() {
     mode?: string;
   }>();
 
+  const tokens = useThemeStore((s) => s.tokens);
+
   // ─ Universal Editor mode (story | post | reel | profile | cover)
   const editorMode: EditorMode = (() => {
     const raw = (params.mode || "").toLowerCase();
@@ -2512,20 +2516,117 @@ export default function CreateStoryScreen() {
           </View>
         )}
 
-        {/* ════════ Landing chooser ════════ */}
+        {/* ════════ Premium Landing Chooser ════════ */}
         {showLanding && (
           <View style={st.landing} pointerEvents="box-none">
-            <Text style={st.landingTitle}>{cfg.title}</Text>
-            <View style={st.landingRow}>
-              <TouchableOpacity style={[st.landingBtn, { borderColor: Z_BLUE }]} onPress={handlePickMedia} activeOpacity={0.85}>
-                <Ionicons name="images-outline" size={28} color={Z_BLUE} />
-                <Text style={[st.landingBtnText, { color: Z_BLUE }]}>{cfg.landingMediaLabel}</Text>
-              </TouchableOpacity>
+            {/* Mode identity pill */}
+            <View style={[st.landingModePill, {
+              backgroundColor: tokens.accent + "18",
+              borderColor: tokens.accent + "40",
+            }]}>
+              <Ionicons
+                name={
+                  editorMode === "reel" ? "film-outline" :
+                  editorMode === "post" ? "grid-outline" :
+                  "camera-outline"
+                }
+                size={16}
+                color={tokens.accent}
+              />
+              <Text style={[st.landingModeLabel, { color: tokens.accent, fontFamily: tokens.fontFamily ?? "Inter_600SemiBold" }]}>
+                {cfg.title}
+              </Text>
+            </View>
+
+            {/* Hint text */}
+            <Text style={[st.landingHint, { color: tokens.textSecondary }]}>
+              اختر كيف تريد البدء
+            </Text>
+
+            {/* Action cards */}
+            <View style={[st.landingRow, cfg.allowTextMode ? { gap: 12 } : { gap: 0 }]}>
+              {/* Media card */}
+              <Pressable
+                style={({ pressed }) => [
+                  st.landingCard,
+                  {
+                    borderRadius: Math.max(tokens.radius, 18),
+                    borderColor: tokens.accent + "50",
+                    backgroundColor: tokens.accent + "0E",
+                    transform: [{ scale: pressed ? 0.95 : 1 }],
+                    shadowColor: tokens.glow,
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: 0.35,
+                    shadowRadius: 16,
+                  },
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  handlePickMedia();
+                }}
+              >
+                <LinearGradient
+                  colors={[tokens.gradientStart + "22", tokens.gradientEnd + "08"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[StyleSheet.absoluteFill, { borderRadius: Math.max(tokens.radius, 18) }]}
+                />
+                <View style={[st.landingCardIcon, {
+                  backgroundColor: tokens.accent + "20",
+                  borderColor: tokens.accent + "38",
+                  borderRadius: Math.max(tokens.radius - 2, 14),
+                }]}>
+                  <Ionicons name="images-outline" size={30} color={tokens.accent} />
+                </View>
+                <Text style={[st.landingCardLabel, { color: tokens.text, fontFamily: tokens.fontFamily ?? "Inter_700Bold" }]}>
+                  {cfg.landingMediaLabel}
+                </Text>
+                <Text style={[st.landingCardSub, { color: tokens.accent + "CC" }]}>
+                  {editorMode === "reel" ? "MP4 · MOV" : editorMode === "post" ? "صورة أو فيديو" : "الاستوديو"}
+                </Text>
+              </Pressable>
+
+              {/* Text card */}
               {cfg.allowTextMode && (
-                <TouchableOpacity style={[st.landingBtn, { borderColor: Z_GREEN }]} onPress={() => setTextMode(true)} activeOpacity={0.85}>
-                  <Ionicons name="text" size={28} color={Z_GREEN} />
-                  <Text style={[st.landingBtnText, { color: Z_GREEN }]}>{cfg.landingTextLabel}</Text>
-                </TouchableOpacity>
+                <Pressable
+                  style={({ pressed }) => [
+                    st.landingCard,
+                    {
+                      borderRadius: Math.max(tokens.radius, 18),
+                      borderColor: tokens.glow + "50",
+                      backgroundColor: tokens.glow + "0E",
+                      transform: [{ scale: pressed ? 0.95 : 1 }],
+                      shadowColor: tokens.glow,
+                      shadowOffset: { width: 0, height: 0 },
+                      shadowOpacity: 0.3,
+                      shadowRadius: 14,
+                    },
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setTextMode(true);
+                  }}
+                >
+                  <LinearGradient
+                    colors={[tokens.glow + "20", tokens.gradientStart + "08"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[StyleSheet.absoluteFill, { borderRadius: Math.max(tokens.radius, 18) }]}
+                  />
+                  <View style={[st.landingCardIcon, {
+                    backgroundColor: tokens.glow + "20",
+                    borderColor: tokens.glow + "38",
+                    borderRadius: Math.max(tokens.radius - 2, 14),
+                  }]}>
+                    <Ionicons name="text" size={30} color={tokens.glow} />
+                  </View>
+                  <Text style={[st.landingCardLabel, { color: tokens.text, fontFamily: tokens.fontFamily ?? "Inter_700Bold" }]}>
+                    {cfg.landingTextLabel}
+                  </Text>
+                  <Text style={[st.landingCardSub, { color: tokens.glow + "CC" }]}>
+                    نص · جرافيك
+                  </Text>
+                </Pressable>
               )}
             </View>
           </View>
@@ -2834,17 +2935,32 @@ const st = StyleSheet.create({
     position: "absolute",
     top: 0, bottom: 0, left: 0, right: 0,
     alignItems: "center", justifyContent: "center",
-    padding: 28, gap: 24,
+    paddingHorizontal: 20, gap: 16,
   },
-  landingTitle: { color: "#fff", fontSize: 26, fontFamily: "Inter_700Bold", marginBottom: 8 },
-  landingRow: { flexDirection: "row", gap: 14 },
-  landingBtn: {
-    flex: 1, minWidth: 130,
-    borderWidth: 1.5, borderRadius: 22,
-    paddingVertical: 28, paddingHorizontal: 14,
+  landingModePill: {
+    flexDirection: "row", alignItems: "center", gap: 7,
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: 100, borderWidth: 1,
+    marginBottom: 4,
+  },
+  landingModeLabel: { fontSize: 13, letterSpacing: 0.4 },
+  landingHint: { fontSize: 12, fontFamily: "Inter_400Regular", marginBottom: 8 },
+  landingRow: { flexDirection: "row", gap: 12, width: "100%" },
+  landingCard: {
+    flex: 1,
+    borderWidth: 1,
+    paddingVertical: 26, paddingHorizontal: 14,
     alignItems: "center", gap: 10,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    overflow: "hidden",
+    minHeight: 160,
   },
+  landingCardIcon: {
+    width: 58, height: 58,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, marginBottom: 2,
+  },
+  landingCardLabel: { fontSize: 15, letterSpacing: 0.1 },
+  landingCardSub: { fontSize: 11, fontFamily: "Inter_500Medium", letterSpacing: 0.6 },
   landingBtnText: { fontFamily: "Inter_700Bold", fontSize: 14, textAlign: "center" },
 
   bottomBar: {

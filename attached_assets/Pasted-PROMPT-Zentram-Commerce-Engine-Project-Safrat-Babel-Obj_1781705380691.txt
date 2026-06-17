@@ -1,0 +1,21 @@
+PROMPT: Zentram Commerce Engine (Project "Safrat Babel")
+​Objective: Complete transition from "Restaurant Hub" to "Local Commerce Marketplace" with deep integration into Reels and Social Flows.
+​1. MERCHANT ARCHITECTURE (The Core)
+​Merchant Dashboard: Replace restaurant management with MerchantProfile.
+​Catalog System: Allow merchants to upload products with Video/Reels association, Stock Count, SKU, Pricing, and Variations (Size/Color).
+​Order Management: Implement a status workflow: Pending -> Warehouse -> In-Transit -> Delivered/Returned.
+​Dynamic Commission Logic: Implement an automated commission calculator:
+​Tiers: Tier 1 (0-100 sales: 2%), Tier 2 (101-500: 1.5%), Tier 3 (500+: 1%).
+​Affiliate Layer: Create an AffiliateEngine that automatically splits the price: 5% to the Influencer (if the sale came from their shared Reel), X% to the Platform (Zentram), and the rest to the Merchant.
+​2. SHOPPABLE REELS ENGINE (The "Hook")
+​Reels Integration: When a Merchant uploads a Reel, add a "Tag Products" button.
+​Shopping Modal: The Reel must support a Floating Action Button called "تسوق الآن" (Shop Now).
+​Bottom Sheet Experience: On click, open a sleek, blurred bottom sheet containing: Product Image, Price, Selectors (Size/Color), and "Add to Cart".
+​Universal Cart: Allow users to add items from multiple merchants into a single unified shopping cart.
+​3. PAYMENT & LOGISTICS (Iraq Market Native)
+​Payment Gateways: Integrate APIs for local Iraqi payment solutions (ZainCash, FastPay, and "Dafaa").
+​COD (Cash on Delivery) Protocol: Implement an OTP confirmation step: "عند وصول المندوب، أدخل كود التأكيد (OTP) في تطبيقك لتأكيد استلام الطلب".
+​Live Tracking: Use Mapbox or Google Maps API to show the merchant/customer a live visual path of the delivery driver.
+​4. UI/UX "Commerce-First" Transformation
+​Explore Tab: Refactor the "Explore" algorithm. If a user watches a fashion Reel, the algorithm must prioritize showing similar products from nearby shops in "Babylon/Hilla" in the feed recommendations.
+​Consistency: Ensure the entire app adopts the "Ambient Glow/Fog" glassmorphism theme, particularly in the Cart, Product Modals, and Checkout screens.

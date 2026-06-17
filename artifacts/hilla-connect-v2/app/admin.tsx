@@ -22,13 +22,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useToast } from "@/components/Toast";
 import { IRAQI_GOVERNORATES, useApp, isUserVerified } from "@/context/AppContext";
-import type { Restaurant, User } from "@/context/AppContext";
+import type { Restaurant, User, Merchant, Order } from "@/context/AppContext";
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useColors } from "@/hooks/useColors";
 import { useThemeStore } from "@/store/themeStore";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 
-type Tab = "owners" | "restaurants" | "users" | "rooms" | "governorates" | "settings";
+type Tab = "merchants" | "orders" | "users" | "rooms" | "governorates" | "settings";
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   const c = useThemeStore((s) => s.tokens);
@@ -46,9 +46,9 @@ const sec = StyleSheet.create({
   sub: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 4 },
 });
 
-function CreateOwnerForm({ onCreated }: { onCreated: () => void }) {
+function CreateMerchantOwnerForm({ onCreated }: { onCreated: () => void }) {
   const c = useThemeStore((s) => s.tokens);
-  const { createOwnerAccount } = useApp();
+  const { createMerchantAccount } = useApp();
   const { showToast } = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -63,10 +63,10 @@ function CreateOwnerForm({ onCreated }: { onCreated: () => void }) {
     }
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const res = await createOwnerAccount(name.trim(), email.trim().toLowerCase(), gov, password);
+    const res = await createMerchantAccount(name.trim(), email.trim().toLowerCase(), gov, password);
     setLoading(false);
     if (res.success) {
-      showToast("تم إنشاء الحساب والمطعم بنجاح ✓", "success");
+      showToast("تم إنشاء حساب صاحب المتجر ✓", "success");
       setName(""); setEmail(""); setGov(""); setPassword("");
       onCreated();
     } else if (res.error === "email_exists") {
@@ -78,11 +78,11 @@ function CreateOwnerForm({ onCreated }: { onCreated: () => void }) {
 
   return (
     <View style={[frm.card, { backgroundColor: c.card, borderColor: c.border }]}>
-      <Text style={[frm.label, { color: c.textSecondary }]}>اسم صاحب المطعم *</Text>
+      <Text style={[frm.label, { color: c.textSecondary }]}>اسم صاحب المتجر *</Text>
       <TextInput style={[frm.input, { backgroundColor: c.backgroundTertiary, borderColor: c.border, color: c.text }]} value={name} onChangeText={setName} placeholder="الاسم الكامل" placeholderTextColor={c.textSecondary} textAlign="right" />
 
       <Text style={[frm.label, { color: c.textSecondary }]}>البريد الإلكتروني *</Text>
-      <TextInput style={[frm.input, { backgroundColor: c.backgroundTertiary, borderColor: c.border, color: c.text }]} value={email} onChangeText={setEmail} placeholder="owner@example.com" placeholderTextColor={c.textSecondary} keyboardType="email-address" autoCapitalize="none" />
+      <TextInput style={[frm.input, { backgroundColor: c.backgroundTertiary, borderColor: c.border, color: c.text }]} value={email} onChangeText={setEmail} placeholder="merchant@example.com" placeholderTextColor={c.textSecondary} keyboardType="email-address" autoCapitalize="none" />
 
       <Text style={[frm.label, { color: c.textSecondary }]}>المحافظة *</Text>
       <TouchableOpacity style={[frm.input, frm.govBtn, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]} onPress={() => setGovModal(true)}>
@@ -93,9 +93,9 @@ function CreateOwnerForm({ onCreated }: { onCreated: () => void }) {
       <Text style={[frm.label, { color: c.textSecondary }]}>كلمة المرور *</Text>
       <TextInput style={[frm.input, { backgroundColor: c.backgroundTertiary, borderColor: c.border, color: c.text }]} value={password} onChangeText={setPassword} placeholder="كلمة مرور قوية" placeholderTextColor={c.textSecondary} secureTextEntry />
 
-      <TouchableOpacity style={[frm.btn, { backgroundColor: c.text }]} activeOpacity={0.85} onPress={handle} disabled={loading}>
-        <Feather name="user-plus" size={18} color={c.background} strokeWidth={2} />
-        <Text style={[frm.btnTxt, { color: c.background }]}>{loading ? "جارٍ الإنشاء..." : "إنشاء حساب صاحب مطعم"}</Text>
+      <TouchableOpacity style={[frm.btn, { backgroundColor: "#6C63FF" }]} activeOpacity={0.85} onPress={handle} disabled={loading}>
+        <Feather name="user-plus" size={18} color="#fff" strokeWidth={2} />
+        <Text style={[frm.btnTxt, { color: "#fff" }]}>{loading ? "جارٍ الإنشاء..." : "إنشاء حساب صاحب متجر"}</Text>
       </TouchableOpacity>
 
       <Modal visible={govModal} transparent animationType="slide" onRequestClose={() => setGovModal(false)}>
@@ -127,14 +127,15 @@ const frm = StyleSheet.create({
   btnTxt: { fontSize: 16, fontFamily: "Inter_700Bold" },
 });
 
-function OwnerCard({ user, restaurant, onToggleActive }: { user: User; restaurant: Restaurant | undefined; onToggleActive: () => void }) {
+function MerchantCard({ user, merchant, onToggleActive }: { user: User; merchant: Merchant | undefined; onToggleActive: () => void }) {
   const c = useThemeStore((s) => s.tokens);
   const isActive = user.isActive !== false;
+  const tierColor = merchant?.tier === "gold" ? "#F59E0B" : merchant?.tier === "silver" ? "#9CA3AF" : "#CD7F32";
   return (
     <View style={[ow.card, { backgroundColor: c.card, borderColor: c.border }]}>
       <View style={ow.row}>
-        <View style={[ow.avatar, { backgroundColor: isActive ? `${c.success}22` : `${c.danger}22` }]}>
-          <Feather name="user" size={22} color={isActive ? c.success : c.danger} strokeWidth={1.5} />
+        <View style={[ow.avatar, { backgroundColor: isActive ? "#6C63FF22" : `${c.danger}22` }]}>
+          <Feather name="shopping-bag" size={20} color={isActive ? "#6C63FF" : c.danger} strokeWidth={1.5} />
         </View>
         <View style={ow.info}>
           <Text style={[ow.name, { color: c.text }]}>{user.name}</Text>
@@ -151,11 +152,12 @@ function OwnerCard({ user, restaurant, onToggleActive }: { user: User; restauran
           </TouchableOpacity>
         </View>
       </View>
-      {restaurant && (
+      {merchant && (
         <View style={[ow.restRow, { backgroundColor: c.backgroundTertiary }]}>
-          <Feather name="coffee" size={13} color={c.textSecondary} strokeWidth={1.5} />
-          <Text style={[ow.restName, { color: c.text }]}>{restaurant.name}</Text>
-          <Text style={[ow.restGov, { color: c.textSecondary }]}>{restaurant.governorate}</Text>
+          <Feather name="package" size={13} color={tierColor} strokeWidth={1.5} />
+          <Text style={[ow.restName, { color: c.text }]}>{merchant.name}</Text>
+          <Text style={[ow.badgeTxt, { color: tierColor }]}>{merchant.tier === "gold" ? "🥇" : merchant.tier === "silver" ? "🥈" : "🥉"}</Text>
+          <Text style={[ow.restGov, { color: c.textSecondary }]}>{merchant.governorate}</Text>
         </View>
       )}
     </View>
@@ -179,6 +181,14 @@ const ow = StyleSheet.create({
   restName: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium" },
   restGov: { fontSize: 11, fontFamily: "Inter_400Regular" },
 });
+
+const ORDER_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  pending: { label: "انتظار", color: "#F59E0B" },
+  warehouse: { label: "المستودع", color: "#6C63FF" },
+  in_transit: { label: "في الطريق", color: "#3B82F6" },
+  delivered: { label: "تم التسليم", color: "#10B981" },
+  returned: { label: "مرتجع", color: "#EF4444" },
+};
 
 function RestaurantManagerCard({
   restaurant,
@@ -292,14 +302,14 @@ export default function AdminScreen() {
     setGovernorateImage, theme, banUser, unbanUser, resetUserPassword,
     deleteRoom, verifyUser, revokeVerification,
     restaurantsEnabled, toggleRestaurantsEnabled,
+    merchants, orders, updateOrderStatus,
   } = useApp();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
-  const colors = useColors();
+  useColors();
   const c = useThemeStore((s) => s.tokens);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const [tab, setTab] = useState<Tab>("owners");
-  const [selectedGov, setSelectedGov] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("merchants");
   const [createdRefresh, setCreatedRefresh] = useState(0);
   const [verifyModal, setVerifyModal] = useState<{ userId: string; userName: string } | null>(null);
   const [pwModal, setPwModal] = useState<{ userId: string; userName: string } | null>(null);
@@ -316,14 +326,11 @@ export default function AdminScreen() {
     );
   }
 
-  const ownerUsers = users.filter((u) => u.role === "RESTAURANT_OWNER");
-  const filteredRestaurants = selectedGov
-    ? restaurants.filter((r) => r.governorate === selectedGov)
-    : restaurants;
+  const merchantOwnerUsers = users.filter((u) => u.role === "MERCHANT_OWNER" || u.role === "RESTAURANT_OWNER");
 
   const TABS: { key: Tab; label: string; icon: string }[] = [
-    { key: "owners", label: "الأصحاب", icon: "users" },
-    { key: "restaurants", label: "المطاعم", icon: "coffee" },
+    { key: "merchants", label: "المتاجر", icon: "shopping-bag" },
+    { key: "orders", label: "الطلبات", icon: "package" },
     { key: "users", label: "المستخدمون", icon: "user" },
     { key: "rooms", label: "الغرف", icon: "mic" },
     { key: "governorates", label: "المحافظات", icon: "map" },
@@ -366,22 +373,22 @@ export default function AdminScreen() {
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}>
 
-          {/* ── OWNERS TAB ── */}
-          {tab === "owners" && (
+          {/* ── MERCHANTS TAB ── */}
+          {tab === "merchants" && (
             <View>
-              <SectionHeader title="إنشاء حساب صاحب مطعم" subtitle="سيتم إنشاء مطعم فارغ تلقائياً عند إنشاء الحساب" />
-              <CreateOwnerForm onCreated={() => setCreatedRefresh((p) => p + 1)} />
+              <SectionHeader title="إنشاء حساب صاحب متجر" subtitle="سيتم إنشاء متجر فارغ تلقائياً عند إنشاء الحساب" />
+              <CreateMerchantOwnerForm onCreated={() => setCreatedRefresh((p) => p + 1)} />
 
-              {ownerUsers.length > 0 && (
+              {merchantOwnerUsers.length > 0 && (
                 <>
-                  <SectionHeader title={`أصحاب المطاعم (${ownerUsers.length})`} />
-                  {ownerUsers.map((u) => {
-                    const rest = restaurants.find((r) => r.ownerId === u.id);
+                  <SectionHeader title={`أصحاب المتاجر (${merchantOwnerUsers.length})`} />
+                  {merchantOwnerUsers.map((u) => {
+                    const merch = merchants.find((m) => m.ownerId === u.id);
                     return (
-                      <OwnerCard
+                      <MerchantCard
                         key={u.id}
                         user={u}
-                        restaurant={rest}
+                        merchant={merch}
                         onToggleActive={() => {
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                           setOwnerActive(u.id, u.isActive === false);
@@ -393,60 +400,56 @@ export default function AdminScreen() {
                 </>
               )}
 
-              {ownerUsers.length === 0 && (
+              {merchantOwnerUsers.length === 0 && (
                 <View style={styles.emptyState}>
-                  <Feather name="users" size={48} color={c.border} strokeWidth={1} />
-                  <Text style={[styles.emptyTxt, { color: c.textSecondary }]}>لا يوجد أصحاب مطاعم بعد</Text>
+                  <Feather name="shopping-bag" size={48} color={c.border} strokeWidth={1} />
+                  <Text style={[styles.emptyTxt, { color: c.textSecondary }]}>لا يوجد أصحاب متاجر بعد</Text>
                 </View>
               )}
             </View>
           )}
 
-          {/* ── RESTAURANTS TAB ── */}
-          {tab === "restaurants" && (
+          {/* ── ORDERS TAB ── */}
+          {tab === "orders" && (
             <View>
-              <SectionHeader title={`إدارة المطاعم (${restaurants.length})`} subtitle="العمولات والمستحقات الشهرية" />
-
-              {/* Gov filter */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: 12 }}>
-                <TouchableOpacity onPress={() => setSelectedGov(null)}
-                  style={[styles.govFilter, { borderColor: selectedGov === null ? c.success : c.border, backgroundColor: selectedGov === null ? `${c.success}22` : c.card }]}>
-                  <Text style={[styles.govFilterTxt, { color: selectedGov === null ? c.success : c.textSecondary }]}>الكل</Text>
-                </TouchableOpacity>
-                {IRAQI_GOVERNORATES.map((g) => (
-                  <TouchableOpacity key={g} onPress={() => setSelectedGov(selectedGov === g ? null : g)}
-                    style={[styles.govFilter, { borderColor: selectedGov === g ? c.success : c.border, backgroundColor: selectedGov === g ? `${c.success}22` : c.card }]}>
-                    <Text style={[styles.govFilterTxt, { color: selectedGov === g ? c.success : c.textSecondary }]}>{g}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              {filteredRestaurants.length === 0 ? (
+              <SectionHeader title={`الطلبات (${orders.length})`} subtitle="جميع طلبات منصة سفرة بابل" />
+              {orders.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Feather name="coffee" size={48} color={c.border} strokeWidth={1} />
-                  <Text style={[styles.emptyTxt, { color: c.textSecondary }]}>لا توجد مطاعم</Text>
+                  <Feather name="package" size={48} color={c.border} strokeWidth={1} />
+                  <Text style={[styles.emptyTxt, { color: c.textSecondary }]}>لا توجد طلبات بعد</Text>
                 </View>
               ) : (
-                filteredRestaurants.map((r) => {
-                  const owner = r.ownerId ? users.find((u) => u.id === r.ownerId) : undefined;
+                [...orders].reverse().map((order) => {
+                  const merchant = merchants.find((m) => m.id === order.merchantId);
+                  const customer = users.find((u) => u.id === order.customerId);
+                  const st = ORDER_STATUS_LABELS[order.status] ?? { label: order.status, color: "#6B7280" };
                   return (
-                    <RestaurantManagerCard
-                      key={r.id}
-                      restaurant={r}
-                      ownerUser={owner}
-                      onSetCommission={(rate) => {
-                        setCommissionRate(r.id, rate);
-                        showToast(`تم تحديث العمولة إلى ${rate}%`, "success");
-                      }}
-                      onClearDues={() => {
-                        clearDues(r.id);
-                        showToast("تمت تصفية المستحقات", "success");
-                      }}
-                      onDelete={() => {
-                        deleteRestaurant(r.id);
-                        showToast("تم حذف المطعم", "success");
-                      }}
-                    />
+                    <View key={order.id} style={[styles.roomCard, { backgroundColor: c.card, borderColor: c.border }]}>
+                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                        <Text style={[styles.roomName, { color: c.text }]}>#{order.id.slice(-6).toUpperCase()}</Text>
+                        <View style={{ backgroundColor: `${st.color}22`, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: st.color }}>{st.label}</Text>
+                        </View>
+                      </View>
+                      {merchant && <Text style={[styles.roomOwner, { color: c.textSecondary }]}>🏪 {merchant.name}</Text>}
+                      {customer && <Text style={[styles.roomOwner, { color: c.textSecondary }]}>👤 {customer.name}</Text>}
+                      <Text style={[styles.roomCode, { color: c.success }]}>{order.totalIQD.toLocaleString()} د.ع</Text>
+                      <Text style={[styles.roomOwner, { color: c.textSecondary, marginTop: 2 }]}>
+                        {order.items.map((i) => `${i.productName} ×${i.quantity}`).join("، ")}
+                      </Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }} contentContainerStyle={{ gap: 6 }}>
+                        {(["pending", "warehouse", "in_transit", "delivered", "returned"] as const).map((s) => {
+                          const sl = ORDER_STATUS_LABELS[s];
+                          return (
+                            <TouchableOpacity key={s}
+                              onPress={() => { updateOrderStatus(order.id, s); showToast(`تم تحديث الحالة: ${sl.label}`, "success"); }}
+                              style={[styles.actionBtn, { borderColor: order.status === s ? sl.color : c.border, backgroundColor: order.status === s ? `${sl.color}22` : "transparent" }]}>
+                              <Text style={[styles.actionBtnTxt, { color: order.status === s ? sl.color : c.textSecondary }]}>{sl.label}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
                   );
                 })
               )}

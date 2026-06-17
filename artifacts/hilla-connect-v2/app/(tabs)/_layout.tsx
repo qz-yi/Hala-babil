@@ -16,7 +16,7 @@ const TAB_ROUTES = ["index", "rooms", "reels", "restaurants", "profile"];
 const EDGE_WIDTH = Math.round(SW * 0.08); // 8% of screen width for edge detection
 
 function NativeTabLayout() {
-  const { t, isRestaurantOwner } = useApp();
+  const { t, isMerchantOwner } = useApp();
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
@@ -31,15 +31,15 @@ function NativeTabLayout() {
         <Icon sf={{ default: "film", selected: "film.fill" }} />
         <Label>{t("reels")}</Label>
       </NativeTabs.Trigger>
-      {isRestaurantOwner ? (
-        <NativeTabs.Trigger name="my-restaurant">
+      {isMerchantOwner ? (
+        <NativeTabs.Trigger name="my-merchant">
           <Icon sf={{ default: "storefront", selected: "storefront.fill" }} />
-          <Label>{t("myRestaurant")}</Label>
+          <Label>{t("myMerchant")}</Label>
         </NativeTabs.Trigger>
       ) : (
         <NativeTabs.Trigger name="restaurants">
-          <Icon sf={{ default: "fork.knife", selected: "fork.knife" }} />
-          <Label>{t("restaurants")}</Label>
+          <Icon sf={{ default: "bag", selected: "bag.fill" }} />
+          <Label>{t("marketplace")}</Label>
         </NativeTabs.Trigger>
       )}
       <NativeTabs.Trigger name="profile">
@@ -88,7 +88,7 @@ function useSwipeTabNav() {
 }
 
 function ClassicTabLayout() {
-  const { t, isRestaurantOwner } = useApp();
+  const { t, isMerchantOwner } = useApp();
   const tokens = useThemeStore((s) => s.tokens);
   const safeAreaInsets = useSafeAreaInsets();
   const isIOS = Platform.OS === "ios";
@@ -190,28 +190,32 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="restaurants"
         options={{
-          title: t("restaurants"),
-          href: isRestaurantOwner ? null : undefined,
+          title: t("marketplace"),
+          href: isMerchantOwner ? null : undefined,
           tabBarIcon: ({ color, focused }) =>
             isIOS ? (
-              <SymbolView name="fork.knife" tintColor={color} size={22} />
+              <SymbolView name={focused ? "bag.fill" : "bag"} tintColor={color} size={22} />
             ) : (
-              <Feather name="coffee" size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
+              <Feather name="shopping-bag" size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="my-merchant"
+        options={{
+          title: t("myMerchant"),
+          href: isMerchantOwner ? undefined : null,
+          tabBarIcon: ({ color, focused }) =>
+            isIOS ? (
+              <SymbolView name={focused ? "storefront.fill" : "storefront"} tintColor={color} size={22} />
+            ) : (
+              <Feather name="package" size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
             ),
         }}
       />
       <Tabs.Screen
         name="my-restaurant"
-        options={{
-          title: t("myRestaurant"),
-          href: isRestaurantOwner ? undefined : null,
-          tabBarIcon: ({ color, focused }) =>
-            isIOS ? (
-              <SymbolView name={focused ? "storefront.fill" : "storefront"} tintColor={color} size={22} />
-            ) : (
-              <Feather name="shopping-bag" size={22} color={color} strokeWidth={focused ? 2 : 1.5} />
-            ),
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="profile"

@@ -17,7 +17,7 @@ export type Theme = "light" | "dark";
 export type ReelFilter = "none" | "grayscale" | "warm" | "cool" | "vintage";
 export type AccountType = "public" | "private";
 export type PostFilter = "none" | "grayscale" | "warm" | "cool" | "vintage";
-export type UserRole = "MANAGER" | "RESTAURANT_OWNER" | "CUSTOMER";
+export type UserRole = "MANAGER" | "RESTAURANT_OWNER" | "MERCHANT_OWNER" | "CUSTOMER";
 
 export type PrivacyLevel = "everyone" | "following" | "followers" | "none";
 
@@ -229,6 +229,82 @@ export interface Cart {
   restaurantName: string;
   restaurantOwnerId: string;
   items: CartItem[];
+}
+
+export type CommerceTier = "bronze" | "silver" | "gold";
+export type OrderStatus = "pending" | "warehouse" | "in_transit" | "delivered" | "returned";
+export type PaymentMethod = "cod" | "zaincash" | "fastpay" | "dafaa";
+
+export interface ProductVariation {
+  id: string;
+  label: string;
+  options: string[];
+}
+
+export interface Product {
+  id: string;
+  merchantId: string;
+  name: string;
+  description?: string;
+  price: number;
+  images: string[];
+  stock: number;
+  sku?: string;
+  category: string;
+  variations?: ProductVariation[];
+  linkedReelId?: string;
+  isActive: boolean;
+  createdAt: number;
+}
+
+export interface OrderItem {
+  productId: string;
+  productName: string;
+  productPrice: number;
+  quantity: number;
+  selectedVariations?: Record<string, string>;
+}
+
+export interface Order {
+  id: string;
+  customerId: string;
+  merchantId: string;
+  items: OrderItem[];
+  status: OrderStatus;
+  paymentMethod: PaymentMethod;
+  totalIQD: number;
+  commissionAmount: number;
+  affiliateUserId?: string;
+  affiliateCut: number;
+  platformCut: number;
+  createdAt: number;
+  updatedAt: number;
+  address?: string;
+  notes?: string;
+}
+
+export interface Merchant {
+  id: string;
+  name: string;
+  logo?: string;
+  coverPhoto?: string;
+  bio?: string;
+  governorate: string;
+  ownerId: string;
+  isActive: boolean;
+  commissionRate?: number;
+  monthlyDues?: number;
+  monthlySales: number;
+  tier: CommerceTier;
+  category?: string;
+  createdAt: number;
+}
+
+export interface AffiliateRecord {
+  productId: string;
+  influencerId: string;
+  sessionId: string;
+  createdAt: number;
 }
 
 export interface Reel {
@@ -572,6 +648,23 @@ interface AppContextValue {
   canAddToGroup: (userId: string) => boolean;
   canMention: (viewerId: string, ownerId: string) => boolean;
   addStrike: (userId: string) => void;
+  merchants: Merchant[];
+  products: Product[];
+  orders: Order[];
+  isMerchantOwner: boolean;
+  getMyMerchant: () => Merchant | null;
+  addMerchant: (data: Omit<Merchant, "id" | "createdAt" | "tier" | "monthlySales">) => Merchant;
+  updateMerchantProfile: (merchantId: string, data: Partial<Merchant>) => void;
+  addProduct: (data: Omit<Product, "id" | "createdAt">) => void;
+  updateProduct: (productId: string, data: Partial<Product>) => void;
+  deleteProduct: (productId: string) => void;
+  placeCommerceOrder: (merchantId: string, items: OrderItem[], paymentMethod: PaymentMethod, address?: string, notes?: string) => Promise<Order | null>;
+  updateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  getCommissionTier: (monthlySales: number) => number;
+  recordAffiliateLink: (productId: string, influencerId: string) => void;
+  getAffiliateForProduct: (productId: string) => AffiliateRecord | null;
+  createMerchantAccount: (name: string, email: string, governorate: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  getMerchantOrders: (merchantId: string) => Order[];
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -617,6 +710,10 @@ const translations: Record<Language, Record<string, string>> = {
     welcomeToApp: "مرحباً بك في Zentram",
     joinApp: "انضم إلى Zentram",
     myRestaurant: "مطعمي",
+    marketplace: "سوق",
+    myMerchant: "متجري",
+    merchants: "المتاجر",
+    orders: "الطلبات",
     noRooms: "لا توجد غرف حتى الآن",
     createFirst: "أنشئ أول غرفة!",
     seat: "مقعد",
@@ -856,6 +953,10 @@ const translations: Record<Language, Record<string, string>> = {
     welcomeToApp: "Welcome to Zentram",
     joinApp: "Join Zentram",
     myRestaurant: "My Restaurant",
+    marketplace: "Marketplace",
+    myMerchant: "My Store",
+    merchants: "Merchants",
+    orders: "Orders",
     noRooms: "No rooms yet",
     createFirst: "Create the first room!",
     seat: "Seat",
@@ -1115,6 +1216,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [groups, setGroups] = useState<GroupChat[]>([]);
   const [privacySettingsMap, setPrivacySettingsMap] = useState<Record<string, UserPrivacySettings>>({});
   const [restaurantsEnabled, setRestaurantsEnabled] = useState(true);
+  const [merchants, setMerchants] = useState<Merchant[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [affiliateLinks, setAffiliateLinks] = useState<AffiliateRecord[]>([]);
 
   const minimizeRoom = useCallback((roomId: string, roomName: string, roomImage?: string) => {
     setIsRoomMinimized(true);
@@ -1142,6 +1247,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         "reelComments", "posts", "postLikes", "postComments", "stories",
         "closeFriendsLists", "follows", "notifications", "savedPosts", "governorateImages",
         "groupChats", "privacySettings", "restaurantsEnabled",
+        "merchants", "products", "orders",
       ];
       const values = await AsyncStorage.multiGet(keys);
       const data = Object.fromEntries(values.map(([k, v]) => [k, v]));
@@ -1190,6 +1296,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.groupChats) setGroups(JSON.parse(data.groupChats));
       if (data.privacySettings) setPrivacySettingsMap(JSON.parse(data.privacySettings));
       if (data.restaurantsEnabled !== null && data.restaurantsEnabled !== undefined) setRestaurantsEnabled(JSON.parse(data.restaurantsEnabled));
+      if (data.merchants) setMerchants(JSON.parse(data.merchants));
+      if (data.products) setProducts(JSON.parse(data.products));
+      if (data.orders) setOrders(JSON.parse(data.orders));
     } catch (e) {}
   };
 
@@ -1219,6 +1328,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const saveGovernorateImagesData = (g: GovernorateImage[]) => { setGovernorateImagesState(g); AsyncStorage.setItem("governorateImages", JSON.stringify(g)); };
   const saveGroups = (g: GroupChat[]) => { setGroups(g); AsyncStorage.setItem("groupChats", JSON.stringify(g)); };
   const savePrivacySettingsMap = (m: Record<string, UserPrivacySettings>) => { setPrivacySettingsMap(m); AsyncStorage.setItem("privacySettings", JSON.stringify(m)); };
+  const saveMerchants = (m: Merchant[]) => { setMerchants(m); AsyncStorage.setItem("merchants", JSON.stringify(m)); };
+  const saveProducts = (p: Product[]) => { setProducts(p); AsyncStorage.setItem("products", JSON.stringify(p)); };
+  const saveOrders = (o: Order[]) => { setOrders(o); AsyncStorage.setItem("orders", JSON.stringify(o)); };
 
   const savePost = useCallback((postId: string) => {
     setSavedPostsState((prev) => {
@@ -1262,11 +1374,114 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const isSuperAdmin = currentUser?.phone === SUPER_ADMIN_PHONE || currentUser?.role === "MANAGER";
   const isManager = currentUser?.phone === SUPER_ADMIN_PHONE || currentUser?.role === "MANAGER";
   const isRestaurantOwner = currentUser?.role === "RESTAURANT_OWNER";
+  const isMerchantOwner = currentUser?.role === "MERCHANT_OWNER" || currentUser?.role === "RESTAURANT_OWNER";
 
   const getMyRestaurant = useCallback((): Restaurant | null => {
     if (!currentUser || currentUser.role !== "RESTAURANT_OWNER") return null;
     return restaurants.find((r) => r.ownerId === currentUser.id) ?? null;
   }, [currentUser, restaurants]);
+
+  const getMyMerchant = useCallback((): Merchant | null => {
+    if (!currentUser) return null;
+    return merchants.find((m) => m.ownerId === currentUser.id) ?? null;
+  }, [currentUser, merchants]);
+
+  const getCommissionTier = useCallback((monthlySales: number): number => {
+    if (monthlySales > 500) return 1;
+    if (monthlySales > 100) return 1.5;
+    return 2;
+  }, []);
+
+  const recordAffiliateLink = useCallback((productId: string, influencerId: string) => {
+    const record: AffiliateRecord = { productId, influencerId, sessionId: generateId(), createdAt: Date.now() };
+    setAffiliateLinks((prev) => [...prev.filter((a) => a.productId !== productId), record]);
+  }, []);
+
+  const getAffiliateForProduct = useCallback((productId: string): AffiliateRecord | null => {
+    return affiliateLinks.find((a) => a.productId === productId) ?? null;
+  }, [affiliateLinks]);
+
+  const addMerchant = useCallback((data: Omit<Merchant, "id" | "createdAt" | "tier" | "monthlySales">): Merchant => {
+    const m: Merchant = { ...data, id: generateId(), createdAt: Date.now(), tier: "bronze", monthlySales: 0 };
+    saveMerchants([...merchants, m]);
+    return m;
+  }, [merchants]);
+
+  const updateMerchantProfile = useCallback((merchantId: string, data: Partial<Merchant>) => {
+    saveMerchants(merchants.map((m) => (m.id === merchantId ? { ...m, ...data } : m)));
+  }, [merchants]);
+
+  const addProduct = useCallback((data: Omit<Product, "id" | "createdAt">) => {
+    const p: Product = { ...data, id: generateId(), createdAt: Date.now() };
+    saveProducts([...products, p]);
+  }, [products]);
+
+  const updateProduct = useCallback((productId: string, data: Partial<Product>) => {
+    saveProducts(products.map((p) => (p.id === productId ? { ...p, ...data } : p)));
+  }, [products]);
+
+  const deleteProduct = useCallback((productId: string) => {
+    saveProducts(products.filter((p) => p.id !== productId));
+  }, [products]);
+
+  const placeCommerceOrder = useCallback(async (
+    merchantId: string, items: OrderItem[], paymentMethod: PaymentMethod, address?: string, notes?: string
+  ): Promise<Order | null> => {
+    if (!currentUser) return null;
+    const merchant = merchants.find((m) => m.id === merchantId);
+    if (!merchant) return null;
+    const totalIQD = items.reduce((sum, i) => sum + i.productPrice * i.quantity, 0);
+    const commRate = getCommissionTier(merchant.monthlySales) / 100;
+    const affiliateRec = items.length > 0 ? affiliateLinks.find((a) => a.productId === items[0].productId) ?? null : null;
+    const affiliateCut = affiliateRec ? totalIQD * 0.05 : 0;
+    const commissionAmount = totalIQD * commRate;
+    const platformCut = commissionAmount - affiliateCut;
+    const newOrder: Order = {
+      id: generateId(), customerId: currentUser.id, merchantId, items, status: "pending",
+      paymentMethod, totalIQD, commissionAmount, affiliateCut, platformCut,
+      affiliateUserId: affiliateRec?.influencerId,
+      createdAt: Date.now(), updatedAt: Date.now(), address, notes,
+    };
+    saveOrders([...orders, newOrder]);
+    const updatedSales = merchant.monthlySales + items.reduce((sum, i) => sum + i.quantity, 0);
+    const newTier: CommerceTier = updatedSales > 500 ? "gold" : updatedSales > 100 ? "silver" : "bronze";
+    saveMerchants(merchants.map((m) => m.id === merchantId ? { ...m, monthlySales: updatedSales, tier: newTier, monthlyDues: (m.monthlyDues ?? 0) + commissionAmount } : m));
+    return newOrder;
+  }, [currentUser, merchants, orders, getCommissionTier, affiliateLinks]);
+
+  const updateOrderStatus = useCallback((orderId: string, status: OrderStatus) => {
+    saveOrders(orders.map((o) => (o.id === orderId ? { ...o, status, updatedAt: Date.now() } : o)));
+  }, [orders]);
+
+  const getMerchantOrders = useCallback((merchantId: string): Order[] => {
+    return orders.filter((o) => o.merchantId === merchantId);
+  }, [orders]);
+
+  const createMerchantAccount = useCallback(
+    async (name: string, email: string, governorate: string, password: string): Promise<{ success: boolean; error?: string }> => {
+      if (users.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
+        return { success: false, error: "email_exists" };
+      }
+      const newUser: User = {
+        id: generateId(), name,
+        username: email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, ""),
+        email, primaryGovernorate: governorate,
+        accountType: "public", role: "MERCHANT_OWNER" as UserRole, isActive: true, createdAt: Date.now(),
+      };
+      const newMerchant: Merchant = {
+        id: generateId(), name: `متجر ${name}`, ownerId: newUser.id,
+        governorate, isActive: true, commissionRate: 10, monthlyDues: 0,
+        monthlySales: 0, tier: "bronze", category: "متجر", createdAt: Date.now(),
+      };
+      saveUsers([...users, newUser]);
+      const newPasswords = { ...passwords, [newUser.id]: password };
+      setPasswords(newPasswords);
+      await AsyncStorage.setItem("passwords", JSON.stringify(newPasswords));
+      saveMerchants([...merchants, newMerchant]);
+      return { success: true };
+    },
+    [users, passwords, merchants]
+  );
 
   const login = useCallback(
     async (identifier: string, password: string): Promise<boolean> => {
@@ -4216,9 +4431,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addGroupReaction,
       privacySettings: getMyPrivacy(),
       updatePrivacySettings, canViewStory, canViewProfilePhoto, canAddToGroup, canMention, addStrike,
+      merchants, products, orders, isMerchantOwner, getMyMerchant,
+      addMerchant, updateMerchantProfile, addProduct, updateProduct, deleteProduct,
+      placeCommerceOrder, updateOrderStatus, getCommissionTier, recordAffiliateLink, getAffiliateForProduct,
+      createMerchantAccount, getMerchantOrders,
     }),
     [
-      language, theme, currentUser, isSuperAdmin, isManager, isRestaurantOwner, getMyRestaurant,
+      language, theme, currentUser, isSuperAdmin, isManager, isRestaurantOwner, isMerchantOwner, getMyRestaurant, getMyMerchant,
       users, rooms, conversations, restaurants,
       reels, reelLikes, reelComments, posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, updateCoverPhoto, checkUsername, checkEmail,
@@ -4259,6 +4478,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addGroupReaction,
       updatePrivacySettings, canViewStory, canViewProfilePhoto, canAddToGroup, canMention, addStrike,
       privacySettingsMap, restaurantsEnabled, toggleRestaurantsEnabled,
+      merchants, products, orders, addMerchant, updateMerchantProfile, addProduct, updateProduct, deleteProduct,
+      placeCommerceOrder, updateOrderStatus, getCommissionTier, recordAffiliateLink, getAffiliateForProduct,
+      createMerchantAccount, getMerchantOrders, affiliateLinks,
     ]
   );
 

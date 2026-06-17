@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "bash"] # حذفنا موديول web لتقليل التعارض
+modules = ["nodejs-20", "web", "bash", "python-3.11"]
 
 run = "pnpm start" # هذا السطر سيقوم بتشغيل Expo مباشرة
 
@@ -17,7 +17,7 @@ args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
 [agent]
-stack = "PNPM_WORKSPACE"
+stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
 
 [nix]
@@ -36,14 +36,43 @@ author = "agent"
 task = "workflow.run"
 args = "Hilla Connect"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "API Server"
+
 [[workflows.workflow]]
 name = "Hilla Connect"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/hilla-connect-v2 run dev"
-waitForPort = 8080
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=5000 node artifacts/hilla-connect-v2/server/serve.js"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "API Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/api-server run dev"
+waitForPort = 3000
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[userenv]
+
+[userenv.shared]
+PORT = "3000"
+
+[[ports]]
+localPort = 3000
+externalPort = 3000
+
+[[ports]]
+localPort = 5000
+externalPort = 80

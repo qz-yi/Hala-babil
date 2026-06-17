@@ -3,7 +3,7 @@ import { io, Socket } from "socket.io-client";
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-  : "https://almalke4.replit.app";
+  : "";
 
 let sharedSocket: Socket | null = null;
 

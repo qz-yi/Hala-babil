@@ -1,8 +1,7 @@
 /**
- * Production server for Expo web static export (expo export --platform web).
+ * Production/dev server for Expo web static export.
  * Serves the static-build/ directory as a Single Page Application.
- * All unknown routes fall back to index.html for client-side routing.
- * Zero external dependencies — Node.js built-ins only.
+ * Proxies /api/* and /socket.io/* to the API server on port 3000.
  */
 
 const http = require("http");
@@ -12,6 +11,7 @@ const path = require("path");
 const STATIC_ROOT = path.resolve(__dirname, "..", "static-build");
 const INDEX_HTML = path.join(STATIC_ROOT, "index.html");
 const basePath = (process.env.BASE_PATH || "").replace(/\/+$/, "");
+const API_PORT = parseInt(process.env.API_PORT || "3000", 10);
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -48,9 +48,42 @@ if (!fs.existsSync(INDEX_HTML)) {
 
 const indexContent = fs.readFileSync(INDEX_HTML);
 
+function proxyToApi(req, res) {
+  const options = {
+    hostname: "127.0.0.1",
+    port: API_PORT,
+    path: req.url,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: `127.0.0.1:${API_PORT}`,
+    },
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on("error", (err) => {
+    console.error("[proxy] Error forwarding to API:", err.message);
+    if (!res.headersSent) {
+      res.writeHead(502);
+      res.end("Bad Gateway");
+    }
+  });
+
+  req.pipe(proxyReq);
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host}`);
   let pathname = url.pathname;
+
+  // Proxy API and socket.io requests to the backend
+  if (pathname.startsWith("/api/") || pathname.startsWith("/socket.io/")) {
+    return proxyToApi(req, res);
+  }
 
   // Strip base path prefix
   if (basePath && pathname.startsWith(basePath)) {
@@ -90,7 +123,35 @@ const server = http.createServer((req, res) => {
   res.end(indexContent);
 });
 
-const port = parseInt(process.env.PORT || "8080", 10);
+// Handle WebSocket upgrades for socket.io proxy
+server.on("upgrade", (req, socket, head) => {
+  if (req.url && (req.url.startsWith("/socket.io/") || req.url.startsWith("/api/"))) {
+    const options = {
+      hostname: "127.0.0.1",
+      port: API_PORT,
+      path: req.url,
+      headers: req.headers,
+    };
+
+    const proxyReq = http.request(options);
+    proxyReq.on("upgrade", (proxyRes, proxySocket) => {
+      socket.write(
+        "HTTP/1.1 101 Switching Protocols\r\n" +
+        Object.entries(proxyRes.headers).map(([k, v]) => `${k}: ${v}`).join("\r\n") +
+        "\r\n\r\n"
+      );
+      proxySocket.pipe(socket);
+      socket.pipe(proxySocket);
+    });
+    proxyReq.on("error", () => socket.destroy());
+    proxyReq.end();
+  } else {
+    socket.destroy();
+  }
+});
+
+const port = parseInt(process.env.PORT || "5000", 10);
 server.listen(port, "0.0.0.0", () => {
   console.log(`Serving Expo web build from ${STATIC_ROOT} on port ${port}`);
+  console.log(`Proxying /api/* and /socket.io/* to API server on port ${API_PORT}`);
 });

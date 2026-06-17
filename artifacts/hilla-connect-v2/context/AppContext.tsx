@@ -1370,7 +1370,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
     ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : "https://almalke4.replit.app";
+    : "";
 
   // Resilient fetch: 15s timeout + retry على أخطاء الشبكة المؤقتة (EAI_AGAIN, network errors)
   const apiFetch = useCallback(

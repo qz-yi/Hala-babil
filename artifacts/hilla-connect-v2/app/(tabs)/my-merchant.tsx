@@ -16,9 +16,10 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeStore } from "@/store/themeStore";
 import { useApp, type Product, type Order, type Merchant, type CommerceTier } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
@@ -26,11 +27,11 @@ import { useToast } from "@/components/Toast";
 type Tab = "dashboard" | "catalog" | "orders";
 
 const ORDER_STATUSES: Record<string, { label: string; color: string }> = {
-  pending:    { label: "قيد الانتظار",   color: "#F59E0B" },
-  warehouse:  { label: "في المستودع",    color: "#3B82F6" },
-  in_transit: { label: "قيد التوصيل",   color: "#8B5CF6" },
-  delivered:  { label: "تم التوصيل",    color: "#10B981" },
-  returned:   { label: "مُعاد",          color: "#EF4444" },
+  pending:    { label: "قيد الانتظار",  color: "#F59E0B" },
+  warehouse:  { label: "في المستودع",   color: "#3B82F6" },
+  in_transit: { label: "قيد التوصيل",  color: "#8B5CF6" },
+  delivered:  { label: "تم التوصيل",   color: "#10B981" },
+  returned:   { label: "مُعاد",         color: "#EF4444" },
 };
 
 const TIER_COLORS: Record<CommerceTier, string> = {
@@ -39,15 +40,18 @@ const TIER_COLORS: Record<CommerceTier, string> = {
   gold:   "#FFD700",
 };
 
-const ORDER_STATUS_FLOW: string[] = ["pending", "warehouse", "in_transit", "delivered"];
+const ORDER_STATUS_FLOW = ["pending", "warehouse", "in_transit", "delivered"];
 
+// ─── Main Screen ────────────────────────────────────────────────────────────
 export default function MyMerchantScreen() {
   const c = useThemeStore((s) => s.tokens);
   const insets = useSafeAreaInsets();
-  const { currentUser, isMerchantOwner, getMyMerchant, products, orders, addProduct, updateProduct, deleteProduct, updateOrderStatus, updateMerchantProfile } = useApp();
+  const { width: W } = useWindowDimensions();
+  const {
+    currentUser, isMerchantOwner, getMyMerchant, products, orders,
+    addProduct, updateProduct, deleteProduct, updateOrderStatus, updateMerchantProfile,
+  } = useApp();
   const { showToast } = useToast();
-  const topPad = Platform.OS === "web" ? 20 : insets.top;
-  const botPad = Platform.OS === "web" ? 20 : insets.bottom;
 
   const [tab, setTab] = useState<Tab>("dashboard");
   const [addProductVisible, setAddProductVisible] = useState(false);
@@ -59,58 +63,73 @@ export default function MyMerchantScreen() {
 
   if (!currentUser || !isMerchantOwner) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: c.background, padding: 32, gap: 20 }}>
-        <Feather name="lock" size={52} color={c.textSecondary} strokeWidth={1} />
-        <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 20, textAlign: "center" }}>
-          هذه الصفحة للتجار فقط
-        </Text>
-        <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 15, textAlign: "center", lineHeight: 24 }}>
-          تواصل مع الإدارة لتفعيل حساب تاجر
-        </Text>
-      </View>
+      <SafeAreaView style={{ flex: 1, backgroundColor: c.background }}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, gap: 20 }}>
+          <Feather name="lock" size={52} color={c.textSecondary} strokeWidth={1} />
+          <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 20, textAlign: "center" }}>
+            هذه الصفحة للتجار فقط
+          </Text>
+          <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 15, textAlign: "center", lineHeight: 24 }}>
+            تواصل مع الإدارة لتفعيل حساب تاجر
+          </Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   const merchant = getMyMerchant();
-  const myProducts = useMemo(() => products.filter((p) => p.merchantId === merchant?.id), [products, merchant]);
-  const myOrders = useMemo(
-    () => orders.filter((o) => o.merchantId === merchant?.id).sort((a, b) => b.createdAt - a.createdAt),
-    [orders, merchant]
+  const myProducts = useMemo(
+    () => products.filter((p) => p.merchantId === merchant?.id),
+    [products, merchant],
   );
-
-  const totalRevenue = myOrders.filter((o) => o.status === "delivered").reduce((s, o) => s + o.totalIQD, 0);
-  const pendingOrders = myOrders.filter((o) => o.status === "pending").length;
+  const myOrders = useMemo(
+    () => orders
+      .filter((o) => o.merchantId === merchant?.id)
+      .sort((a, b) => b.createdAt - a.createdAt),
+    [orders, merchant],
+  );
 
   if (!merchant) return null;
 
   const tierColor = TIER_COLORS[merchant.tier] ?? "#C0C0C0";
+  const totalRevenue = myOrders
+    .filter((o) => o.status === "delivered")
+    .reduce((s, o) => s + o.totalIQD, 0);
+  const pendingOrders = myOrders.filter((o) => o.status === "pending").length;
+
+  // Stat card width: 4 cards with 12px gaps, 16px horizontal padding each side
+  const statCardW = Math.floor((W - 32 - 36) / 4);
 
   return (
-    <View style={[st.root, { backgroundColor: c.background }]}>
-      {/* Header with optional cover photo */}
-      {merchant.coverPhoto ? (
-        <View style={{ position: "relative" }}>
-          <Image source={{ uri: merchant.coverPhoto }} style={[st.coverPhoto]} resizeMode="cover" />
-          <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" }} />
-          <View style={[st.headerInner, { paddingTop: topPad + 8 }]}>
-            <HeaderContent
-              merchant={merchant}
-              tierColor={tierColor}
-              tab={tab}
-              setTab={setTab}
-              totalRevenue={totalRevenue}
-              pendingOrders={pendingOrders}
-              myProducts={myProducts}
-              c={{ ...c, text: "#fff", textSecondary: "rgba(255,255,255,0.7)" }}
-              onEditProfile={() => setStoreProfileVisible(true)}
+    <View style={{ flex: 1, backgroundColor: c.background }}>
+      {/* ── Header: cover photo OR gradient background, content in normal flow ── */}
+      <View style={{ overflow: "hidden" }}>
+        {/* Background layer */}
+        {merchant.coverPhoto ? (
+          <>
+            <Image
+              source={{ uri: merchant.coverPhoto }}
+              style={StyleSheet.absoluteFillObject}
+              resizeMode="cover"
             />
-          </View>
-        </View>
-      ) : (
-        <LinearGradient
-          colors={[`${tierColor}22`, c.background]}
-          style={[st.header, { paddingTop: topPad + 8, borderBottomColor: c.border }]}
-        >
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.50)" }]} />
+          </>
+        ) : (
+          <LinearGradient
+            colors={[`${tierColor}28`, c.background]}
+            style={StyleSheet.absoluteFillObject}
+          />
+        )}
+
+        {/* Content — normal flow, not absolute */}
+        <View style={{
+          paddingTop: (Platform.OS === "web" ? 20 : insets.top) + 12,
+          paddingHorizontal: 16,
+          paddingBottom: 0,
+          gap: 12,
+          borderBottomWidth: 0.5,
+          borderBottomColor: merchant.coverPhoto ? "rgba(255,255,255,0.15)" : c.border,
+        }}>
           <HeaderContent
             merchant={merchant}
             tierColor={tierColor}
@@ -119,140 +138,223 @@ export default function MyMerchantScreen() {
             totalRevenue={totalRevenue}
             pendingOrders={pendingOrders}
             myProducts={myProducts}
-            c={c}
+            statCardW={statCardW}
+            c={merchant.coverPhoto
+              ? { ...c, text: "#fff", textSecondary: "rgba(255,255,255,0.72)" }
+              : c
+            }
             onEditProfile={() => setStoreProfileVisible(true)}
           />
-        </LinearGradient>
-      )}
+        </View>
+      </View>
 
-      {tab === "dashboard" && (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: botPad + 100 }}>
-          <Text style={[st.sectionTitle, { color: c.text }]}>آخر الطلبات</Text>
-          {myOrders.slice(0, 5).length === 0 ? (
-            <View style={[st.emptyBox, { borderColor: c.border }]}>
-              <Feather name="inbox" size={36} color={c.border} strokeWidth={1} />
-              <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular" }}>لا توجد طلبات بعد</Text>
-            </View>
-          ) : (
-            myOrders.slice(0, 5).map((order) => (
-              <OrderCard key={order.id} order={order} c={c} onAdvance={(o) => {
-                const idx = ORDER_STATUS_FLOW.indexOf(o.status);
-                if (idx < ORDER_STATUS_FLOW.length - 1) {
-                  updateOrderStatus?.(o.id, ORDER_STATUS_FLOW[idx + 1] as any);
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                }
-              }} />
-            ))
-          )}
-        </ScrollView>
-      )}
-
-      {tab === "catalog" && (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: botPad + 100 }}>
-          <TouchableOpacity
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setAddProductVisible(true); }}
-            style={st.addProductBtn}
+      {/* ── Body: tab content, takes remaining height ── */}
+      <View style={{ flex: 1 }}>
+        {tab === "dashboard" && (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingTop: 16,
+              paddingBottom: (Platform.OS === "web" ? 20 : insets.bottom) + 100,
+              gap: 12,
+            }}
+            showsVerticalScrollIndicator={false}
           >
-            <LinearGradient colors={["#7C3AED", "#4F46E5"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={st.addProductGrad}>
-              <Feather name="plus" size={18} color="#fff" strokeWidth={2.5} />
-              <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>إضافة منتج جديد</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+            <Text style={[st.sectionTitle, { color: c.text }]}>آخر الطلبات</Text>
+            {myOrders.slice(0, 5).length === 0 ? (
+              <View style={[st.emptyBox, { borderColor: c.border }]}>
+                <Feather name="inbox" size={36} color={c.border} strokeWidth={1} />
+                <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular" }}>
+                  لا توجد طلبات بعد
+                </Text>
+              </View>
+            ) : (
+              myOrders.slice(0, 5).map((order) => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  c={c}
+                  onAdvance={(o) => {
+                    const idx = ORDER_STATUS_FLOW.indexOf(o.status);
+                    if (idx < ORDER_STATUS_FLOW.length - 1) {
+                      updateOrderStatus?.(o.id, ORDER_STATUS_FLOW[idx + 1] as any);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }
+                  }}
+                />
+              ))
+            )}
+          </ScrollView>
+        )}
 
-          {myProducts.length === 0 ? (
-            <View style={[st.emptyBox, { borderColor: c.border }]}>
-              <Feather name="box" size={36} color={c.border} strokeWidth={1} />
-              <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular" }}>لا توجد منتجات بعد</Text>
-            </View>
-          ) : (
-            myProducts.map((product) => (
-              <View key={product.id} style={[st.productRow, { backgroundColor: c.card, borderColor: c.border }]}>
-                {product.images[0] ? (
-                  <Image source={{ uri: product.images[0] }} style={st.productRowImg} />
-                ) : (
-                  <View style={[st.productRowImgFallback, { backgroundColor: c.backgroundTertiary }]}>
-                    <Feather name="image" size={22} color={c.border} strokeWidth={1} />
-                  </View>
-                )}
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: c.text, fontFamily: "Inter_600SemiBold", fontSize: 14 }} numberOfLines={1}>
-                    {product.name}
-                  </Text>
-                  <Text style={{ color: "#10B981", fontFamily: "Inter_700Bold", fontSize: 14 }}>
-                    {product.price.toLocaleString()} IQD
-                  </Text>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    <View style={[st.stockBadge, { backgroundColor: product.stock > 0 ? "#10B98118" : "#EF444418" }]}>
-                      <Text style={{ color: product.stock > 0 ? "#10B981" : "#EF4444", fontSize: 11, fontFamily: "Inter_500Medium" }}>
-                        {product.stock > 0 ? `${product.stock} قطعة` : "نفد"}
-                      </Text>
+        {tab === "catalog" && (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingTop: 16,
+              paddingBottom: (Platform.OS === "web" ? 20 : insets.bottom) + 100,
+              gap: 12,
+            }}
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setAddProductVisible(true);
+              }}
+              style={st.addProductBtn}
+            >
+              <LinearGradient
+                colors={["#7C3AED", "#4F46E5"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={st.addProductGrad}
+              >
+                <Feather name="plus" size={18} color="#fff" strokeWidth={2.5} />
+                <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>
+                  إضافة منتج جديد
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {myProducts.length === 0 ? (
+              <View style={[st.emptyBox, { borderColor: c.border }]}>
+                <Feather name="box" size={36} color={c.border} strokeWidth={1} />
+                <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular" }}>
+                  لا توجد منتجات بعد
+                </Text>
+              </View>
+            ) : (
+              myProducts.map((product) => (
+                <View
+                  key={product.id}
+                  style={[st.productRow, { backgroundColor: c.card, borderColor: c.border }]}
+                >
+                  {product.images[0] ? (
+                    <Image source={{ uri: product.images[0] }} style={st.productRowImg} />
+                  ) : (
+                    <View style={[st.productRowImgFallback, { backgroundColor: c.backgroundTertiary }]}>
+                      <Feather name="image" size={22} color={c.border} strokeWidth={1} />
                     </View>
-                    {product.images.length > 1 && (
-                      <View style={[st.stockBadge, { backgroundColor: "#7C3AED18" }]}>
-                        <Feather name="image" size={10} color="#7C3AED" />
-                        <Text style={{ color: "#7C3AED", fontSize: 11, fontFamily: "Inter_400Regular" }}>
-                          {product.images.length} صور
+                  )}
+                  <View style={{ flex: 1, gap: 4, minWidth: 0 }}>
+                    <Text
+                      style={{ color: c.text, fontFamily: "Inter_600SemiBold", fontSize: 14 }}
+                      numberOfLines={1}
+                    >
+                      {product.name}
+                    </Text>
+                    <Text style={{ color: "#10B981", fontFamily: "Inter_700Bold", fontSize: 14 }}>
+                      {product.price.toLocaleString()} IQD
+                    </Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                      <View style={[st.stockBadge, {
+                        backgroundColor: product.stock > 0 ? "#10B98118" : "#EF444418",
+                      }]}>
+                        <Text style={{
+                          color: product.stock > 0 ? "#10B981" : "#EF4444",
+                          fontSize: 11, fontFamily: "Inter_500Medium",
+                        }}>
+                          {product.stock > 0 ? `${product.stock} قطعة` : "نفد"}
                         </Text>
                       </View>
-                    )}
-                    <View style={[st.stockBadge, { backgroundColor: c.backgroundTertiary }]}>
-                      <Text style={{ color: c.textSecondary, fontSize: 11, fontFamily: "Inter_400Regular" }}>
-                        {product.category}
-                      </Text>
+                      {product.images.length > 1 && (
+                        <View style={[st.stockBadge, { backgroundColor: "#7C3AED18" }]}>
+                          <Feather name="image" size={10} color="#7C3AED" />
+                          <Text style={{ color: "#7C3AED", fontSize: 11, fontFamily: "Inter_400Regular" }}>
+                            {product.images.length} صور
+                          </Text>
+                        </View>
+                      )}
+                      <View style={[st.stockBadge, { backgroundColor: c.backgroundTertiary }]}>
+                        <Text style={{ color: c.textSecondary, fontSize: 11, fontFamily: "Inter_400Regular" }}>
+                          {product.category}
+                        </Text>
+                      </View>
                     </View>
                   </View>
+                  <View style={{ gap: 8, flexShrink: 0 }}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        updateProduct?.(product.id, { isActive: !product.isActive });
+                        showToast(product.isActive ? "تم إخفاء المنتج" : "تم تفعيل المنتج", "info");
+                      }}
+                      style={[st.iconBtn, { backgroundColor: c.backgroundTertiary }]}
+                    >
+                      <Feather
+                        name={product.isActive ? "eye" : "eye-off"}
+                        size={16}
+                        color={c.textSecondary}
+                        strokeWidth={1.5}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => {
+                        Alert.alert("حذف المنتج", "هل أنت متأكد؟", [
+                          { text: "إلغاء", style: "cancel" },
+                          {
+                            text: "حذف", style: "destructive",
+                            onPress: () => {
+                              deleteProduct?.(product.id);
+                              showToast("تم حذف المنتج", "info");
+                            },
+                          },
+                        ]);
+                      }}
+                      style={[st.iconBtn, { backgroundColor: "#EF444418" }]}
+                    >
+                      <Feather name="trash-2" size={16} color="#EF4444" strokeWidth={1.5} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <View style={{ gap: 8 }}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      updateProduct?.(product.id, { isActive: !product.isActive });
-                      showToast(product.isActive ? "تم إخفاء المنتج" : "تم تفعيل المنتج", "info");
-                    }}
-                    style={[st.iconBtn, { backgroundColor: c.backgroundTertiary }]}
-                  >
-                    <Feather name={product.isActive ? "eye" : "eye-off"} size={16} color={c.textSecondary} strokeWidth={1.5} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => {
-                      Alert.alert("حذف المنتج", "هل أنت متأكد؟", [
-                        { text: "إلغاء", style: "cancel" },
-                        { text: "حذف", style: "destructive", onPress: () => { deleteProduct?.(product.id); showToast("تم حذف المنتج", "info"); } },
-                      ]);
-                    }}
-                    style={[st.iconBtn, { backgroundColor: "#EF444418" }]}
-                  >
-                    <Feather name="trash-2" size={16} color="#EF4444" strokeWidth={1.5} />
-                  </TouchableOpacity>
-                </View>
+              ))
+            )}
+          </ScrollView>
+        )}
+
+        {tab === "orders" && (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingTop: 16,
+              paddingBottom: (Platform.OS === "web" ? 20 : insets.bottom) + 100,
+              gap: 12,
+            }}
+            showsVerticalScrollIndicator={false}
+          >
+            {myOrders.length === 0 ? (
+              <View style={[st.emptyBox, { borderColor: c.border }]}>
+                <Feather name="shopping-bag" size={36} color={c.border} strokeWidth={1} />
+                <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular" }}>
+                  لا توجد طلبات بعد
+                </Text>
               </View>
-            ))
-          )}
-        </ScrollView>
-      )}
+            ) : (
+              myOrders.map((order) => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  c={c}
+                  onAdvance={(o) => {
+                    const idx = ORDER_STATUS_FLOW.indexOf(o.status);
+                    if (idx < ORDER_STATUS_FLOW.length - 1) {
+                      updateOrderStatus?.(o.id, ORDER_STATUS_FLOW[idx + 1] as any);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      showToast("تم تحديث حالة الطلب", "success");
+                    }
+                  }}
+                />
+              ))
+            )}
+          </ScrollView>
+        )}
+      </View>
 
-      {tab === "orders" && (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: botPad + 100 }}>
-          {myOrders.length === 0 ? (
-            <View style={[st.emptyBox, { borderColor: c.border }]}>
-              <Feather name="shopping-bag" size={36} color={c.border} strokeWidth={1} />
-              <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular" }}>لا توجد طلبات بعد</Text>
-            </View>
-          ) : (
-            myOrders.map((order) => (
-              <OrderCard key={order.id} order={order} c={c} onAdvance={(o) => {
-                const idx = ORDER_STATUS_FLOW.indexOf(o.status);
-                if (idx < ORDER_STATUS_FLOW.length - 1) {
-                  updateOrderStatus?.(o.id, ORDER_STATUS_FLOW[idx + 1] as any);
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  showToast("تم تحديث حالة الطلب", "success");
-                }
-              }} />
-            ))
-          )}
-        </ScrollView>
-      )}
-
+      {/* ── Modals ── */}
       <AddProductModal
         visible={addProductVisible}
         merchantId={merchant.id}
@@ -263,7 +365,6 @@ export default function MyMerchantScreen() {
           setAddProductVisible(false);
         }}
       />
-
       <StoreProfileModal
         visible={storeProfileVisible}
         merchant={merchant}
@@ -278,19 +379,33 @@ export default function MyMerchantScreen() {
   );
 }
 
+// ─── HeaderContent ───────────────────────────────────────────────────────────
 function HeaderContent({
-  merchant, tierColor, tab, setTab, totalRevenue, pendingOrders, myProducts, c, onEditProfile
+  merchant, tierColor, tab, setTab,
+  totalRevenue, pendingOrders, myProducts,
+  statCardW, c, onEditProfile,
 }: {
-  merchant: Merchant; tierColor: string; tab: Tab; setTab: (t: Tab) => void;
-  totalRevenue: number; pendingOrders: number; myProducts: Product[]; c: any;
-  onEditProfile: () => void;
+  merchant: Merchant; tierColor: string;
+  tab: Tab; setTab: (t: Tab) => void;
+  totalRevenue: number; pendingOrders: number; myProducts: Product[];
+  statCardW: number; c: any; onEditProfile: () => void;
 }) {
+  const stats = [
+    { label: "الإيرادات",       value: `${(totalRevenue / 1000).toFixed(0)}K`, icon: "trending-up",  color: "#10B981" },
+    { label: "المعلقة",          value: String(pendingOrders),                  icon: "clock",         color: "#F59E0B" },
+    { label: "المنتجات",         value: String(myProducts.length),              icon: "box",           color: c.accent ?? "#7C3AED" },
+    { label: "المبيعات",         value: String(merchant.monthlySales),          icon: "shopping-bag",  color: "#8B5CF6" },
+  ];
+
   return (
     <>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <View style={{ flex: 1 }}>
-          <Text style={[st.storeName, { color: c.text }]}>{merchant.name}</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+      {/* Row 1: Store name + actions + logo */}
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+          <Text style={[st.storeName, { color: c.text }]} numberOfLines={1}>
+            {merchant.name}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <View style={[st.tierBadge, { backgroundColor: `${tierColor}22`, borderColor: tierColor }]}>
               <Feather name="award" size={11} color={tierColor} strokeWidth={1.5} />
               <Text style={{ color: tierColor, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>
@@ -302,16 +417,21 @@ function HeaderContent({
             </Text>
           </View>
         </View>
-        <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 0 }}>
           <TouchableOpacity
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onEditProfile(); }}
             style={[st.editProfileBtn, { backgroundColor: `${tierColor}22`, borderColor: tierColor }]}
           >
             <Feather name="edit-2" size={13} color={tierColor} strokeWidth={1.5} />
-            <Text style={{ color: tierColor, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>تحديث المتجر</Text>
+            <Text style={{ color: tierColor, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>
+              تحديث المتجر
+            </Text>
           </TouchableOpacity>
           {merchant.logo ? (
-            <Image source={{ uri: merchant.logo }} style={[st.merchantLogoImg, { borderColor: tierColor }]} />
+            <Image
+              source={{ uri: merchant.logo }}
+              style={[st.merchantLogoImg, { borderColor: tierColor }]}
+            />
           ) : (
             <View style={[st.merchantIcon, { backgroundColor: `${tierColor}22` }]}>
               <Feather name="package" size={28} color={tierColor} strokeWidth={1.2} />
@@ -320,38 +440,64 @@ function HeaderContent({
         </View>
       </View>
 
-      <View style={st.statsRow}>
-        {[
-          { label: "الإيرادات", value: `${(totalRevenue / 1000).toFixed(0)}K IQD`, icon: "trending-up", color: "#10B981" },
-          { label: "الطلبات المعلقة", value: String(pendingOrders), icon: "clock", color: "#F59E0B" },
-          { label: "المنتجات", value: String(myProducts.length), icon: "box", color: c.accent ?? "#7C3AED" },
-          { label: "إجمالي المبيعات", value: String(merchant.monthlySales), icon: "shopping-bag", color: "#8B5CF6" },
-        ].map((stat) => (
-          <View key={stat.label} style={[st.statCard, { backgroundColor: (c.card ?? "rgba(255,255,255,0.1)"), borderColor: (c.border ?? "rgba(255,255,255,0.2)") }]}>
+      {/* Row 2: Stats — horizontally scrollable so they never overflow on small screens */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 10, paddingVertical: 2 }}
+      >
+        {stats.map((stat) => (
+          <View
+            key={stat.label}
+            style={[
+              st.statCard,
+              {
+                width: Math.max(statCardW, 72),
+                backgroundColor: c.card ?? "rgba(255,255,255,0.12)",
+                borderColor: c.border ?? "rgba(255,255,255,0.2)",
+              },
+            ]}
+          >
             <Feather name={stat.icon as any} size={18} color={stat.color} strokeWidth={1.5} />
-            <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 16 }}>{stat.value}</Text>
-            <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 10, textAlign: "center" }}>{stat.label}</Text>
+            <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 15 }} numberOfLines={1}>
+              {stat.value}
+            </Text>
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 10, textAlign: "center" }}>
+              {stat.label}
+            </Text>
           </View>
         ))}
-      </View>
+      </ScrollView>
 
-      <View style={[st.commissionRow, { backgroundColor: c.backgroundTertiary ?? "rgba(255,255,255,0.1)", borderColor: c.border ?? "rgba(255,255,255,0.2)" }]}>
+      {/* Row 3: Commission info */}
+      <View style={[st.commissionRow, {
+        backgroundColor: c.backgroundTertiary ?? "rgba(255,255,255,0.1)",
+        borderColor: c.border ?? "rgba(255,255,255,0.2)",
+      }]}>
         <Feather name="percent" size={14} color={c.accent ?? "#7C3AED"} strokeWidth={1.5} />
-        <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 12 }}>
-          عمولتك الحالية:{" "}
+        <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 12, flexShrink: 1 }}>
+          عمولتك:{" "}
           <Text style={{ color: c.accent ?? "#7C3AED", fontFamily: "Inter_600SemiBold" }}>
             {merchant.tier === "gold" ? "1%" : merchant.tier === "silver" ? "1.5%" : "2%"}
           </Text>
-          {" "}· {merchant.tier === "bronze" ? "0–100 مبيعة" : merchant.tier === "silver" ? "101–500 مبيعة" : "500+ مبيعة"}
+          {" · "}
+          {merchant.tier === "bronze"
+            ? "0–100 مبيعة"
+            : merchant.tier === "silver"
+            ? "101–500 مبيعة"
+            : "500+ مبيعة"}
         </Text>
       </View>
 
-      <View style={[st.tabs, { borderColor: c.border ?? "rgba(255,255,255,0.2)" }]}>
-        {([
-          { key: "dashboard", label: "لوحة التحكم", icon: "bar-chart-2" },
-          { key: "catalog",   label: "المنتجات",   icon: "box" },
-          { key: "orders",    label: "الطلبات",     icon: "shopping-bag" },
-        ] as { key: Tab; label: string; icon: string }[]).map((t) => (
+      {/* Row 4: Tab bar */}
+      <View style={[st.tabBar, { borderTopColor: c.border ?? "rgba(255,255,255,0.2)" }]}>
+        {(
+          [
+            { key: "dashboard", label: "التحكم",   icon: "bar-chart-2" },
+            { key: "catalog",   label: "المنتجات", icon: "box" },
+            { key: "orders",    label: "الطلبات",  icon: "shopping-bag" },
+          ] as { key: Tab; label: string; icon: string }[]
+        ).map((t) => (
           <TouchableOpacity
             key={t.key}
             onPress={() => { Haptics.selectionAsync(); setTab(t.key); }}
@@ -360,8 +506,17 @@ function HeaderContent({
               tab === t.key && { borderBottomColor: c.accent ?? "#7C3AED", borderBottomWidth: 2 },
             ]}
           >
-            <Feather name={t.icon as any} size={14} color={tab === t.key ? (c.accent ?? "#7C3AED") : c.textSecondary} strokeWidth={1.5} />
-            <Text style={{ color: tab === t.key ? (c.accent ?? "#7C3AED") : c.textSecondary, fontFamily: tab === t.key ? "Inter_600SemiBold" : "Inter_400Regular", fontSize: 13 }}>
+            <Feather
+              name={t.icon as any}
+              size={14}
+              color={tab === t.key ? (c.accent ?? "#7C3AED") : c.textSecondary}
+              strokeWidth={1.5}
+            />
+            <Text style={{
+              color: tab === t.key ? (c.accent ?? "#7C3AED") : c.textSecondary,
+              fontFamily: tab === t.key ? "Inter_600SemiBold" : "Inter_400Regular",
+              fontSize: 13,
+            }}>
               {t.label}
             </Text>
           </TouchableOpacity>
@@ -371,13 +526,14 @@ function HeaderContent({
   );
 }
 
+// ─── OrderCard ───────────────────────────────────────────────────────────────
 function OrderCard({ order, c, onAdvance }: { order: Order; c: any; onAdvance: (o: Order) => void }) {
   const status = ORDER_STATUSES[order.status] ?? { label: order.status, color: "#888" };
   const canAdvance = order.status !== "delivered" && order.status !== "returned";
   return (
     <View style={[st.orderCard, { backgroundColor: c.card, borderColor: c.border }]}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <View>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ color: c.text, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
             طلب #{order.id.slice(-6).toUpperCase()}
           </Text>
@@ -385,12 +541,18 @@ function OrderCard({ order, c, onAdvance }: { order: Order; c: any; onAdvance: (
             {new Date(order.createdAt).toLocaleDateString("ar-IQ")} · {order.items.length} منتج
           </Text>
         </View>
-        <View style={[st.statusBadge, { backgroundColor: `${status.color}18`, borderColor: status.color }]}>
-          <Text style={{ color: status.color, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>{status.label}</Text>
+        <View style={[st.statusBadge, {
+          backgroundColor: `${status.color}18`,
+          borderColor: status.color,
+          flexShrink: 0,
+        }]}>
+          <Text style={{ color: status.color, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>
+            {status.label}
+          </Text>
         </View>
       </View>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
-        <View>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ color: "#10B981", fontFamily: "Inter_700Bold", fontSize: 16 }}>
             {order.totalIQD.toLocaleString()} IQD
           </Text>
@@ -401,7 +563,7 @@ function OrderCard({ order, c, onAdvance }: { order: Order; c: any; onAdvance: (
         {canAdvance && (
           <TouchableOpacity
             onPress={() => onAdvance(order)}
-            style={[st.advanceBtn, { backgroundColor: c.accent }]}
+            style={[st.advanceBtn, { backgroundColor: c.accent, flexShrink: 0 }]}
           >
             <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 }}>تقدم الحالة</Text>
             <Feather name="arrow-left" size={14} color="#fff" strokeWidth={2} />
@@ -412,7 +574,8 @@ function OrderCard({ order, c, onAdvance }: { order: Order; c: any; onAdvance: (
   );
 }
 
-const PRODUCT_CATEGORIES = ["fashion","electronics","food","beauty","home","sports","other"];
+// ─── AddProductModal ─────────────────────────────────────────────────────────
+const PRODUCT_CATEGORIES = ["fashion", "electronics", "food", "beauty", "home", "sports", "other"];
 const MAX_GALLERY = 5;
 
 function AddProductModal({
@@ -422,6 +585,7 @@ function AddProductModal({
 }) {
   const c = useThemeStore((s) => s.tokens);
   const insets = useSafeAreaInsets();
+  const { height: WH } = useWindowDimensions();
   const { showToast } = useToast();
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
@@ -432,15 +596,9 @@ function AddProductModal({
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
 
   const handlePickImages = async () => {
-    if (Platform.OS === "web") {
-      showToast("اختيار الصور من الويب غير مدعوم حالياً", "info");
-      return;
-    }
+    if (Platform.OS === "web") { showToast("اختيار الصور من الويب غير مدعوم حالياً", "info"); return; }
     const remaining = MAX_GALLERY - galleryImages.length;
-    if (remaining <= 0) {
-      showToast(`الحد الأقصى ${MAX_GALLERY} صور`, "error");
-      return;
-    }
+    if (remaining <= 0) { showToast(`الحد الأقصى ${MAX_GALLERY} صور`, "error"); return; }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") { showToast("يرجى السماح بالوصول للمعرض", "error"); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -455,12 +613,11 @@ function AddProductModal({
     }
   };
 
-  const removeImage = (idx: number) => {
-    setGalleryImages((prev) => prev.filter((_, i) => i !== idx));
-  };
-
   const handleAdd = () => {
-    if (!name.trim() || !price.trim() || !stock.trim()) return;
+    if (!name.trim() || !price.trim() || !stock.trim()) {
+      showToast("يرجى تعبئة الحقول الإلزامية", "error");
+      return;
+    }
     onAdd({
       merchantId,
       name: name.trim(),
@@ -475,18 +632,27 @@ function AddProductModal({
     setName(""); setPrice(""); setStock(""); setSku(""); setDescription(""); setCategory("other"); setGalleryImages([]);
   };
 
+  const botPad = Platform.OS === "web" ? 20 : insets.bottom;
+  const maxH = WH * 0.88;
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.55)" }} onPress={onClose} />
-      <KeyboardAvoidingView behavior="padding" style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
-        <View style={[st.addModal, { backgroundColor: c.card, borderColor: c.border, paddingBottom: (Platform.OS === "web" ? 20 : insets.bottom) + 16 }]}>
-          <View style={[{ width: 40, height: 4, borderRadius: 2, backgroundColor: c.border, alignSelf: "center", marginBottom: 16 }]} />
-          <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 18, textAlign: "center", marginBottom: 16 }}>
-            منتج جديد
-          </Text>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+      <Pressable style={st.backdrop} onPress={onClose} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={st.kav}
+      >
+        <View style={[st.sheet, {
+          backgroundColor: c.card,
+          borderColor: c.border,
+          maxHeight: maxH,
+          paddingBottom: botPad + 16,
+        }]}>
+          <View style={[st.handle, { backgroundColor: c.border }]} />
+          <Text style={[st.sheetTitle, { color: c.text }]}>منتج جديد</Text>
 
-            {/* Gallery Section */}
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingBottom: 8 }}>
+            {/* Gallery */}
             <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium", fontSize: 13 }}>
               معرض الصور ({galleryImages.length}/{MAX_GALLERY})
             </Text>
@@ -496,7 +662,7 @@ function AddProductModal({
                   <View key={idx} style={st.galleryThumb}>
                     <Image source={{ uri }} style={st.galleryThumbImg} />
                     <TouchableOpacity
-                      onPress={() => removeImage(idx)}
+                      onPress={() => setGalleryImages((prev) => prev.filter((_, i) => i !== idx))}
                       style={st.galleryRemove}
                     >
                       <Feather name="x" size={12} color="#fff" strokeWidth={2.5} />
@@ -522,6 +688,7 @@ function AddProductModal({
               </View>
             </ScrollView>
 
+            {/* Text inputs */}
             {[
               { value: name, set: setName, placeholder: "اسم المنتج *", icon: "tag" as const },
               { value: price, set: setPrice, placeholder: "السعر (IQD) *", icon: "dollar-sign" as const, keyboard: "decimal-pad" as const },
@@ -541,7 +708,15 @@ function AddProductModal({
                 />
               </View>
             ))}
-            <View style={[st.inputWrap, { backgroundColor: c.backgroundTertiary, borderColor: c.border, height: 80, alignItems: "flex-start", paddingVertical: 10 }]}>
+
+            {/* Description */}
+            <View style={[st.inputWrap, {
+              backgroundColor: c.backgroundTertiary,
+              borderColor: c.border,
+              height: 80,
+              alignItems: "flex-start",
+              paddingVertical: 10,
+            }]}>
               <Feather name="align-left" size={16} color={c.textSecondary} strokeWidth={1.5} style={{ marginTop: 2 }} />
               <TextInput
                 value={description}
@@ -553,6 +728,8 @@ function AddProductModal({
                 textAlign="right"
               />
             </View>
+
+            {/* Category */}
             <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium", fontSize: 13 }}>الفئة</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={{ flexDirection: "row", gap: 8 }}>
@@ -562,9 +739,16 @@ function AddProductModal({
                     <TouchableOpacity
                       key={cat}
                       onPress={() => { Haptics.selectionAsync(); setCategory(cat); }}
-                      style={[st.catChip, { backgroundColor: active ? c.accent : c.backgroundTertiary, borderColor: active ? c.accent : c.border }]}
+                      style={[st.catChip, {
+                        backgroundColor: active ? c.accent : c.backgroundTertiary,
+                        borderColor: active ? c.accent : c.border,
+                      }]}
                     >
-                      <Text style={{ color: active ? "#fff" : c.text, fontSize: 13, fontFamily: active ? "Inter_600SemiBold" : "Inter_400Regular" }}>
+                      <Text style={{
+                        color: active ? "#fff" : c.text,
+                        fontSize: 13,
+                        fontFamily: active ? "Inter_600SemiBold" : "Inter_400Regular",
+                      }}>
                         {cat}
                       </Text>
                     </TouchableOpacity>
@@ -572,8 +756,14 @@ function AddProductModal({
                 })}
               </View>
             </ScrollView>
+
             <TouchableOpacity onPress={handleAdd} style={{ borderRadius: 16, overflow: "hidden" }}>
-              <LinearGradient colors={["#7C3AED", "#4F46E5"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ padding: 16, alignItems: "center", justifyContent: "center" }}>
+              <LinearGradient
+                colors={["#7C3AED", "#4F46E5"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{ padding: 16, alignItems: "center", justifyContent: "center" }}
+              >
                 <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 }}>إضافة المنتج</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -584,6 +774,7 @@ function AddProductModal({
   );
 }
 
+// ─── StoreProfileModal ───────────────────────────────────────────────────────
 function StoreProfileModal({
   visible, merchant, onClose, onSave,
 }: {
@@ -591,6 +782,7 @@ function StoreProfileModal({
 }) {
   const c = useThemeStore((s) => s.tokens);
   const insets = useSafeAreaInsets();
+  const { height: WH } = useWindowDimensions();
   const { showToast } = useToast();
   const [logo, setLogo] = useState<string | undefined>(merchant.logo);
   const [coverPhoto, setCoverPhoto] = useState<string | undefined>(merchant.coverPhoto);
@@ -620,33 +812,56 @@ function StoreProfileModal({
     }
   };
 
+  const botPad = Platform.OS === "web" ? 20 : insets.bottom;
+  const maxH = WH * 0.88;
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.6)" }} onPress={onClose} />
-      <KeyboardAvoidingView behavior="padding" style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
-        <View style={[st.addModal, { backgroundColor: c.card, borderColor: c.border, paddingBottom: (Platform.OS === "web" ? 20 : insets.bottom) + 16 }]}>
-          <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: c.border, alignSelf: "center", marginBottom: 16 }} />
-          <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 18, textAlign: "center", marginBottom: 20 }}>
-            تحديث ملف المتجر
-          </Text>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 16 }}>
+      <Pressable style={st.backdrop} onPress={onClose} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={st.kav}
+      >
+        <View style={[st.sheet, {
+          backgroundColor: c.card,
+          borderColor: c.border,
+          maxHeight: maxH,
+          paddingBottom: botPad + 16,
+        }]}>
+          <View style={[st.handle, { backgroundColor: c.border }]} />
+          <Text style={[st.sheetTitle, { color: c.text }]}>تحديث ملف المتجر</Text>
 
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingBottom: 8 }}>
             {/* Cover Photo */}
             <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium", fontSize: 13 }}>صورة الغلاف</Text>
-            <TouchableOpacity onPress={() => pickImage("cover")} style={[st.coverPickerBtn, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}>
+            <TouchableOpacity
+              onPress={() => pickImage("cover")}
+              style={[st.coverPickerBtn, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}
+            >
               {coverPhoto ? (
                 <>
                   <Image source={{ uri: coverPhoto }} style={st.coverPickerImg} resizeMode="cover" />
-                  <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 14, alignItems: "center", justifyContent: "center" }}>
+                  <View style={[StyleSheet.absoluteFillObject, {
+                    backgroundColor: "rgba(0,0,0,0.35)",
+                    borderRadius: 14,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }]}>
                     <Feather name="camera" size={28} color="#fff" strokeWidth={1.5} />
-                    <Text style={{ color: "#fff", fontFamily: "Inter_500Medium", fontSize: 13, marginTop: 6 }}>تغيير الغلاف</Text>
+                    <Text style={{ color: "#fff", fontFamily: "Inter_500Medium", fontSize: 13, marginTop: 6 }}>
+                      تغيير الغلاف
+                    </Text>
                   </View>
                 </>
               ) : (
                 <View style={{ alignItems: "center", gap: 8 }}>
                   <Feather name="image" size={36} color={c.textSecondary} strokeWidth={1} />
-                  <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14 }}>اختر صورة الغلاف</Text>
-                  <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 11 }}>16:9 موصى به</Text>
+                  <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14 }}>
+                    اختر صورة الغلاف
+                  </Text>
+                  <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 11 }}>
+                    16:9 موصى به
+                  </Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -654,11 +869,19 @@ function StoreProfileModal({
             {/* Logo */}
             <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium", fontSize: 13 }}>شعار المتجر</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-              <TouchableOpacity onPress={() => pickImage("logo")} style={[st.logoPickerBtn, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}>
+              <TouchableOpacity
+                onPress={() => pickImage("logo")}
+                style={[st.logoPickerBtn, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}
+              >
                 {logo ? (
                   <>
                     <Image source={{ uri: logo }} style={st.logoPickerImg} />
-                    <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)", borderRadius: 44, alignItems: "center", justifyContent: "center" }}>
+                    <View style={[StyleSheet.absoluteFillObject, {
+                      backgroundColor: "rgba(0,0,0,0.4)",
+                      borderRadius: 44,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }]}>
                       <Feather name="camera" size={22} color="#fff" strokeWidth={1.5} />
                     </View>
                   </>
@@ -675,7 +898,13 @@ function StoreProfileModal({
             </View>
 
             {/* Bio */}
-            <View style={[st.inputWrap, { backgroundColor: c.backgroundTertiary, borderColor: c.border, height: 80, alignItems: "flex-start", paddingVertical: 10 }]}>
+            <View style={[st.inputWrap, {
+              backgroundColor: c.backgroundTertiary,
+              borderColor: c.border,
+              height: 80,
+              alignItems: "flex-start",
+              paddingVertical: 10,
+            }]}>
               <Feather name="edit-3" size={16} color={c.textSecondary} strokeWidth={1.5} style={{ marginTop: 2 }} />
               <TextInput
                 value={bio}
@@ -692,7 +921,12 @@ function StoreProfileModal({
               onPress={() => onSave({ logo, coverPhoto, bio: bio.trim() || undefined })}
               style={{ borderRadius: 16, overflow: "hidden" }}
             >
-              <LinearGradient colors={["#7C3AED", "#4F46E5"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ padding: 16, alignItems: "center", justifyContent: "center" }}>
+              <LinearGradient
+                colors={["#7C3AED", "#4F46E5"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{ padding: 16, alignItems: "center", justifyContent: "center" }}
+              >
                 <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 }}>حفظ التغييرات</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -703,43 +937,43 @@ function StoreProfileModal({
   );
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
-  root: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingBottom: 0, borderBottomWidth: 0.5, gap: 12 },
-  coverPhoto: { width: "100%", height: 180 },
-  headerInner: { position: "absolute", left: 0, right: 0, bottom: 0, top: 0, paddingHorizontal: 16, gap: 12 },
-  storeName: { fontSize: 24, fontFamily: "Inter_700Bold" },
-  tierBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1 },
-  editProfileBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
-  merchantIcon: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
-  merchantLogoImg: { width: 56, height: 56, borderRadius: 28, borderWidth: 2 },
-  statsRow: { flexDirection: "row", gap: 10 },
-  statCard: { flex: 1, borderRadius: 14, borderWidth: 0.5, padding: 10, alignItems: "center", gap: 4 },
-  commissionRow: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 12, borderWidth: 0.5, padding: 10 },
-  tabs: { flexDirection: "row", borderTopWidth: 0.5, marginTop: 4 },
-  tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: "transparent" },
-  sectionTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 4 },
-  emptyBox: { alignItems: "center", justifyContent: "center", gap: 12, padding: 40, borderRadius: 20, borderWidth: 0.5, borderStyle: "dashed" },
-  productRow: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, borderWidth: 0.5, padding: 12 },
-  productRowImg: { width: 64, height: 64, borderRadius: 10 },
-  productRowImgFallback: { width: 64, height: 64, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  stockBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  iconBtn: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  orderCard: { borderRadius: 16, borderWidth: 0.5, padding: 14, gap: 4 },
-  statusBadge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  advanceBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
-  addProductBtn: { borderRadius: 16, overflow: "hidden" },
-  addProductGrad: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 16 },
-  addModal: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 0.5, padding: 20 },
-  inputWrap: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 0.5, borderRadius: 14, paddingHorizontal: 14, height: 50 },
-  catChip: { borderWidth: 0.5, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
-  galleryThumb: { width: 80, height: 80, borderRadius: 12, overflow: "hidden", position: "relative" },
-  galleryThumbImg: { width: 80, height: 80 },
-  galleryRemove: { position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center" },
-  galleryMainBadge: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(124,58,237,0.85)", paddingVertical: 3, alignItems: "center" },
-  galleryAddBtn: { width: 80, height: 80, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", alignItems: "center", justifyContent: "center" },
-  coverPickerBtn: { height: 140, borderRadius: 14, borderWidth: 1, borderStyle: "dashed", overflow: "hidden", alignItems: "center", justifyContent: "center" },
-  coverPickerImg: { width: "100%", height: "100%", position: "absolute" },
-  logoPickerBtn: { width: 88, height: 88, borderRadius: 44, borderWidth: 1, borderStyle: "dashed", alignItems: "center", justifyContent: "center", overflow: "hidden" },
-  logoPickerImg: { width: 88, height: 88, borderRadius: 44 },
+  storeName:       { fontSize: 22, fontFamily: "Inter_700Bold" },
+  tierBadge:       { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1 },
+  editProfileBtn:  { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  merchantIcon:    { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center" },
+  merchantLogoImg: { width: 52, height: 52, borderRadius: 26, borderWidth: 2 },
+  statCard:        { borderRadius: 14, borderWidth: 0.5, paddingVertical: 10, paddingHorizontal: 6, alignItems: "center", gap: 4 },
+  commissionRow:   { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 12, borderWidth: 0.5, padding: 10 },
+  tabBar:          { flexDirection: "row", borderTopWidth: 0.5, marginTop: 4 },
+  tabBtn:          { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: "transparent" },
+  sectionTitle:    { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 4 },
+  emptyBox:        { alignItems: "center", justifyContent: "center", gap: 12, padding: 40, borderRadius: 20, borderWidth: 0.5, borderStyle: "dashed" },
+  productRow:      { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, borderWidth: 0.5, padding: 12 },
+  productRowImg:         { width: 64, height: 64, borderRadius: 10, flexShrink: 0 },
+  productRowImgFallback: { width: 64, height: 64, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  stockBadge:      { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  iconBtn:         { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  orderCard:       { borderRadius: 16, borderWidth: 0.5, padding: 14 },
+  statusBadge:     { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  advanceBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  addProductBtn:   { borderRadius: 16, overflow: "hidden" },
+  addProductGrad:  { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 16 },
+  backdrop:        { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.58)" },
+  kav:             { justifyContent: "flex-end" },
+  sheet:           { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 0.5, padding: 20 },
+  handle:          { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 16 },
+  sheetTitle:      { fontFamily: "Inter_700Bold", fontSize: 18, textAlign: "center", marginBottom: 18 },
+  inputWrap:       { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 0.5, borderRadius: 14, paddingHorizontal: 14, height: 50 },
+  catChip:         { borderWidth: 0.5, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
+  galleryThumb:        { width: 80, height: 80, borderRadius: 12, overflow: "hidden" },
+  galleryThumbImg:     { width: 80, height: 80 },
+  galleryRemove:       { position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center" },
+  galleryMainBadge:    { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(124,58,237,0.85)", paddingVertical: 3, alignItems: "center" },
+  galleryAddBtn:       { width: 80, height: 80, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", alignItems: "center", justifyContent: "center" },
+  coverPickerBtn:      { height: 140, borderRadius: 14, borderWidth: 1, borderStyle: "dashed", overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  coverPickerImg:      { width: "100%", height: "100%", position: "absolute" },
+  logoPickerBtn:       { width: 88, height: 88, borderRadius: 44, borderWidth: 1, borderStyle: "dashed", alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  logoPickerImg:       { width: 88, height: 88, borderRadius: 44 },
 });

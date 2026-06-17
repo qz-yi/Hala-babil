@@ -44,6 +44,7 @@ import {
   consumeSharedContent,
   type SharedContentPayload,
 } from "@/lib/sharedContentBridge";
+import { useMediaStore } from "@/store/mediaStore";
 
 // ────────────────────────────────────────────────────────────────────────────
 // THEME (Strict Zentram Dark)
@@ -679,7 +680,8 @@ function highlightStyle(h: HighlightId): { wrap: any; text: any } {
 // ────────────────────────────────────────────────────────────────────────────
 // VIDEO PLAYER (preview with optional CSS filter on web)
 // ────────────────────────────────────────────────────────────────────────────
-function VideoPreview({ uri, filter }: { uri: string; filter: string }) {
+// ─ Native sub-component (hook call must be unconditional)
+function VideoPreviewNative({ uri, filter }: { uri: string; filter: string }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
     p.muted = true;
@@ -687,14 +689,33 @@ function VideoPreview({ uri, filter }: { uri: string; filter: string }) {
   });
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }, webFilterCss(filter)]}>
-      <VideoView
-        player={player}
-        style={StyleSheet.absoluteFill}
-        contentFit="contain"
-        nativeControls={false}
-      />
+      <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} />
     </View>
   );
+}
+
+function VideoPreview({ uri, filter }: { uri: string; filter: string }) {
+  // Web: use a native <video> element so crossOrigin and preload are set correctly.
+  // This prevents the "black screen" CORS error when the browser tries to read
+  // pixel data from a video served without CORS headers, and preload="metadata"
+  // ensures the video dimensions are known before the first frame is painted.
+  if (Platform.OS === "web") {
+    return (
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }, webFilterCss(filter)]}>
+        <video
+          src={uri}
+          autoPlay
+          loop
+          muted
+          playsInline
+          crossOrigin="anonymous"
+          preload="metadata"
+          style={{ width: "100%", height: "100%", objectFit: "contain" } as any}
+        />
+      </View>
+    );
+  }
+  return <VideoPreviewNative uri={uri} filter={filter} />;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1893,9 +1914,14 @@ export default function CreateStoryScreen() {
       onPress: () => setShowCFModal(true),
     },
   ];
-  const sidebarTools: Tool[] = allSidebarTools.filter(
-    (t) => cfg.showCloseFriends || t.id !== "closeFriends",
-  );
+  // When the user is sharing a reel/video, hide image-only tools (rotate, flip)
+  // to prevent any crop/resize logic from touching the video path.
+  const isShareVideo = !!sharedPost && sharedPost.mediaType === "video";
+  const sidebarTools: Tool[] = allSidebarTools.filter((t) => {
+    if (!cfg.showCloseFriends && t.id === "closeFriends") return false;
+    if (isShareVideo && (t.id === "rotate" || t.id === "flip")) return false;
+    return true;
+  });
 
   // ─ Publish (branches by editor mode)
   //
@@ -1988,9 +2014,11 @@ export default function CreateStoryScreen() {
       // The price is that user-added overlays / filters don't get burned
       // into the re-shared media. That is a deliberate, safe trade.
       if (sharedIsVideo) {
-        // Forward the original video URL — never try to bake video through
-        // ViewShot (it would silently produce a black PNG).
-        finalUri = sharedPost!.mediaUrl!;
+        // Forward the original video URL — read from the global mediaStore as
+        // the canonical source (persists until explicit clear), falling back to
+        // bridgePayload.mediaUrl. Never bake video through ViewShot.
+        const stored = useMediaStore.getState().pending;
+        finalUri = (stored?.mediaUrl) || sharedPost!.mediaUrl!;
         bakedMediaType = "video";
       } else if (sharedIsImage) {
         // Forward the original image URL directly. Viewer renders the real
@@ -2182,6 +2210,10 @@ export default function CreateStoryScreen() {
           overlayData,
         );
       }
+
+      // Clear the global media state — publish is complete, the persisted URL
+      // is no longer needed and must not be re-used by a future share action.
+      useMediaStore.getState().clear();
 
       showToast(
         editorMode === "story" && isCloseFriends ? T.postedCF : cfg.successMsg,

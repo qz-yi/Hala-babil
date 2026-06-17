@@ -1,5 +1,5 @@
 import { useRef, useCallback, useEffect } from "react";
-import { Platform } from "react-native";
+import { Platform, Vibration } from "react-native";
 
 function createAudioContext(): AudioContext | null {
   if (Platform.OS !== "web") return null;
@@ -16,8 +16,10 @@ export function useCallAudio() {
   const acRef = useRef<AudioContext | null>(null);
   const ringIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const activeOscillators = useRef<OscillatorNode[]>([]);
+  const nativeRinging = useRef(false);
 
   const stopAll = useCallback(() => {
+    // Web: stop oscillators
     if (ringIntervalRef.current) {
       clearInterval(ringIntervalRef.current);
       ringIntervalRef.current = null;
@@ -26,13 +28,18 @@ export function useCallAudio() {
       try { osc.stop(); } catch {}
     });
     activeOscillators.current = [];
+
+    // Native: stop vibration
+    if (Platform.OS !== "web" && nativeRinging.current) {
+      Vibration.cancel();
+      nativeRinging.current = false;
+    }
   }, []);
 
   const getAC = useCallback((): AudioContext | null => {
     if (!acRef.current) {
       acRef.current = createAudioContext();
     }
-    // Resume suspended context (browser autoplay policy)
     if (acRef.current?.state === "suspended") {
       acRef.current.resume().catch(() => {});
     }
@@ -67,38 +74,52 @@ export function useCallAudio() {
     [getAC],
   );
 
-  // Ringing tone — two-tone alternating pattern (like a phone)
+  // ─ Outgoing ringing tone (looping)
   const startRinging = useCallback(() => {
-    if (Platform.OS !== "web") return;
     stopAll();
 
-    const playRingCycle = () => {
-      playTone(480, 400, 0.25, 0);
-      playTone(440, 400, 0.25, 0.05);
-      playTone(480, 400, 0.25, 0.5);
-      playTone(440, 400, 0.25, 0.55);
-    };
-
-    playRingCycle();
-    ringIntervalRef.current = setInterval(playRingCycle, 2500);
+    if (Platform.OS === "web") {
+      const playRingCycle = () => {
+        playTone(480, 400, 0.25, 0);
+        playTone(440, 400, 0.25, 0.05);
+        playTone(480, 400, 0.25, 0.5);
+        playTone(440, 400, 0.25, 0.55);
+      };
+      playRingCycle();
+      ringIntervalRef.current = setInterval(playRingCycle, 2500);
+    } else {
+      // Native: vibration pattern for ringing (on 600ms, off 1200ms, repeat)
+      nativeRinging.current = true;
+      Vibration.vibrate([200, 100, 200, 100, 200, 1500], true);
+    }
   }, [stopAll, playTone]);
 
-  // Connected — crisp ascending chime (C5 → E5 → G5)
+  // ─ Call Connected — single ascending chime (C5 → E5 → G5)
   const playConnected = useCallback(() => {
-    if (Platform.OS !== "web") return;
     stopAll();
-    playTone(523, 100, 0.3, 0);
-    playTone(659, 100, 0.3, 0.11);
-    playTone(784, 220, 0.3, 0.22);
+
+    if (Platform.OS === "web") {
+      playTone(523, 100, 0.3, 0);
+      playTone(659, 100, 0.3, 0.11);
+      playTone(784, 220, 0.3, 0.22);
+    } else {
+      // Native: single short buzz to confirm connection
+      Vibration.vibrate([80, 40, 80]);
+    }
   }, [stopAll, playTone]);
 
-  // Disconnected — short descending fade (G4 → E4 → C4)
+  // ─ Disconnected — short descending fade
   const playDisconnected = useCallback(() => {
-    if (Platform.OS !== "web") return;
     stopAll();
-    playTone(392, 180, 0.25, 0);
-    playTone(330, 180, 0.22, 0.2);
-    playTone(262, 350, 0.18, 0.4);
+
+    if (Platform.OS === "web") {
+      playTone(392, 180, 0.25, 0);
+      playTone(330, 180, 0.22, 0.2);
+      playTone(262, 350, 0.18, 0.4);
+    } else {
+      // Native: triple short buzz for disconnect
+      Vibration.vibrate([100, 80, 100, 80, 100]);
+    }
   }, [stopAll, playTone]);
 
   useEffect(() => {

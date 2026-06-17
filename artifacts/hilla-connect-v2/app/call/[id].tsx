@@ -10,7 +10,6 @@ import {
   Image,
   Modal,
   FlatList,
-  ScrollView,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
@@ -57,6 +56,7 @@ export default function CallScreen() {
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const callStartedAt = useRef<number>(Date.now());
+  const nativeConnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -64,7 +64,6 @@ export default function CallScreen() {
   const decodedName = decodeURIComponent(name || "");
   const decodedAvatar = decodeURIComponent(avatar || "");
 
-  // Contacts list for group invite (exclude self and current callee)
   const contacts = users.filter(
     (u) => u.id !== currentUser?.id && u.id !== id
   );
@@ -75,6 +74,7 @@ export default function CallScreen() {
     return `${m}:${s}`;
   };
 
+  // ─── Timer — ONLY called when onConnectionEstablished fires ───────────────
   const startTimer = useCallback(() => {
     callStartedAt.current = Date.now();
     if (timerRef.current) clearInterval(timerRef.current);
@@ -92,9 +92,7 @@ export default function CallScreen() {
       if (outcome === "completed") {
         return `${icon} ${callType === "video" ? "مكالمة مرئية" : "مكالمة صوتية"} • ${dur}`;
       }
-      if (outcome === "cancelled") {
-        return `${icon} مكالمة ملغاة`;
-      }
+      if (outcome === "cancelled") return `${icon} مكالمة ملغاة`;
       return `${icon} مكالمة فائتة`;
     },
     [callType],
@@ -104,24 +102,20 @@ export default function CallScreen() {
     (outcome: "completed" | "cancelled" | "missed" = "cancelled") => {
       stopAll();
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      if (nativeConnectTimerRef.current) {
+        clearTimeout(nativeConnectTimerRef.current);
+        nativeConnectTimerRef.current = null;
+      }
 
-      // Inject call log message into the conversation
       if (currentUser && id) {
         try {
           const convo = getConversation(id);
-          if (convo?.id) {
-            injectCallLog(convo.id, id, buildCallLog(outcome));
-          }
+          if (convo?.id) injectCallLog(convo.id, id, buildCallLog(outcome));
         } catch {}
       }
 
-      // Clear global call state
       setActiveCall(null);
-
-      // Cleanup WebRTC
-      if (!isResume) {
-        callManager.cleanup();
-      }
+      if (!isResume) callManager.cleanup();
     },
     [currentUser, id, getConversation, injectCallLog, buildCallLog, setActiveCall, stopAll, isResume],
   );
@@ -133,25 +127,41 @@ export default function CallScreen() {
     router.back();
   }, [callRoomId, status, cleanup]);
 
+  // ─── onConnectionEstablished — single source of truth for timer start ─────
+  const onConnectionEstablished = useCallback(() => {
+    playConnected();
+    stopAll();
+    setStatus("active");
+    startTimer();
+    setActiveCall({
+      callRoomId,
+      otherUserId: id,
+      otherUserName: decodedName,
+      otherUserAvatar: decodedAvatar,
+      callType: callType as CallType,
+      startedAt: Date.now(),
+      conversationId: getConversation(id)?.id || id,
+    });
+  }, [playConnected, stopAll, startTimer, setActiveCall, callRoomId, id, decodedName, decodedAvatar, callType, getConversation]);
+
   const initWebRTC = useCallback(async () => {
     if (!currentUser) return;
 
     if (Platform.OS !== "web") {
-      // Native: show active state without real WebRTC (requires native build)
-      setStatus("active");
-      startTimer();
-      setActiveCall({
-        callRoomId,
-        otherUserId: id,
-        otherUserName: decodedName,
-        otherUserAvatar: decodedAvatar,
-        callType: callType as CallType,
-        startedAt: Date.now(),
-        conversationId: getConversation(id)?.id || id,
-      });
+      // ─── Native path: show ringing → simulate connection established ──────
+      // Real WebRTC requires a native build. In Expo Go we simulate the flow
+      // so the timer correctly starts ONLY when the "call is answered".
+      setStatus("ringing");
+      startRinging();
+
+      nativeConnectTimerRef.current = setTimeout(() => {
+        nativeConnectTimerRef.current = null;
+        onConnectionEstablished();
+      }, 2500);
       return;
     }
 
+    // ─── Web path: real WebRTC ───────────────────────────────────────────────
     try {
       let stream = callManager.localStream;
 
@@ -169,7 +179,6 @@ export default function CallScreen() {
         }
       }
 
-      // Attach local video
       if (localVideoRef.current && callType === "video") {
         localVideoRef.current.srcObject = stream;
         callManager.localVideoEl = localVideoRef.current;
@@ -182,6 +191,7 @@ export default function CallScreen() {
         callManager.pc = pc;
         stream.getTracks().forEach((track) => pc!.addTrack(track, stream!));
 
+        // ─── ontrack = connection established (both caller and callee) ─────
         pc.ontrack = (event) => {
           const remoteStream = event.streams[0];
           callManager.remoteStream = remoteStream;
@@ -189,19 +199,7 @@ export default function CallScreen() {
             remoteVideoRef.current.srcObject = remoteStream;
             callManager.remoteVideoEl = remoteVideoRef.current;
           }
-          playConnected();
-          stopAll();
-          setStatus("active");
-          startTimer();
-          setActiveCall({
-            callRoomId,
-            otherUserId: id,
-            otherUserName: decodedName,
-            otherUserAvatar: decodedAvatar,
-            callType: callType as CallType,
-            startedAt: Date.now(),
-            conversationId: getConversation(id)?.id || id,
-          });
+          onConnectionEstablished();
         };
 
         pc.onicecandidate = (event) => {
@@ -210,14 +208,12 @@ export default function CallScreen() {
           }
         };
       } else if (isResume) {
-        // Resuming — reattach video elements
         if (remoteVideoRef.current && callManager.remoteStream) {
           remoteVideoRef.current.srcObject = callManager.remoteStream;
         }
         if (localVideoRef.current && callManager.localStream) {
           localVideoRef.current.srcObject = callManager.localStream;
         }
-        // Restart timer from saved startedAt
         const saved = useCallStore.getState().activeCall;
         if (saved) {
           callStartedAt.current = saved.startedAt;
@@ -232,7 +228,7 @@ export default function CallScreen() {
       const socket = getSocket();
       socket.emit("join-room", callRoomId, currentUser.id);
 
-      // Start ringing while waiting
+      // Caller side: start ringing while waiting for callee to join
       startRinging();
       setStatus("ringing");
 
@@ -243,30 +239,21 @@ export default function CallScreen() {
         socket.emit("offer", callRoomId, offer, currentUser.id);
       });
 
+      // ─── Callee side: receive offer, send answer ──────────────────────────
+      // Do NOT start timer here — timer starts via ontrack when P2P is established
       socket.on("offer", async (offer: RTCSessionDescriptionInit) => {
         if (!callManager.pc) return;
         await callManager.pc.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await callManager.pc.createAnswer();
         await callManager.pc.setLocalDescription(answer);
         socket.emit("answer", callRoomId, answer, currentUser.id);
-        playConnected();
-        stopAll();
-        setStatus("active");
-        startTimer();
-        setActiveCall({
-          callRoomId,
-          otherUserId: id,
-          otherUserName: decodedName,
-          otherUserAvatar: decodedAvatar,
-          callType: callType as CallType,
-          startedAt: Date.now(),
-          conversationId: getConversation(id)?.id || id,
-        });
+        // onConnectionEstablished() will be called via pc.ontrack
       });
 
       socket.on("answer", async (answer: RTCSessionDescriptionInit) => {
         if (!callManager.pc) return;
         await callManager.pc.setRemoteDescription(new RTCSessionDescription(answer));
+        // onConnectionEstablished() will be called via pc.ontrack
       });
 
       socket.on("ice-candidate", async (candidate: RTCIceCandidateInit) => {
@@ -279,19 +266,13 @@ export default function CallScreen() {
         setTimeout(() => router.back(), 800);
       });
 
-      // Incoming invite to a group call
       socket.on("invite-to-call", ({ fromName, newRoomId }: { fromName: string; newRoomId: string }) => {
         Alert.alert(
           "دعوة لمكالمة جماعية",
           `${fromName} يدعوك للانضمام للمكالمة`,
           [
             { text: "رفض", style: "cancel" },
-            {
-              text: "قبول",
-              onPress: () => {
-                socket.emit("join-room", newRoomId, currentUser.id);
-              },
-            },
+            { text: "قبول", onPress: () => { socket.emit("join-room", newRoomId, currentUser.id); } },
           ],
         );
       });
@@ -300,12 +281,11 @@ export default function CallScreen() {
       playDisconnected();
       router.back();
     }
-  }, [currentUser, callType, callRoomId, id, decodedName, decodedAvatar, isResume, startRinging, playConnected, playDisconnected, stopAll, startTimer, setActiveCall, getConversation]);
+  }, [currentUser, callType, callRoomId, id, decodedName, decodedAvatar, isResume, startRinging, playDisconnected, stopAll, startTimer, setActiveCall, getConversation, onConnectionEstablished, cleanup]);
 
   useEffect(() => {
     initWebRTC();
     return () => {
-      // Only remove socket listeners, do NOT cleanup WebRTC (user may have navigated away)
       const socket = getSocket();
       socket.off("user-connected");
       socket.off("offer");
@@ -340,27 +320,34 @@ export default function CallScreen() {
 
   const statusLabel =
     status === "connecting" ? "جارٍ الاتصال..." :
-    status === "ringing" ? "يرن..." :
-    status === "active" ? formatDuration(callDuration) :
+    status === "ringing"    ? "يرن..." :
+    status === "active"     ? formatDuration(callDuration) :
     "انتهت المكالمة";
 
+  const isVideoCall = callType === "video";
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Background */}
+    <View style={styles.container}>
+      {/* ── Solid dark background ───────────────────────────────────────── */}
       <View style={styles.bg} />
 
-      {/* Remote video full screen (web + video call) */}
-      {Platform.OS === "web" && callType === "video" && (
+      {/* ── Remote video feed — full screen behind everything ──────────── */}
+      {Platform.OS === "web" && isVideoCall && (
         <video
           ref={(el) => { remoteVideoRef.current = el; callManager.attachRemoteVideo(el); }}
           autoPlay
           playsInline
-          style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" } as any}
+          crossOrigin="anonymous"
+          style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover", top: 0, left: 0 } as any}
         />
       )}
 
-      {/* Caller info overlay */}
-      <View style={[styles.callerInfo, callType === "video" && status === "active" && styles.callerInfoVideo]}>
+      {/* ── Caller info — absolutely positioned top-center ─────────────── */}
+      <View style={[
+        styles.callerInfo,
+        { paddingTop: insets.top + 24 },
+        isVideoCall && status === "active" && styles.callerInfoVideoActive,
+      ]}>
         {decodedAvatar ? (
           <Image source={{ uri: decodedAvatar }} style={styles.avatar} />
         ) : (
@@ -375,14 +362,15 @@ export default function CallScreen() {
         )}
       </View>
 
-      {/* Local video preview (top-right corner) */}
-      {Platform.OS === "web" && callType === "video" && (
-        <View style={styles.localVideoContainer}>
+      {/* ── Local video preview — top-right corner (web video calls) ───── */}
+      {Platform.OS === "web" && isVideoCall && (
+        <View style={[styles.localVideoContainer, { top: insets.top + 16 }]}>
           <video
             ref={(el) => { localVideoRef.current = el; callManager.attachLocalVideo(el); }}
             autoPlay
             playsInline
             muted
+            crossOrigin="anonymous"
             style={{ width: "100%", height: "100%", objectFit: "cover" } as any}
           />
           {isCamOff && (
@@ -393,39 +381,30 @@ export default function CallScreen() {
         </View>
       )}
 
-      {/* Controls bar */}
-      <View style={[styles.controls, { paddingBottom: insets.bottom + 24 }]}>
+      {/* ── Controls bar — absolutely positioned at bottom ──────────────── */}
+      <View style={[styles.controls, { paddingBottom: insets.bottom + 20 }]}>
 
         {/* Mute */}
         <View style={styles.ctrlWrap}>
-          <TouchableOpacity
-            style={[styles.ctrlBtn, isMuted && styles.ctrlBtnOn]}
-            onPress={toggleMute}
-          >
+          <TouchableOpacity style={[styles.ctrlBtn, isMuted && styles.ctrlBtnOn]} onPress={toggleMute}>
             <Feather name={isMuted ? "mic-off" : "mic"} size={22} color="white" />
           </TouchableOpacity>
           <Text style={styles.ctrlLabel}>{isMuted ? "إلغاء الكتم" : "كتم"}</Text>
         </View>
 
         {/* Camera toggle (video only) */}
-        {callType === "video" && (
+        {isVideoCall && (
           <View style={styles.ctrlWrap}>
-            <TouchableOpacity
-              style={[styles.ctrlBtn, isCamOff && styles.ctrlBtnOn]}
-              onPress={toggleCamera}
-            >
+            <TouchableOpacity style={[styles.ctrlBtn, isCamOff && styles.ctrlBtnOn]} onPress={toggleCamera}>
               <Feather name={isCamOff ? "video-off" : "video"} size={22} color="white" />
             </TouchableOpacity>
-            <Text style={styles.ctrlLabel}>{isCamOff ? "تشغيل الكاميرا" : "إيقاف الكاميرا"}</Text>
+            <Text style={styles.ctrlLabel}>{isCamOff ? "تشغيل" : "إيقاف"}</Text>
           </View>
         )}
 
         {/* Speaker */}
         <View style={styles.ctrlWrap}>
-          <TouchableOpacity
-            style={[styles.ctrlBtn, isSpeaker && styles.ctrlBtnOn]}
-            onPress={() => setIsSpeaker((s) => !s)}
-          >
+          <TouchableOpacity style={[styles.ctrlBtn, isSpeaker && styles.ctrlBtnOn]} onPress={() => setIsSpeaker((s) => !s)}>
             <Ionicons name={isSpeaker ? "volume-high" : "volume-medium-outline"} size={22} color="white" />
           </TouchableOpacity>
           <Text style={styles.ctrlLabel}>مكبر الصوت</Text>
@@ -433,10 +412,7 @@ export default function CallScreen() {
 
         {/* Add member */}
         <View style={styles.ctrlWrap}>
-          <TouchableOpacity
-            style={styles.ctrlBtn}
-            onPress={() => setShowInvite(true)}
-          >
+          <TouchableOpacity style={styles.ctrlBtn} onPress={() => setShowInvite(true)}>
             <Feather name="user-plus" size={22} color="white" />
           </TouchableOpacity>
           <Text style={styles.ctrlLabel}>إضافة</Text>
@@ -451,15 +427,11 @@ export default function CallScreen() {
         </View>
       </View>
 
-      {/* Invite contacts modal */}
-      <Modal
-        visible={showInvite}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowInvite(false)}
-      >
+      {/* ── Invite contacts modal ───────────────────────────────────────── */}
+      <Modal visible={showInvite} transparent animationType="slide" onRequestClose={() => setShowInvite(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>دعوة جهة اتصال</Text>
               <TouchableOpacity onPress={() => setShowInvite(false)}>
@@ -474,10 +446,7 @@ export default function CallScreen() {
                 data={contacts}
                 keyExtractor={(u) => u.id}
                 renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.contactRow}
-                    onPress={() => inviteContact(item.id, item.name)}
-                  >
+                  <TouchableOpacity style={styles.contactRow} onPress={() => inviteContact(item.id, item.name)}>
                     {item.avatar ? (
                       <Image source={{ uri: item.avatar }} style={styles.contactAvatar} />
                     ) : (
@@ -503,49 +472,52 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0d1117" },
   bg: { ...StyleSheet.absoluteFillObject, backgroundColor: "#0d1117" },
 
+  // ─── Caller info — absolutely at top ──────────────────────────────────────
   callerInfo: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    paddingHorizontal: 32,
-  },
-  callerInfoVideo: {
     position: "absolute",
-    top: 80,
+    top: 0,
     left: 0,
     right: 0,
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 32,
+    paddingBottom: 24,
+  },
+  // When active in a video call, shrink into top-left corner
+  callerInfoVideoActive: {
+    alignItems: "flex-start",
+    paddingHorizontal: 20,
   },
 
   avatar: {
-    width: 108,
-    height: 108,
-    borderRadius: 54,
-    borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.25)",
+    width: 112,
+    height: 112,
+    borderRadius: 34,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.22)",
   },
   avatarPlaceholder: {
-    width: 108,
-    height: 108,
-    borderRadius: 54,
+    width: 112,
+    height: 112,
+    borderRadius: 34,
     backgroundColor: "rgba(255,255,255,0.12)",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarInitial: { color: "white", fontSize: 44, fontWeight: "700" },
   callerName: { color: "white", fontSize: 26, fontWeight: "700", marginTop: 6, textAlign: "center" },
-  statusText: { color: "rgba(255,255,255,0.65)", fontSize: 16, fontVariant: ["tabular-nums"] },
+  statusText: { color: "rgba(255,255,255,0.65)", fontSize: 16, fontVariant: ["tabular-nums"] as any },
 
+  // ─── Local video preview ───────────────────────────────────────────────────
   localVideoContainer: {
     position: "absolute",
-    top: 90,
     right: 16,
     width: 96,
     height: 136,
-    borderRadius: 14,
+    borderRadius: 16,
     overflow: "hidden",
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderColor: "rgba(255,255,255,0.18)",
     backgroundColor: "#000",
   },
   camOffOverlay: {
@@ -555,33 +527,40 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+  // ─── Controls bar — absolutely pinned to bottom ────────────────────────────
   controls: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "flex-start",
-    gap: 20,
-    paddingHorizontal: 20,
+    gap: 18,
+    paddingHorizontal: 16,
     paddingTop: 24,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.58)",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
   },
-  ctrlWrap: { alignItems: "center", gap: 8 },
+  ctrlWrap: { alignItems: "center", gap: 8, flex: 1 },
   ctrlBtn: {
     width: 56,
     height: 56,
-    borderRadius: 28,
-    backgroundColor: "rgba(255,255,255,0.14)",
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.13)",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
   },
-  ctrlBtnOn: { backgroundColor: "rgba(255,255,255,0.32)" },
-  ctrlLabel: { color: "rgba(255,255,255,0.7)", fontSize: 11, textAlign: "center", maxWidth: 60 },
+  ctrlBtnOn: { backgroundColor: "rgba(255,255,255,0.30)", borderColor: "rgba(255,255,255,0.3)" },
+  ctrlLabel: { color: "rgba(255,255,255,0.65)", fontSize: 11, textAlign: "center" },
 
   endBtn: {
     width: 64,
     height: 64,
-    borderRadius: 32,
+    borderRadius: 20,
     backgroundColor: "#FF3B30",
     alignItems: "center",
     justifyContent: "center",
@@ -592,19 +571,25 @@ const styles = StyleSheet.create({
     elevation: 14,
   },
 
-  // Invite modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
-  },
+  // ─── Invite modal ──────────────────────────────────────────────────────────
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   modalSheet: {
-    backgroundColor: "#161b22",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: "#111111",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
     paddingBottom: 32,
     paddingTop: 6,
     maxHeight: "65%",
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignSelf: "center",
+    marginBottom: 8,
   },
   modalHeader: {
     flexDirection: "row",
@@ -626,7 +611,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "rgba(255,255,255,0.06)",
   },
-  contactAvatar: { width: 42, height: 42, borderRadius: 21 },
+  contactAvatar: { width: 44, height: 44, borderRadius: 14 },
   contactAvatarFallback: { backgroundColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center" },
   contactInitial: { color: "white", fontSize: 16, fontWeight: "600" },
   contactName: { flex: 1, color: "white", fontSize: 15 },

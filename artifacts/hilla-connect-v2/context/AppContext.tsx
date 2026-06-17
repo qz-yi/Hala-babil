@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { router } from "expo-router";
 import { setSharedContent } from "@/lib/sharedContentBridge";
+import { useMediaStore } from "@/store/mediaStore";
 
 export type Language = "ar" | "en";
 export type Theme = "light" | "dark";
@@ -3526,7 +3527,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       //   URLs were the root cause of the "black story when sharing" bug:
       //   the editor received an empty sharedMediaUrl, rendered nothing,
       //   and on publish the story was saved with no media.
-      setSharedContent({
+      const payload = {
         type,
         id,
         mediaUrl: mediaUrl || "",
@@ -3534,6 +3535,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         caption: caption || "",
         creatorName: creatorName || "",
         creatorId: creatorId || "",
+      };
+      // Persist in both the bridge (consumed once on editor mount) and the
+      // global mediaStore (persists until explicit clear, so the Publish
+      // button always has access to the original URL regardless of when it runs).
+      setSharedContent(payload);
+      useMediaStore.getState().setPending({
+        mediaUrl: payload.mediaUrl,
+        mediaType: inferredType,
+        sourceType: type,
+        sourceId: id,
+        caption: payload.caption,
+        creatorName: payload.creatorName,
+        creatorId: payload.creatorId,
       });
       router.push({
         pathname: "/create-story",

@@ -19,7 +19,10 @@ import { AppProvider, useApp } from "@/context/AppContext";
 import { ToastProvider } from "@/components/Toast";
 import { FloatingRoomWidget } from "@/components/FloatingRoomWidget";
 import { FloatingCallBanner } from "@/components/FloatingCallBanner";
+import { IncomingCallOverlay } from "@/components/IncomingCallOverlay";
 import { useThemeStore } from "@/store/themeStore";
+import { useCallStore } from "@/store/callStore";
+import { getSocket, registerUserSocket } from "@/hooks/useSocket";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -61,6 +64,63 @@ async function registerForPushNotifications() {
   } catch {
     return null;
   }
+}
+
+function CallSetup() {
+  const { currentUser } = useApp();
+  const { setIncomingCall, incomingCall } = useCallStore();
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const socket = getSocket();
+    registerUserSocket(currentUser.id);
+
+    // ── Presence: re-register on every reconnect ──────────────────────────
+    const onReconnect = () => registerUserSocket(currentUser.id);
+    socket.on("reconnect", onReconnect);
+
+    // ── Receive incoming call from server (Presence Manager broadcast) ────
+    const onIncomingCall = (payload: {
+      fromUserId: string;
+      fromUserName: string;
+      fromUserAvatar: string;
+      callRoomId: string;
+      callType: "audio" | "video";
+    }) => {
+      // Ignore if already in an active call
+      if (useCallStore.getState().activeCall) return;
+      setIncomingCall({
+        callRoomId: payload.callRoomId,
+        fromUserId: payload.fromUserId,
+        fromUserName: payload.fromUserName,
+        fromUserAvatar: payload.fromUserAvatar,
+        callType: payload.callType,
+      });
+    };
+    socket.on("incoming-call", onIncomingCall);
+
+    // ── Dismiss ringing if another device answered (cross-device sync) ────
+    const onCallDismissed = () => {
+      setIncomingCall(null);
+    };
+    socket.on("call-dismissed", onCallDismissed);
+
+    // ── Caller cancelled before we answered ──────────────────────────────
+    const onCallCancelled = () => {
+      setIncomingCall(null);
+    };
+    socket.on("call-cancelled", onCallCancelled);
+
+    return () => {
+      socket.off("reconnect", onReconnect);
+      socket.off("incoming-call", onIncomingCall);
+      socket.off("call-dismissed", onCallDismissed);
+      socket.off("call-cancelled", onCallCancelled);
+    };
+  }, [currentUser?.id]);
+
+  return null;
 }
 
 function NotificationSetup() {
@@ -107,6 +167,7 @@ function RootLayoutNav() {
 
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
+      <CallSetup />
       <NotificationSetup />
       <Stack
         screenOptions={{
@@ -140,6 +201,7 @@ function RootLayoutNav() {
       </Stack>
       <FloatingCallBanner />
       <FloatingRoomWidget />
+      <IncomingCallOverlay />
     </View>
   );
 }

@@ -18,7 +18,7 @@ import { useApp } from "@/context/AppContext";
 import { useCallStore } from "@/store/callStore";
 import { useCallAudio } from "@/hooks/useCallAudio";
 import { callManager } from "@/lib/callManager";
-import { getSocket } from "@/hooks/useSocket";
+import { getSocket, cancelCallSignal } from "@/hooks/useSocket";
 
 const ICE_SERVERS = {
   iceServers: [
@@ -32,12 +32,13 @@ type CallType = "audio" | "video";
 type CallStatus = "connecting" | "ringing" | "active" | "ended";
 
 export default function CallScreen() {
-  const { id, type: callType, name, avatar, resume } = useLocalSearchParams<{
+  const { id, type: callType, name, avatar, resume, callee } = useLocalSearchParams<{
     id: string;
     type: CallType;
     name: string;
     avatar: string;
     resume?: string;
+    callee?: string;  // "1" when callee navigated here from IncomingCallOverlay
   }>();
 
   const { currentUser, users, getConversation, injectCallLog } = useApp();
@@ -46,6 +47,7 @@ export default function CallScreen() {
   const insets = useSafeAreaInsets();
 
   const isResume = resume === "1";
+  const isCallee = callee === "1";  // navigated from IncomingCallOverlay (already accepted)
 
   const [status, setStatus] = useState<CallStatus>(isResume ? "active" : "connecting");
   const [isMuted, setIsMuted] = useState(false);
@@ -107,6 +109,16 @@ export default function CallScreen() {
         nativeConnectTimerRef.current = null;
       }
 
+      // ── Caller side: if still ringing when we end, tell target to dismiss ─
+      // isCallee means we accepted — no need to cancel (server already handled dismiss)
+      const currentStatus = status;
+      if (!isCallee && currentStatus === "ringing" && currentUser && id) {
+        cancelCallSignal({
+          callRoomId,
+          targetUserId: id,
+        });
+      }
+
       if (currentUser && id) {
         try {
           const convo = getConversation(id);
@@ -117,7 +129,7 @@ export default function CallScreen() {
       setActiveCall(null);
       if (!isResume) callManager.cleanup();
     },
-    [currentUser, id, getConversation, injectCallLog, buildCallLog, setActiveCall, stopAll, isResume],
+    [currentUser, id, status, isCallee, callRoomId, getConversation, injectCallLog, buildCallLog, setActiveCall, stopAll, isResume],
   );
 
   const endCall = useCallback(() => {
@@ -148,16 +160,23 @@ export default function CallScreen() {
     if (!currentUser) return;
 
     if (Platform.OS !== "web") {
-      // ─── Native path: show ringing → simulate connection established ──────
-      // Real WebRTC requires a native build. In Expo Go we simulate the flow
-      // so the timer correctly starts ONLY when the "call is answered".
-      setStatus("ringing");
-      startRinging();
-
-      nativeConnectTimerRef.current = setTimeout(() => {
-        nativeConnectTimerRef.current = null;
-        onConnectionEstablished();
-      }, 2500);
+      // ─── Native path ────────────────────────────────────────────────────────
+      // Callee: already accepted — go straight to connecting → active sim
+      // Caller: show ringing until callee joins (or simulate after 2.5s)
+      if (isCallee) {
+        setStatus("connecting");
+        nativeConnectTimerRef.current = setTimeout(() => {
+          nativeConnectTimerRef.current = null;
+          onConnectionEstablished();
+        }, 1500);
+      } else {
+        setStatus("ringing");
+        startRinging();
+        nativeConnectTimerRef.current = setTimeout(() => {
+          nativeConnectTimerRef.current = null;
+          onConnectionEstablished();
+        }, 2500);
+      }
       return;
     }
 
@@ -228,9 +247,13 @@ export default function CallScreen() {
       const socket = getSocket();
       socket.emit("join-room", callRoomId, currentUser.id);
 
-      // Caller side: start ringing while waiting for callee to join
-      startRinging();
-      setStatus("ringing");
+      // Caller: ring while waiting. Callee: already accepted — just show connecting.
+      if (isCallee) {
+        setStatus("connecting");
+      } else {
+        startRinging();
+        setStatus("ringing");
+      }
 
       socket.on("user-connected", async (_userId: string) => {
         if (!callManager.pc) return;
@@ -266,6 +289,20 @@ export default function CallScreen() {
         setTimeout(() => router.back(), 800);
       });
 
+      // ── Callee declined (caller receives this) ───────────────────────────
+      socket.on("call-declined", () => {
+        playDisconnected();
+        cleanup("missed");
+        setTimeout(() => router.back(), 600);
+      });
+
+      // ── Another device of ours answered (cross-device dismiss) ──────────
+      socket.on("call-dismissed", () => {
+        stopAll();
+        cleanup("cancelled");
+        router.back();
+      });
+
       socket.on("invite-to-call", ({ fromName, newRoomId }: { fromName: string; newRoomId: string }) => {
         Alert.alert(
           "دعوة لمكالمة جماعية",
@@ -292,6 +329,8 @@ export default function CallScreen() {
       socket.off("answer");
       socket.off("ice-candidate");
       socket.off("call-ended");
+      socket.off("call-declined");
+      socket.off("call-dismissed");
       socket.off("invite-to-call");
     };
   }, []);

@@ -20,7 +20,7 @@ export function getSocket(): Socket {
   return sharedSocket;
 }
 
-/** Register user in their personal socket room so they can receive invite-to-call events */
+/** Register user in their personal socket room + Presence Manager */
 export function registerUserSocket(userId: string) {
   const socket = getSocket();
   const doRegister = () => socket.emit("register-user", userId);
@@ -29,6 +29,47 @@ export function registerUserSocket(userId: string) {
   } else {
     socket.once("connect", doRegister);
   }
+}
+
+/**
+ * Emit `initiate-call` to the server — server will broadcast `incoming-call`
+ * to ALL active sockets of the target user (Presence Manager).
+ */
+export function initiateCallSignal(payload: {
+  targetUserId: string;
+  fromUserId: string;
+  fromUserName: string;
+  fromUserAvatar: string;
+  callRoomId: string;
+  callType: "audio" | "video";
+}) {
+  getSocket().emit("initiate-call", payload);
+}
+
+/** Callee accepts — notifies caller + dismisses on own other devices */
+export function acceptCallSignal(payload: {
+  callRoomId: string;
+  fromUserId: string;
+  calleeUserId: string;
+}) {
+  getSocket().emit("accept-call", payload);
+}
+
+/** Callee declines */
+export function declineCallSignal(payload: {
+  callRoomId: string;
+  fromUserId: string;
+  calleeUserId: string;
+}) {
+  getSocket().emit("decline-call", payload);
+}
+
+/** Caller cancels before the callee answers */
+export function cancelCallSignal(payload: {
+  callRoomId: string;
+  targetUserId: string;
+}) {
+  getSocket().emit("cancel-call", payload);
 }
 
 export function useSocket(userId?: string) {

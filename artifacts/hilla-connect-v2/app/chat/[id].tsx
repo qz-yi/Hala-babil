@@ -1210,7 +1210,18 @@ export default function ChatScreen() {
             <TouchableOpacity
               style={[styles.callBtn, { backgroundColor: `${accentColor}22` }]}
               onPress={() => {
-                if (!otherUser) return;
+                if (!otherUser || !currentUser) return;
+                const callRoomId = `call_${[currentUser.id, otherUser.id].sort().join("_")}`;
+                import("@/hooks/useSocket").then(({ initiateCallSignal }) => {
+                  initiateCallSignal({
+                    targetUserId: otherUser.id,
+                    fromUserId: currentUser.id,
+                    fromUserName: currentUser.name || "",
+                    fromUserAvatar: currentUser.avatar || "",
+                    callRoomId,
+                    callType: "audio",
+                  });
+                });
                 router.push({
                   pathname: "/call/[id]",
                   params: {
@@ -1227,7 +1238,18 @@ export default function ChatScreen() {
             <TouchableOpacity
               style={[styles.callBtn, { backgroundColor: `${accentColor}22` }]}
               onPress={() => {
-                if (!otherUser) return;
+                if (!otherUser || !currentUser) return;
+                const callRoomId = `call_${[currentUser.id, otherUser.id].sort().join("_")}`;
+                import("@/hooks/useSocket").then(({ initiateCallSignal }) => {
+                  initiateCallSignal({
+                    targetUserId: otherUser.id,
+                    fromUserId: currentUser.id,
+                    fromUserName: currentUser.name || "",
+                    fromUserAvatar: currentUser.avatar || "",
+                    callRoomId,
+                    callType: "video",
+                  });
+                });
                 router.push({
                   pathname: "/call/[id]",
                   params: {

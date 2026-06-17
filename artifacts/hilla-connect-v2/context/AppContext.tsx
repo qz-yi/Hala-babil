@@ -191,45 +191,6 @@ export interface GovernorateImage {
   image?: string;
 }
 
-export interface Restaurant {
-  id: string;
-  name: string;
-  image?: string;
-  phone: string;
-  whatsapp?: string;
-  category: string;
-  governorate: string;
-  menuItems: MenuItem[];
-  createdAt: number;
-  ownerId?: string;
-  commissionRate?: number;
-  monthlyDues?: number;
-  isActive?: boolean;
-  description?: string;
-}
-
-export interface MenuItem {
-  id: string;
-  name: string;
-  price: number;
-  description?: string;
-  image?: string;
-  isVisible?: boolean;
-}
-
-export interface CartItem {
-  menuItemId: string;
-  menuItemName: string;
-  menuItemPrice: number;
-  quantity: number;
-}
-
-export interface Cart {
-  restaurantId: string;
-  restaurantName: string;
-  restaurantOwnerId: string;
-  items: CartItem[];
-}
 
 export type CommerceTier = "bronze" | "silver" | "gold";
 export type OrderStatus = "pending" | "warehouse" | "in_transit" | "delivered" | "returned";
@@ -455,7 +416,6 @@ interface AppContextValue {
   users: User[];
   rooms: Room[];
   conversations: Conversation[];
-  restaurants: Restaurant[];
   reels: Reel[];
   reelLikes: ReelLike[];
   reelComments: ReelComment[];
@@ -521,29 +481,8 @@ interface AppContextValue {
   governorateImages: GovernorateImage[];
   setGovernorateImage: (name: string, image: string) => void;
   isManager: boolean;
-  isRestaurantOwner: boolean;
-  getMyRestaurant: () => Restaurant | null;
   createOwnerAccount: (name: string, email: string, governorate: string, password: string) => Promise<{ success: boolean; error?: string }>;
   setOwnerActive: (userId: string, isActive: boolean) => void;
-  setCommissionRate: (restaurantId: string, rate: number) => void;
-  clearDues: (restaurantId: string) => void;
-  addMenuItemToRestaurant: (restaurantId: string, item: Omit<MenuItem, "id">) => void;
-  updateMenuItemInRestaurant: (restaurantId: string, itemId: string, data: Partial<MenuItem>) => void;
-  deleteMenuItemFromRestaurant: (restaurantId: string, itemId: string) => void;
-  toggleMenuItemVisibility: (restaurantId: string, itemId: string) => void;
-  updateRestaurantProfile: (restaurantId: string, data: { name?: string; description?: string; image?: string; category?: string }) => void;
-  cart: Cart | null;
-  addToCart: (restaurant: Restaurant, item: MenuItem) => void;
-  removeFromCart: (menuItemId: string) => void;
-  updateCartQty: (menuItemId: string, qty: number) => void;
-  clearCart: () => void;
-  getCartTotal: () => number;
-  placeOrder: () => Promise<void>;
-  addRestaurant: (restaurant: Omit<Restaurant, "id" | "createdAt">) => void;
-  updateRestaurant: (id: string, data: Partial<Restaurant>) => void;
-  deleteRestaurant: (id: string) => void;
-  restaurantsEnabled: boolean;
-  toggleRestaurantsEnabled: () => void;
   banUser: (userId: string) => void;
   unbanUser: (userId: string) => void;
   resetUserPassword: (userId: string, newPassword: string) => void;
@@ -674,18 +613,17 @@ interface AppContextValue {
   addProduct: (data: Omit<Product, "id" | "createdAt">) => void;
   updateProduct: (productId: string, data: Partial<Product>) => void;
   deleteProduct: (productId: string) => void;
-  placeCommerceOrder: (merchantId: string, items: OrderItem[], paymentMethod: PaymentMethod, address?: string, notes?: string) => Promise<Order | null>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   getCommissionTier: (monthlySales: number) => number;
   recordAffiliateLink: (productId: string, influencerId: string) => void;
   getAffiliateForProduct: (productId: string) => AffiliateRecord | null;
   createMerchantAccount: (name: string, email: string, governorate: string, password: string) => Promise<{ success: boolean; error?: string }>;
   getMerchantOrders: (merchantId: string) => Order[];
-  commerceCart: CommerceCart | null;
-  addToCommerceCart: (item: CommerceCartItem, merchantName: string) => void;
-  removeFromCommerceCart: (productId: string) => void;
-  clearCommerceCart: () => void;
-  checkoutCommerceCart: (paymentMethod: PaymentMethod, address?: string, notes?: string) => Promise<Order | null>;
+  cart: CommerceCart | null;
+  addToCart: (item: CommerceCartItem, merchantName: string) => void;
+  removeFromCart: (productId: string) => void;
+  clearCart: () => void;
+  placeOrder: (paymentMethod: PaymentMethod, address?: string, notes?: string) => Promise<Order | null>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -1212,7 +1150,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [users, setUsers] = useState<User[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [passwords, setPasswords] = useState<Record<string, string>>({});
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [reels, setReels] = useState<Reel[]>([]);
@@ -1227,7 +1164,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [savedPosts, setSavedPostsState] = useState<string[]>([]);
   const [governorateImages, setGovernorateImagesState] = useState<GovernorateImage[]>([]);
-  const [cart, setCart] = useState<Cart | null>(null);
+  const [cart, setCart] = useState<CommerceCart | null>(null);
   const [isRoomMinimized, setIsRoomMinimized] = useState(false);
   const [minimizedRoomId, setMinimizedRoomId] = useState<string | null>(null);
   const [minimizedRoomName, setMinimizedRoomName] = useState<string>("");
@@ -1236,12 +1173,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [floatingRoomPos, setFloatingRoomPos] = useState<{ x: number; y: number } | null>(null);
   const [groups, setGroups] = useState<GroupChat[]>([]);
   const [privacySettingsMap, setPrivacySettingsMap] = useState<Record<string, UserPrivacySettings>>({});
-  const [restaurantsEnabled, setRestaurantsEnabled] = useState(true);
   const [merchants, setMerchants] = useState<Merchant[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [affiliateLinks, setAffiliateLinks] = useState<AffiliateRecord[]>([]);
-  const [commerceCart, setCommerceCart] = useState<CommerceCart | null>(null);
 
   const minimizeRoom = useCallback((roomId: string, roomName: string, roomImage?: string) => {
     setIsRoomMinimized(true);
@@ -1265,11 +1200,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const keys = [
         "language", "theme", "currentUser", "users", "rooms", "conversations",
-        "restaurants", "passwords", "blockedUsers", "reels", "reelLikes",
+        "passwords", "blockedUsers", "reels", "reelLikes",
         "reelComments", "posts", "postLikes", "postComments", "stories",
         "closeFriendsLists", "follows", "notifications", "savedPosts", "governorateImages",
-        "groupChats", "privacySettings", "restaurantsEnabled",
-        "merchants", "products", "orders", "commerceCart",
+        "groupChats", "privacySettings",
+        "merchants", "products", "orders", "cart",
       ];
       const values = await AsyncStorage.multiGet(keys);
       const data = Object.fromEntries(values.map(([k, v]) => [k, v]));
@@ -1280,7 +1215,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.users) setUsers(JSON.parse(data.users));
       if (data.rooms) setRooms(JSON.parse(data.rooms));
       if (data.conversations) setConversations(JSON.parse(data.conversations));
-      if (data.restaurants) setRestaurants(JSON.parse(data.restaurants));
       if (data.passwords) setPasswords(JSON.parse(data.passwords));
       if (data.blockedUsers) setBlockedUsers(JSON.parse(data.blockedUsers));
       if (data.reels) setReels(JSON.parse(data.reels));
@@ -1317,26 +1251,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.governorateImages) setGovernorateImagesState(JSON.parse(data.governorateImages));
       if (data.groupChats) setGroups(JSON.parse(data.groupChats));
       if (data.privacySettings) setPrivacySettingsMap(JSON.parse(data.privacySettings));
-      if (data.restaurantsEnabled !== null && data.restaurantsEnabled !== undefined) setRestaurantsEnabled(JSON.parse(data.restaurantsEnabled));
       if (data.merchants) setMerchants(JSON.parse(data.merchants));
       if (data.products) setProducts(JSON.parse(data.products));
       if (data.orders) setOrders(JSON.parse(data.orders));
-      if (data.commerceCart) setCommerceCart(JSON.parse(data.commerceCart));
+      if (data.cart) setCart(JSON.parse(data.cart));
     } catch (e) {}
   };
 
   const saveUsers = (u: User[]) => { setUsers(u); AsyncStorage.setItem("users", JSON.stringify(u)); };
   const saveRooms = (r: Room[]) => { setRooms(r); AsyncStorage.setItem("rooms", JSON.stringify(r)); };
   const saveConversations = (c: Conversation[]) => { setConversations(c); AsyncStorage.setItem("conversations", JSON.stringify(c)); };
-  const saveRestaurants = (r: Restaurant[]) => { setRestaurants(r); AsyncStorage.setItem("restaurants", JSON.stringify(r)); };
-
-  const toggleRestaurantsEnabled = useCallback(() => {
-    setRestaurantsEnabled((prev) => {
-      const next = !prev;
-      AsyncStorage.setItem("restaurantsEnabled", JSON.stringify(next));
-      return next;
-    });
-  }, []);
   const saveReels = (r: Reel[]) => { setReels(r); AsyncStorage.setItem("reels", JSON.stringify(r)); };
   const saveLikes = (l: ReelLike[]) => { setReelLikes(l); AsyncStorage.setItem("reelLikes", JSON.stringify(l)); };
   const saveComments = (c: ReelComment[]) => { setReelComments(c); AsyncStorage.setItem("reelComments", JSON.stringify(c)); };
@@ -1354,7 +1278,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const saveMerchants = (m: Merchant[]) => { setMerchants(m); AsyncStorage.setItem("merchants", JSON.stringify(m)); };
   const saveProducts = (p: Product[]) => { setProducts(p); AsyncStorage.setItem("products", JSON.stringify(p)); };
   const saveOrders = (o: Order[]) => { setOrders(o); AsyncStorage.setItem("orders", JSON.stringify(o)); };
-  const saveCommerceCart = (c: CommerceCart | null) => { setCommerceCart(c); AsyncStorage.setItem("commerceCart", JSON.stringify(c)); };
+  const saveCart = (c: CommerceCart | null) => { setCart(c); AsyncStorage.setItem("cart", JSON.stringify(c)); };
 
   const savePost = useCallback((postId: string) => {
     setSavedPostsState((prev) => {
@@ -1397,13 +1321,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const isSuperAdmin = currentUser?.phone === SUPER_ADMIN_PHONE || currentUser?.role === "MANAGER";
   const isManager = currentUser?.phone === SUPER_ADMIN_PHONE || currentUser?.role === "MANAGER";
-  const isRestaurantOwner = currentUser?.role === "RESTAURANT_OWNER";
   const isMerchantOwner = currentUser?.role === "MERCHANT_OWNER" || currentUser?.role === "RESTAURANT_OWNER";
-
-  const getMyRestaurant = useCallback((): Restaurant | null => {
-    if (!currentUser || currentUser.role !== "RESTAURANT_OWNER") return null;
-    return restaurants.find((r) => r.ownerId === currentUser.id) ?? null;
-  }, [currentUser, restaurants]);
 
   const getMyMerchant = useCallback((): Merchant | null => {
     if (!currentUser) return null;
@@ -1448,30 +1366,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     saveProducts(products.filter((p) => p.id !== productId));
   }, [products]);
 
-  const placeCommerceOrder = useCallback(async (
-    merchantId: string, items: OrderItem[], paymentMethod: PaymentMethod, address?: string, notes?: string
-  ): Promise<Order | null> => {
-    if (!currentUser) return null;
-    const merchant = merchants.find((m) => m.id === merchantId);
-    if (!merchant) return null;
-    const totalIQD = items.reduce((sum, i) => sum + i.productPrice * i.quantity, 0);
-    const commRate = getCommissionTier(merchant.monthlySales) / 100;
-    const affiliateRec = items.length > 0 ? affiliateLinks.find((a) => a.productId === items[0].productId) ?? null : null;
-    const affiliateCut = affiliateRec ? totalIQD * 0.05 : 0;
-    const commissionAmount = totalIQD * commRate;
-    const platformCut = commissionAmount - affiliateCut;
-    const newOrder: Order = {
-      id: generateId(), customerId: currentUser.id, merchantId, items, status: "pending",
-      paymentMethod, totalIQD, commissionAmount, affiliateCut, platformCut,
-      affiliateUserId: affiliateRec?.influencerId,
-      createdAt: Date.now(), updatedAt: Date.now(), address, notes,
-    };
-    saveOrders([...orders, newOrder]);
-    const updatedSales = merchant.monthlySales + items.reduce((sum, i) => sum + i.quantity, 0);
-    const newTier: CommerceTier = updatedSales >= 500 ? "gold" : updatedSales > 100 ? "silver" : "bronze";
-    saveMerchants(merchants.map((m) => m.id === merchantId ? { ...m, monthlySales: updatedSales, tier: newTier, monthlyDues: (m.monthlyDues ?? 0) + commissionAmount } : m));
-    return newOrder;
-  }, [currentUser, merchants, orders, getCommissionTier, affiliateLinks]);
 
   const updateOrderStatus = useCallback((orderId: string, status: OrderStatus) => {
     saveOrders(orders.map((o) => (o.id === orderId ? { ...o, status, updatedAt: Date.now() } : o)));
@@ -1481,71 +1375,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return orders.filter((o) => o.merchantId === merchantId);
   }, [orders]);
 
-  const addToCommerceCart = useCallback((item: CommerceCartItem, merchantName: string) => {
-    setCommerceCart((prev) => {
-      if (prev && prev.merchantId !== item.merchantId) {
-        const updated: CommerceCart = { merchantId: item.merchantId, merchantName, items: [item] };
-        AsyncStorage.setItem("commerceCart", JSON.stringify(updated));
-        return updated;
-      }
-      const existing = prev?.items.find((i) => i.productId === item.productId);
-      const newItems = existing
-        ? (prev!.items.map((i) => i.productId === item.productId ? { ...i, quantity: i.quantity + item.quantity } : i))
-        : [...(prev?.items ?? []), item];
-      const updated: CommerceCart = { merchantId: item.merchantId, merchantName, items: newItems };
-      AsyncStorage.setItem("commerceCart", JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
-
-  const removeFromCommerceCart = useCallback((productId: string) => {
-    setCommerceCart((prev) => {
-      if (!prev) return null;
-      const newItems = prev.items.filter((i) => i.productId !== productId);
-      const updated = newItems.length > 0 ? { ...prev, items: newItems } : null;
-      AsyncStorage.setItem("commerceCart", JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
-
-  const clearCommerceCart = useCallback(() => {
-    setCommerceCart(null);
-    AsyncStorage.setItem("commerceCart", JSON.stringify(null));
-  }, []);
-
-  const checkoutCommerceCart = useCallback(async (
-    paymentMethod: PaymentMethod, address?: string, notes?: string
-  ): Promise<Order | null> => {
-    if (!currentUser || !commerceCart) return null;
-    const merchant = merchants.find((m) => m.id === commerceCart.merchantId);
-    if (!merchant) return null;
-    const items: OrderItem[] = commerceCart.items.map((ci) => ({
-      productId: ci.productId,
-      productName: ci.productName,
-      productPrice: ci.productPrice,
-      quantity: ci.quantity,
-      selectedVariations: ci.selectedVariations,
-    }));
-    const totalIQD = items.reduce((sum, i) => sum + i.productPrice * i.quantity, 0);
-    const commRate = getCommissionTier(merchant.monthlySales) / 100;
-    const affiliateRec = items.length > 0 ? affiliateLinks.find((a) => a.productId === items[0].productId) ?? null : null;
-    const affiliateCut = affiliateRec ? totalIQD * 0.05 : 0;
-    const commissionAmount = totalIQD * commRate;
-    const platformCut = commissionAmount - affiliateCut;
-    const newOrder: Order = {
-      id: generateId(), customerId: currentUser.id, merchantId: merchant.id, items,
-      status: "pending", paymentMethod, totalIQD, commissionAmount, affiliateCut, platformCut,
-      affiliateUserId: affiliateRec?.influencerId,
-      createdAt: Date.now(), updatedAt: Date.now(), address, notes,
-    };
-    saveOrders([...orders, newOrder]);
-    const updatedSales = merchant.monthlySales + items.reduce((sum, i) => sum + i.quantity, 0);
-    const newTier: CommerceTier = updatedSales >= 500 ? "gold" : updatedSales > 100 ? "silver" : "bronze";
-    saveMerchants(merchants.map((m) => m.id === merchant.id ? { ...m, monthlySales: updatedSales, tier: newTier, monthlyDues: (m.monthlyDues ?? 0) + commissionAmount } : m));
-    setCommerceCart(null);
-    AsyncStorage.setItem("commerceCart", JSON.stringify(null));
-    return newOrder;
-  }, [currentUser, commerceCart, merchants, orders, getCommissionTier, affiliateLinks]);
 
   const createMerchantAccount = useCallback(
     async (name: string, email: string, governorate: string, password: string): Promise<{ success: boolean; error?: string }> => {
@@ -2523,26 +2352,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [governorateImages]
   );
 
-  const addRestaurant = useCallback(
-    (data: Omit<Restaurant, "id" | "createdAt">) => {
-      const r: Restaurant = { ...data, id: generateId(), createdAt: Date.now() };
-      saveRestaurants([...restaurants, r]);
-    },
-    [restaurants]
-  );
-
-  const updateRestaurant = useCallback(
-    (id: string, data: Partial<Restaurant>) => {
-      saveRestaurants(restaurants.map((r) => (r.id === id ? { ...r, ...data } : r)));
-    },
-    [restaurants]
-  );
-
-  const deleteRestaurant = useCallback(
-    (id: string) => { saveRestaurants(restaurants.filter((r) => r.id !== id)); },
-    [restaurants]
-  );
-
   const createOwnerAccount = useCallback(
     async (name: string, email: string, governorate: string, password: string): Promise<{ success: boolean; error?: string }> => {
       if (users.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
@@ -2555,21 +2364,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         email,
         primaryGovernorate: governorate,
         accountType: "public",
-        role: "RESTAURANT_OWNER",
+        role: "MERCHANT_OWNER",
         isActive: true,
-        createdAt: Date.now(),
-      };
-      const newRestaurant: Restaurant = {
-        id: generateId(),
-        name: `مطعم ${name}`,
-        ownerId: newUser.id,
-        governorate,
-        menuItems: [],
-        commissionRate: 10,
-        monthlyDues: 0,
-        isActive: true,
-        phone: "",
-        category: "مطعم",
         createdAt: Date.now(),
       };
       const newUsers = [...users, newUser];
@@ -2577,10 +2373,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const newPasswords = { ...passwords, [newUser.id]: password };
       setPasswords(newPasswords);
       await AsyncStorage.setItem("passwords", JSON.stringify(newPasswords));
-      saveRestaurants([...restaurants, newRestaurant]);
       return { success: true };
     },
-    [users, passwords, restaurants]
+    [users, passwords]
   );
 
   const setOwnerActive = useCallback(
@@ -2595,173 +2390,71 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [users, currentUser]
   );
 
-  const setCommissionRate = useCallback(
-    (restaurantId: string, rate: number) => {
-      saveRestaurants(restaurants.map((r) => (r.id === restaurantId ? { ...r, commissionRate: rate } : r)));
-    },
-    [restaurants]
-  );
-
-  const clearDues = useCallback(
-    (restaurantId: string) => {
-      saveRestaurants(restaurants.map((r) => (r.id === restaurantId ? { ...r, monthlyDues: 0 } : r)));
-    },
-    [restaurants]
-  );
-
-  const addMenuItemToRestaurant = useCallback(
-    (restaurantId: string, item: Omit<MenuItem, "id">) => {
-      const newItem: MenuItem = { ...item, id: generateId(), isVisible: item.isVisible ?? true };
-      saveRestaurants(
-        restaurants.map((r) =>
-          r.id === restaurantId ? { ...r, menuItems: [...r.menuItems, newItem] } : r
-        )
-      );
-    },
-    [restaurants]
-  );
-
-  const updateMenuItemInRestaurant = useCallback(
-    (restaurantId: string, itemId: string, data: Partial<MenuItem>) => {
-      saveRestaurants(
-        restaurants.map((r) =>
-          r.id === restaurantId
-            ? { ...r, menuItems: r.menuItems.map((m) => (m.id === itemId ? { ...m, ...data } : m)) }
-            : r
-        )
-      );
-    },
-    [restaurants]
-  );
-
-  const deleteMenuItemFromRestaurant = useCallback(
-    (restaurantId: string, itemId: string) => {
-      saveRestaurants(
-        restaurants.map((r) =>
-          r.id === restaurantId ? { ...r, menuItems: r.menuItems.filter((m) => m.id !== itemId) } : r
-        )
-      );
-    },
-    [restaurants]
-  );
-
-  const toggleMenuItemVisibility = useCallback(
-    (restaurantId: string, itemId: string) => {
-      saveRestaurants(
-        restaurants.map((r) =>
-          r.id === restaurantId
-            ? { ...r, menuItems: r.menuItems.map((m) => (m.id === itemId ? { ...m, isVisible: !(m.isVisible ?? true) } : m)) }
-            : r
-        )
-      );
-    },
-    [restaurants]
-  );
-
-  const updateRestaurantProfile = useCallback(
-    (restaurantId: string, data: { name?: string; description?: string; image?: string; category?: string }) => {
-      saveRestaurants(restaurants.map((r) => (r.id === restaurantId ? { ...r, ...data } : r)));
-    },
-    [restaurants]
-  );
-
-  const addToCart = useCallback(
-    (restaurant: Restaurant, item: MenuItem) => {
-      setCart((prev) => {
-        if (!restaurant.ownerId) return prev;
-        if (prev && prev.restaurantId !== restaurant.id) {
-          const existing = prev.items.find((i) => i.menuItemId === item.id);
-          if (existing) {
-            return { ...prev, items: prev.items.map((i) => i.menuItemId === item.id ? { ...i, quantity: i.quantity + 1 } : i) };
-          }
-          return prev;
-        }
-        if (!prev) {
-          return {
-            restaurantId: restaurant.id,
-            restaurantName: restaurant.name,
-            restaurantOwnerId: restaurant.ownerId,
-            items: [{ menuItemId: item.id, menuItemName: item.name, menuItemPrice: item.price, quantity: 1 }],
-          };
-        }
-        const existing = prev.items.find((i) => i.menuItemId === item.id);
-        if (existing) {
-          return { ...prev, items: prev.items.map((i) => i.menuItemId === item.id ? { ...i, quantity: i.quantity + 1 } : i) };
-        }
-        return { ...prev, items: [...prev.items, { menuItemId: item.id, menuItemName: item.name, menuItemPrice: item.price, quantity: 1 }] };
-      });
-    },
-    []
-  );
-
-  const removeFromCart = useCallback((menuItemId: string) => {
+  const addToCart = useCallback((item: CommerceCartItem, merchantName: string) => {
     setCart((prev) => {
-      if (!prev) return null;
-      const items = prev.items.filter((i) => i.menuItemId !== menuItemId);
-      return items.length === 0 ? null : { ...prev, items };
-    });
-  }, []);
-
-  const updateCartQty = useCallback((menuItemId: string, qty: number) => {
-    setCart((prev) => {
-      if (!prev) return null;
-      if (qty <= 0) {
-        const items = prev.items.filter((i) => i.menuItemId !== menuItemId);
-        return items.length === 0 ? null : { ...prev, items };
+      if (prev && prev.merchantId !== item.merchantId) {
+        const updated: CommerceCart = { merchantId: item.merchantId, merchantName, items: [item] };
+        AsyncStorage.setItem("cart", JSON.stringify(updated));
+        return updated;
       }
-      return { ...prev, items: prev.items.map((i) => i.menuItemId === menuItemId ? { ...i, quantity: qty } : i) };
+      const existing = prev?.items.find((i) => i.productId === item.productId);
+      const newItems = existing
+        ? prev!.items.map((i) => i.productId === item.productId ? { ...i, quantity: i.quantity + item.quantity } : i)
+        : [...(prev?.items ?? []), item];
+      const updated: CommerceCart = { merchantId: item.merchantId, merchantName, items: newItems };
+      AsyncStorage.setItem("cart", JSON.stringify(updated));
+      return updated;
     });
   }, []);
 
-  const clearCart = useCallback(() => setCart(null), []);
+  const removeFromCart = useCallback((productId: string) => {
+    setCart((prev) => {
+      if (!prev) return null;
+      const newItems = prev.items.filter((i) => i.productId !== productId);
+      const updated = newItems.length > 0 ? { ...prev, items: newItems } : null;
+      AsyncStorage.setItem("cart", JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
 
-  const getCartTotal = useCallback((): number => {
-    if (!cart) return 0;
-    return cart.items.reduce((sum, i) => sum + i.menuItemPrice * i.quantity, 0);
-  }, [cart]);
-
-  const placeOrder = useCallback(async (): Promise<void> => {
-    if (!cart || !currentUser) return;
-    const restaurant = restaurants.find((r) => r.id === cart.restaurantId);
-    if (!restaurant || !restaurant.ownerId) return;
-    const itemLines = cart.items.map((i) => `${i.menuItemName} x${i.quantity}`).join("، ");
-    const total = cart.items.reduce((sum, i) => sum + i.menuItemPrice * i.quantity, 0);
-    const orderMsg = `🛒 طلب جديد من ${currentUser.name}:\n${itemLines}\n💰 المجموع: ${total.toLocaleString()} د.ع`;
-    const conv = conversations.find((c) => c.participants.includes(currentUser.id) && c.participants.includes(restaurant.ownerId!)) ?? (() => {
-      const newConv: Conversation = {
-        id: generateId(),
-        participants: [currentUser.id, restaurant.ownerId!],
-        participantUsers: [currentUser, users.find((u) => u.id === restaurant.ownerId) ?? currentUser],
-        messages: [],
-        updatedAt: Date.now(),
-      };
-      saveConversations([...conversations, newConv]);
-      return newConv;
-    })();
-    const newMsg: PrivateMessage = {
-      id: generateId(),
-      senderId: currentUser.id,
-      receiverId: restaurant.ownerId!,
-      content: orderMsg,
-      type: "text",
-      timestamp: Date.now(),
-      read: false,
-    };
-    const updatedConvs = conversations.map((c) =>
-      c.id === conv.id
-        ? { ...c, messages: [...(c.messages ?? []), newMsg], lastMessage: newMsg, updatedAt: Date.now() }
-        : c
-    );
-    if (!conversations.find((c) => c.id === conv.id)) {
-      updatedConvs.push({ ...conv, messages: [newMsg], lastMessage: newMsg, updatedAt: Date.now() });
-    }
-    saveConversations(updatedConvs);
-    const commission = total * ((restaurant.commissionRate ?? 10) / 100);
-    saveRestaurants(
-      restaurants.map((r) => r.id === restaurant.id ? { ...r, monthlyDues: (r.monthlyDues ?? 0) + commission } : r)
-    );
+  const clearCart = useCallback(() => {
     setCart(null);
-  }, [cart, currentUser, restaurants, conversations, users]);
+    AsyncStorage.setItem("cart", JSON.stringify(null));
+  }, []);
+
+  const placeOrder = useCallback(async (
+    paymentMethod: PaymentMethod, address?: string, notes?: string
+  ): Promise<Order | null> => {
+    if (!currentUser || !cart) return null;
+    const merchant = merchants.find((m) => m.id === cart.merchantId);
+    if (!merchant) return null;
+    const items: OrderItem[] = cart.items.map((ci) => ({
+      productId: ci.productId,
+      productName: ci.productName,
+      productPrice: ci.productPrice,
+      quantity: ci.quantity,
+      selectedVariations: ci.selectedVariations,
+    }));
+    const totalIQD = items.reduce((sum, i) => sum + i.productPrice * i.quantity, 0);
+    const commRate = (merchant.commissionRate != null ? merchant.commissionRate : getCommissionTier(merchant.monthlySales)) / 100;
+    const affiliateRec = items.length > 0 ? affiliateLinks.find((a) => a.productId === items[0].productId) ?? null : null;
+    const affiliateCut = affiliateRec ? totalIQD * 0.05 : 0;
+    const commissionAmount = totalIQD * commRate;
+    const platformCut = commissionAmount - affiliateCut;
+    const newOrder: Order = {
+      id: generateId(), customerId: currentUser.id, merchantId: merchant.id, items,
+      status: "pending", paymentMethod, totalIQD, commissionAmount, affiliateCut, platformCut,
+      affiliateUserId: affiliateRec?.influencerId,
+      createdAt: Date.now(), updatedAt: Date.now(), address, notes,
+    };
+    saveOrders([...orders, newOrder]);
+    const updatedSales = merchant.monthlySales + items.reduce((sum, i) => sum + i.quantity, 0);
+    const newTier: CommerceTier = updatedSales >= 500 ? "gold" : updatedSales > 100 ? "silver" : "bronze";
+    saveMerchants(merchants.map((m) => m.id === merchant.id ? { ...m, monthlySales: updatedSales, tier: newTier, monthlyDues: (m.monthlyDues ?? 0) + commissionAmount } : m));
+    setCart(null);
+    AsyncStorage.setItem("cart", JSON.stringify(null));
+    return newOrder;
+  }, [currentUser, cart, merchants, orders, getCommissionTier, affiliateLinks]);
 
   const banUser = useCallback(
     (userId: string) => { saveUsers(users.map((u) => (u.id === userId ? { ...u, isBanned: true } : u))); },
@@ -4477,8 +4170,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       language, setLanguage, theme, toggleTheme, currentUser, isAuthenticated: !!currentUser,
-      isSuperAdmin, isManager, isRestaurantOwner, getMyRestaurant,
-      users, rooms, conversations, restaurants, reels, reelLikes, reelComments,
+      isSuperAdmin, isManager,
+      users, rooms, conversations, reels, reelLikes, reelComments,
       posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, updateCoverPhoto, checkUsername, checkEmail,
       changePassword, sendEmailOTP, resetPasswordWithOTP,
@@ -4491,11 +4184,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       markConversationRead, archiveConversation, unarchiveConversation, setConversationTheme,
       governorateImages, setGovernorateImage,
-      createOwnerAccount, setOwnerActive, setCommissionRate, clearDues,
-      addMenuItemToRestaurant, updateMenuItemInRestaurant, deleteMenuItemFromRestaurant, toggleMenuItemVisibility,
-      updateRestaurantProfile,
-      cart, addToCart, removeFromCart, updateCartQty, clearCart, getCartTotal, placeOrder,
-      addRestaurant, updateRestaurant, deleteRestaurant, restaurantsEnabled, toggleRestaurantsEnabled, banUser, unbanUser, resetUserPassword,
+      createOwnerAccount, setOwnerActive, banUser, unbanUser, resetUserPassword,
       verifyUser, revokeVerification,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, deleteReelComment, getReelComments,
       likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers, getPostCommentLikers,
@@ -4523,13 +4212,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updatePrivacySettings, canViewStory, canViewProfilePhoto, canAddToGroup, canMention, addStrike,
       merchants, products, orders, isMerchantOwner, getMyMerchant,
       addMerchant, updateMerchantProfile, addProduct, updateProduct, deleteProduct,
-      placeCommerceOrder, updateOrderStatus, getCommissionTier, recordAffiliateLink, getAffiliateForProduct,
+      updateOrderStatus, getCommissionTier, recordAffiliateLink, getAffiliateForProduct,
       createMerchantAccount, getMerchantOrders,
-      commerceCart, addToCommerceCart, removeFromCommerceCart, clearCommerceCart, checkoutCommerceCart,
+      cart, addToCart, removeFromCart, clearCart, placeOrder,
     }),
     [
-      language, theme, currentUser, isSuperAdmin, isManager, isRestaurantOwner, isMerchantOwner, getMyRestaurant, getMyMerchant,
-      users, rooms, conversations, restaurants,
+      language, theme, currentUser, isSuperAdmin, isManager, isMerchantOwner, getMyMerchant,
+      users, rooms, conversations,
       reels, reelLikes, reelComments, posts, postLikes, postComments, stories, follows, notifications,
       login, register, logout, updateProfile, updateCoverPhoto, checkUsername, checkEmail,
       changePassword, sendEmailOTP, resetPasswordWithOTP,
@@ -4542,11 +4231,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       blockedUsers, blockUser, unblockUser, isBlocked, deleteConversation,
       markConversationRead, archiveConversation, unarchiveConversation, setConversationTheme,
       governorateImages, setGovernorateImage,
-      createOwnerAccount, setOwnerActive, setCommissionRate, clearDues,
-      addMenuItemToRestaurant, updateMenuItemInRestaurant, deleteMenuItemFromRestaurant, toggleMenuItemVisibility,
-      updateRestaurantProfile,
-      cart, addToCart, removeFromCart, updateCartQty, clearCart, getCartTotal, placeOrder,
-      addRestaurant, updateRestaurant, deleteRestaurant, restaurantsEnabled, toggleRestaurantsEnabled, banUser, unbanUser, resetUserPassword,
+      createOwnerAccount, setOwnerActive, banUser, unbanUser, resetUserPassword,
       verifyUser, revokeVerification,
       addReel, deleteReel, likeReel, isReelLiked, getReelLikesCount, addReelComment, deleteReelComment, getReelComments,
       likeReelComment, isReelCommentLiked, pinReelComment, getReelCommentLikers, getPostCommentLikers,
@@ -4568,11 +4253,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       searchGroupByPublicId, getMyGroups, getGroupMemberRole, isGroupMuted, joinGroup,
       addGroupReaction,
       updatePrivacySettings, canViewStory, canViewProfilePhoto, canAddToGroup, canMention, addStrike,
-      privacySettingsMap, restaurantsEnabled, toggleRestaurantsEnabled,
+      privacySettingsMap,
       merchants, products, orders, addMerchant, updateMerchantProfile, addProduct, updateProduct, deleteProduct,
-      placeCommerceOrder, updateOrderStatus, getCommissionTier, recordAffiliateLink, getAffiliateForProduct,
+      updateOrderStatus, getCommissionTier, recordAffiliateLink, getAffiliateForProduct,
       createMerchantAccount, getMerchantOrders, affiliateLinks,
-      commerceCart, addToCommerceCart, removeFromCommerceCart, clearCommerceCart, checkoutCommerceCart,
+      cart, addToCart, removeFromCart, clearCart, placeOrder,
     ]
   );
 

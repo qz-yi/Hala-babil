@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useToast } from "@/components/Toast";
 import { IRAQI_GOVERNORATES, useApp, isUserVerified } from "@/context/AppContext";
-import type { Restaurant, User, Merchant, Order } from "@/context/AppContext";
+import type { User, Merchant, Order } from "@/context/AppContext";
 import Colors, { ACCENT_COLORS } from "@/constants/colors";
 import { useColors } from "@/hooks/useColors";
 import { useThemeStore } from "@/store/themeStore";
@@ -251,118 +251,13 @@ const ORDER_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   returned: { label: "مرتجع", color: "#EF4444" },
 };
 
-function RestaurantManagerCard({
-  restaurant,
-  ownerUser,
-  onSetCommission,
-  onClearDues,
-  onDelete,
-}: {
-  restaurant: Restaurant;
-  ownerUser?: User;
-  onSetCommission: (rate: number) => void;
-  onClearDues: () => void;
-  onDelete: () => void;
-}) {
-  const c = useThemeStore((s) => s.tokens);
-  const [editingCommission, setEditingCommission] = useState(false);
-  const [commInput, setCommInput] = useState((restaurant.commissionRate ?? 10).toString());
-
-  const dues = restaurant.monthlyDues ?? 0;
-
-  return (
-    <View style={[rc.card, { backgroundColor: c.card, borderColor: c.border }]}>
-      <View style={rc.row}>
-        {restaurant.image ? (
-          <Image source={{ uri: restaurant.image }} style={[rc.img, { backgroundColor: c.backgroundTertiary }]} />
-        ) : (
-          <View style={[rc.imgPlaceholder, { backgroundColor: c.backgroundTertiary }]}><Text style={{ fontSize: 22 }}>🍽️</Text></View>
-        )}
-        <View style={rc.info}>
-          <Text style={[rc.name, { color: c.text }]}>{restaurant.name}</Text>
-          <Text style={[rc.gov, { color: c.textSecondary }]}>📍 {restaurant.governorate} · {restaurant.category}</Text>
-          {ownerUser && <Text style={[rc.owner, { color: c.textSecondary }]}>👤 {ownerUser.name}</Text>}
-          <Text style={[rc.menuCount, { color: c.success }]}>{restaurant.menuItems.length} صنف في القائمة</Text>
-        </View>
-        <TouchableOpacity onPress={onDelete} style={rc.deleteBtn}>
-          <Feather name="trash-2" size={16} color={c.danger} strokeWidth={1.5} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={[rc.statsRow, { backgroundColor: c.backgroundTertiary }]}>
-        <View style={rc.statBlock}>
-          <Text style={[rc.statLabel, { color: c.textSecondary }]}>المستحقات</Text>
-          <Text style={[rc.statValue, { color: dues > 0 ? "#F59E0B" : c.success }]}>{dues.toLocaleString()} د.ع</Text>
-        </View>
-        <View style={[rc.statDivider, { backgroundColor: c.border }]} />
-        <View style={rc.statBlock}>
-          <Text style={[rc.statLabel, { color: c.textSecondary }]}>العمولة</Text>
-          {editingCommission ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <TextInput
-                style={[rc.commInput, { backgroundColor: c.background, color: c.text }]}
-                value={commInput}
-                onChangeText={setCommInput}
-                keyboardType="numeric"
-                autoFocus
-              />
-              <Text style={{ color: c.text, fontFamily: "Inter_600SemiBold" }}>%</Text>
-              <TouchableOpacity onPress={() => {
-                const v = parseFloat(commInput);
-                if (!isNaN(v) && v >= 0 && v <= 100) { onSetCommission(v); }
-                setEditingCommission(false);
-              }}>
-                <Feather name="check" size={16} color={c.success} />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity onPress={() => { setCommInput((restaurant.commissionRate ?? 10).toString()); setEditingCommission(true); }}
-              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <Text style={[rc.statValue, { color: c.text }]}>{restaurant.commissionRate ?? 10}%</Text>
-              <Feather name="edit-2" size={12} color={c.textSecondary} strokeWidth={1.5} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {dues > 0 && (
-        <TouchableOpacity style={[rc.clearBtn, { backgroundColor: `${c.success}15`, borderColor: `${c.success}44` }]} onPress={onClearDues} activeOpacity={0.85}>
-          <Feather name="check-circle" size={15} color={c.success} strokeWidth={1.5} />
-          <Text style={[rc.clearBtnTxt, { color: c.success }]}>تصفية المستحقات</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
-
-const rc = StyleSheet.create({
-  card: { marginHorizontal: 16, marginBottom: 12, borderRadius: 16, padding: 14, borderWidth: 0.5, gap: 12 },
-  row: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  img: { width: 60, height: 60, borderRadius: 12 },
-  imgPlaceholder: { width: 60, height: 60, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  info: { flex: 1, gap: 3 },
-  name: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  gov: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  owner: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  menuCount: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  deleteBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  statsRow: { flexDirection: "row", borderRadius: 10, padding: 12 },
-  statBlock: { flex: 1, alignItems: "center", gap: 4 },
-  statDivider: { width: 1 },
-  statLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  statValue: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  commInput: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, fontFamily: "Inter_700Bold", fontSize: 16, width: 48, textAlign: "center" },
-  clearBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 10, paddingVertical: 10, borderWidth: 1 },
-  clearBtnTxt: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
-});
 
 export default function AdminScreen() {
   const {
-    isManager, users, restaurants, rooms, governorateImages,
-    setOwnerActive, setCommissionRate, clearDues, deleteRestaurant,
+    isManager, users, rooms, governorateImages,
+    setOwnerActive,
     setGovernorateImage, theme, banUser, unbanUser, resetUserPassword,
     deleteRoom, verifyUser, revokeVerification,
-    restaurantsEnabled, toggleRestaurantsEnabled,
     merchants, orders, updateOrderStatus, updateMerchantProfile,
   } = useApp();
   const { showToast } = useToast();
@@ -669,29 +564,16 @@ export default function AdminScreen() {
           {tab === "settings" && (
             <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
               <SectionHeader title="إعدادات التطبيق" subtitle="تحكم في ميزات وأقسام التطبيق" />
-              {/* Restaurants feature toggle */}
               <View style={[styles.settingsRow, { backgroundColor: c.card, borderColor: c.border }]}>
                 <View style={styles.settingsRowLeft}>
-                  <View style={[styles.settingsIconBox, { backgroundColor: `${c.accent}22` }]}>
-                    <Feather name="coffee" size={18} color={c.accent} strokeWidth={1.5} />
+                  <View style={[styles.settingsIconBox, { backgroundColor: "#6C63FF22" }]}>
+                    <Feather name="shopping-bag" size={18} color="#6C63FF" strokeWidth={1.5} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.settingsRowTitle, { color: c.text }]}>قسم المطاعم</Text>
-                    <Text style={[styles.settingsRowSubtitle, { color: c.textSecondary }]}>
-                      {restaurantsEnabled ? "مفعّل — المستخدمون يرون قائمة المطاعم" : "معطّل — سيظهر للمستخدمين شاشة \"قريباً\""}
-                    </Text>
+                    <Text style={[styles.settingsRowTitle, { color: c.text }]}>سفرة بابل — السوق</Text>
+                    <Text style={[styles.settingsRowSubtitle, { color: c.textSecondary }]}>منصة التجارة المحلية — نشطة</Text>
                   </View>
                 </View>
-                <Switch
-                  value={restaurantsEnabled}
-                  onValueChange={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    toggleRestaurantsEnabled();
-                    showToast(restaurantsEnabled ? "تم تعطيل قسم المطاعم" : "تم تفعيل قسم المطاعم", restaurantsEnabled ? "error" : "success");
-                  }}
-                  trackColor={{ false: c.border, true: c.accent }}
-                  thumbColor="#fff"
-                />
               </View>
             </View>
           )}

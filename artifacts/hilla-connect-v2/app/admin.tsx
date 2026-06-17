@@ -127,10 +127,20 @@ const frm = StyleSheet.create({
   btnTxt: { fontSize: 16, fontFamily: "Inter_700Bold" },
 });
 
-function MerchantCard({ user, merchant, onToggleActive }: { user: User; merchant: Merchant | undefined; onToggleActive: () => void }) {
+function MerchantCard({ user, merchant, onToggleActive, onSetCommission, onClearDues }: {
+  user: User;
+  merchant: Merchant | undefined;
+  onToggleActive: () => void;
+  onSetCommission?: (rate: number) => void;
+  onClearDues?: () => void;
+}) {
   const c = useThemeStore((s) => s.tokens);
   const isActive = user.isActive !== false;
   const tierColor = merchant?.tier === "gold" ? "#F59E0B" : merchant?.tier === "silver" ? "#9CA3AF" : "#CD7F32";
+  const [editingComm, setEditingComm] = useState(false);
+  const [commInput, setCommInput] = useState((merchant?.commissionRate ?? 10).toString());
+  const dues = merchant?.monthlyDues ?? 0;
+
   return (
     <View style={[ow.card, { backgroundColor: c.card, borderColor: c.border }]}>
       <View style={ow.row}>
@@ -153,12 +163,55 @@ function MerchantCard({ user, merchant, onToggleActive }: { user: User; merchant
         </View>
       </View>
       {merchant && (
-        <View style={[ow.restRow, { backgroundColor: c.backgroundTertiary }]}>
-          <Feather name="package" size={13} color={tierColor} strokeWidth={1.5} />
-          <Text style={[ow.restName, { color: c.text }]}>{merchant.name}</Text>
-          <Text style={[ow.badgeTxt, { color: tierColor }]}>{merchant.tier === "gold" ? "🥇" : merchant.tier === "silver" ? "🥈" : "🥉"}</Text>
-          <Text style={[ow.restGov, { color: c.textSecondary }]}>{merchant.governorate}</Text>
-        </View>
+        <>
+          <View style={[ow.restRow, { backgroundColor: c.backgroundTertiary }]}>
+            <Feather name="package" size={13} color={tierColor} strokeWidth={1.5} />
+            <Text style={[ow.restName, { color: c.text }]}>{merchant.name}</Text>
+            <Text style={[ow.badgeTxt, { color: tierColor }]}>{merchant.tier === "gold" ? "🥇" : merchant.tier === "silver" ? "🥈" : "🥉"}</Text>
+            <Text style={[ow.restGov, { color: c.textSecondary }]}>{merchant.governorate}</Text>
+          </View>
+          <View style={[ow.statsRow, { backgroundColor: c.backgroundTertiary }]}>
+            <View style={ow.statBlock}>
+              <Text style={[ow.statLabel, { color: c.textSecondary }]}>المستحقات</Text>
+              <Text style={[ow.statValue, { color: dues > 0 ? "#F59E0B" : c.success }]}>{dues.toLocaleString()} د.ع</Text>
+            </View>
+            <View style={[ow.statDivider, { backgroundColor: c.border }]} />
+            <View style={ow.statBlock}>
+              <Text style={[ow.statLabel, { color: c.textSecondary }]}>العمولة</Text>
+              {editingComm ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <TextInput
+                    style={[ow.commInput, { backgroundColor: c.background, color: c.text }]}
+                    value={commInput}
+                    onChangeText={setCommInput}
+                    keyboardType="numeric"
+                    autoFocus
+                  />
+                  <Text style={{ color: c.text, fontFamily: "Inter_600SemiBold" }}>%</Text>
+                  <TouchableOpacity onPress={() => {
+                    const v = parseFloat(commInput);
+                    if (!isNaN(v) && v >= 0 && v <= 100) { onSetCommission?.(v); }
+                    setEditingComm(false);
+                  }}>
+                    <Feather name="check" size={16} color={c.success} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity onPress={() => { setCommInput((merchant.commissionRate ?? 10).toString()); setEditingComm(true); }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <Text style={[ow.statValue, { color: c.text }]}>{merchant.commissionRate ?? 10}%</Text>
+                  <Feather name="edit-2" size={12} color={c.textSecondary} strokeWidth={1.5} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+          {dues > 0 && onClearDues && (
+            <TouchableOpacity style={[ow.clearBtn, { backgroundColor: `${c.success}15`, borderColor: `${c.success}44` }]} onPress={onClearDues} activeOpacity={0.85}>
+              <Feather name="check-circle" size={15} color={c.success} strokeWidth={1.5} />
+              <Text style={[ow.clearBtnTxt, { color: c.success }]}>تصفية المستحقات</Text>
+            </TouchableOpacity>
+          )}
+        </>
       )}
     </View>
   );
@@ -180,6 +233,14 @@ const ow = StyleSheet.create({
   restRow: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, padding: 8 },
   restName: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium" },
   restGov: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  statsRow: { flexDirection: "row", borderRadius: 10, padding: 12 },
+  statBlock: { flex: 1, alignItems: "center", gap: 4 },
+  statDivider: { width: 1 },
+  statLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  statValue: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  commInput: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, fontFamily: "Inter_700Bold", fontSize: 16, width: 48, textAlign: "center" },
+  clearBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 10, paddingVertical: 10, borderWidth: 1 },
+  clearBtnTxt: { fontFamily: "Inter_600SemiBold", fontSize: 14 },
 });
 
 const ORDER_STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -302,7 +363,7 @@ export default function AdminScreen() {
     setGovernorateImage, theme, banUser, unbanUser, resetUserPassword,
     deleteRoom, verifyUser, revokeVerification,
     restaurantsEnabled, toggleRestaurantsEnabled,
-    merchants, orders, updateOrderStatus,
+    merchants, orders, updateOrderStatus, updateMerchantProfile,
   } = useApp();
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
@@ -394,6 +455,14 @@ export default function AdminScreen() {
                           setOwnerActive(u.id, u.isActive === false);
                           showToast(u.isActive !== false ? "تم إيقاف الحساب" : "تم تفعيل الحساب", "success");
                         }}
+                        onSetCommission={merch ? (rate) => {
+                          updateMerchantProfile(merch.id, { commissionRate: rate });
+                          showToast(`تم تحديث العمولة إلى ${rate}%`, "success");
+                        } : undefined}
+                        onClearDues={merch ? () => {
+                          updateMerchantProfile(merch.id, { monthlyDues: 0 });
+                          showToast("تمت تصفية المستحقات", "success");
+                        } : undefined}
                       />
                     );
                   })}
@@ -437,6 +506,25 @@ export default function AdminScreen() {
                       <Text style={[styles.roomOwner, { color: c.textSecondary, marginTop: 2 }]}>
                         {order.items.map((i) => `${i.productName} ×${i.quantity}`).join("، ")}
                       </Text>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+                        <View style={{ backgroundColor: `${c.success}18`, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                          <Text style={{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: c.success }}>
+                            عمولة: {order.commissionAmount.toLocaleString()} د.ع
+                          </Text>
+                        </View>
+                        {order.affiliateCut > 0 && (
+                          <View style={{ backgroundColor: "#6C63FF18", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                            <Text style={{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#6C63FF" }}>
+                              مؤثر: {order.affiliateCut.toLocaleString()} د.ع
+                            </Text>
+                          </View>
+                        )}
+                        <View style={{ backgroundColor: "#3B82F618", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                          <Text style={{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: "#3B82F6" }}>
+                            صافي المنصة: {order.platformCut.toLocaleString()} د.ع
+                          </Text>
+                        </View>
+                      </View>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }} contentContainerStyle={{ gap: 6 }}>
                         {(["pending", "warehouse", "in_transit", "delivered", "returned"] as const).map((s) => {
                           const sl = ORDER_STATUS_LABELS[s];

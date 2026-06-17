@@ -307,6 +307,22 @@ export interface AffiliateRecord {
   createdAt: number;
 }
 
+export interface CommerceCartItem {
+  productId: string;
+  productName: string;
+  productPrice: number;
+  merchantId: string;
+  quantity: number;
+  selectedVariations?: Record<string, string>;
+  productImage?: string;
+}
+
+export interface CommerceCart {
+  merchantId: string;
+  merchantName: string;
+  items: CommerceCartItem[];
+}
+
 export interface Reel {
   id: string;
   videoUrl: string;
@@ -665,6 +681,11 @@ interface AppContextValue {
   getAffiliateForProduct: (productId: string) => AffiliateRecord | null;
   createMerchantAccount: (name: string, email: string, governorate: string, password: string) => Promise<{ success: boolean; error?: string }>;
   getMerchantOrders: (merchantId: string) => Order[];
+  commerceCart: CommerceCart | null;
+  addToCommerceCart: (item: CommerceCartItem, merchantName: string) => void;
+  removeFromCommerceCart: (productId: string) => void;
+  clearCommerceCart: () => void;
+  checkoutCommerceCart: (paymentMethod: PaymentMethod, address?: string, notes?: string) => Promise<Order | null>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -1220,6 +1241,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [affiliateLinks, setAffiliateLinks] = useState<AffiliateRecord[]>([]);
+  const [commerceCart, setCommerceCart] = useState<CommerceCart | null>(null);
 
   const minimizeRoom = useCallback((roomId: string, roomName: string, roomImage?: string) => {
     setIsRoomMinimized(true);
@@ -1247,7 +1269,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         "reelComments", "posts", "postLikes", "postComments", "stories",
         "closeFriendsLists", "follows", "notifications", "savedPosts", "governorateImages",
         "groupChats", "privacySettings", "restaurantsEnabled",
-        "merchants", "products", "orders",
+        "merchants", "products", "orders", "commerceCart",
       ];
       const values = await AsyncStorage.multiGet(keys);
       const data = Object.fromEntries(values.map(([k, v]) => [k, v]));
@@ -1299,6 +1321,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.merchants) setMerchants(JSON.parse(data.merchants));
       if (data.products) setProducts(JSON.parse(data.products));
       if (data.orders) setOrders(JSON.parse(data.orders));
+      if (data.commerceCart) setCommerceCart(JSON.parse(data.commerceCart));
     } catch (e) {}
   };
 
@@ -1331,6 +1354,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const saveMerchants = (m: Merchant[]) => { setMerchants(m); AsyncStorage.setItem("merchants", JSON.stringify(m)); };
   const saveProducts = (p: Product[]) => { setProducts(p); AsyncStorage.setItem("products", JSON.stringify(p)); };
   const saveOrders = (o: Order[]) => { setOrders(o); AsyncStorage.setItem("orders", JSON.stringify(o)); };
+  const saveCommerceCart = (c: CommerceCart | null) => { setCommerceCart(c); AsyncStorage.setItem("commerceCart", JSON.stringify(c)); };
 
   const savePost = useCallback((postId: string) => {
     setSavedPostsState((prev) => {
@@ -1387,7 +1411,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [currentUser, merchants]);
 
   const getCommissionTier = useCallback((monthlySales: number): number => {
-    if (monthlySales > 500) return 1;
+    if (monthlySales >= 500) return 1;
     if (monthlySales > 100) return 1.5;
     return 2;
   }, []);
@@ -1444,7 +1468,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     saveOrders([...orders, newOrder]);
     const updatedSales = merchant.monthlySales + items.reduce((sum, i) => sum + i.quantity, 0);
-    const newTier: CommerceTier = updatedSales > 500 ? "gold" : updatedSales > 100 ? "silver" : "bronze";
+    const newTier: CommerceTier = updatedSales >= 500 ? "gold" : updatedSales > 100 ? "silver" : "bronze";
     saveMerchants(merchants.map((m) => m.id === merchantId ? { ...m, monthlySales: updatedSales, tier: newTier, monthlyDues: (m.monthlyDues ?? 0) + commissionAmount } : m));
     return newOrder;
   }, [currentUser, merchants, orders, getCommissionTier, affiliateLinks]);
@@ -1456,6 +1480,72 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const getMerchantOrders = useCallback((merchantId: string): Order[] => {
     return orders.filter((o) => o.merchantId === merchantId);
   }, [orders]);
+
+  const addToCommerceCart = useCallback((item: CommerceCartItem, merchantName: string) => {
+    setCommerceCart((prev) => {
+      if (prev && prev.merchantId !== item.merchantId) {
+        const updated: CommerceCart = { merchantId: item.merchantId, merchantName, items: [item] };
+        AsyncStorage.setItem("commerceCart", JSON.stringify(updated));
+        return updated;
+      }
+      const existing = prev?.items.find((i) => i.productId === item.productId);
+      const newItems = existing
+        ? (prev!.items.map((i) => i.productId === item.productId ? { ...i, quantity: i.quantity + item.quantity } : i))
+        : [...(prev?.items ?? []), item];
+      const updated: CommerceCart = { merchantId: item.merchantId, merchantName, items: newItems };
+      AsyncStorage.setItem("commerceCart", JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const removeFromCommerceCart = useCallback((productId: string) => {
+    setCommerceCart((prev) => {
+      if (!prev) return null;
+      const newItems = prev.items.filter((i) => i.productId !== productId);
+      const updated = newItems.length > 0 ? { ...prev, items: newItems } : null;
+      AsyncStorage.setItem("commerceCart", JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const clearCommerceCart = useCallback(() => {
+    setCommerceCart(null);
+    AsyncStorage.setItem("commerceCart", JSON.stringify(null));
+  }, []);
+
+  const checkoutCommerceCart = useCallback(async (
+    paymentMethod: PaymentMethod, address?: string, notes?: string
+  ): Promise<Order | null> => {
+    if (!currentUser || !commerceCart) return null;
+    const merchant = merchants.find((m) => m.id === commerceCart.merchantId);
+    if (!merchant) return null;
+    const items: OrderItem[] = commerceCart.items.map((ci) => ({
+      productId: ci.productId,
+      productName: ci.productName,
+      productPrice: ci.productPrice,
+      quantity: ci.quantity,
+      selectedVariations: ci.selectedVariations,
+    }));
+    const totalIQD = items.reduce((sum, i) => sum + i.productPrice * i.quantity, 0);
+    const commRate = getCommissionTier(merchant.monthlySales) / 100;
+    const affiliateRec = items.length > 0 ? affiliateLinks.find((a) => a.productId === items[0].productId) ?? null : null;
+    const affiliateCut = affiliateRec ? totalIQD * 0.05 : 0;
+    const commissionAmount = totalIQD * commRate;
+    const platformCut = commissionAmount - affiliateCut;
+    const newOrder: Order = {
+      id: generateId(), customerId: currentUser.id, merchantId: merchant.id, items,
+      status: "pending", paymentMethod, totalIQD, commissionAmount, affiliateCut, platformCut,
+      affiliateUserId: affiliateRec?.influencerId,
+      createdAt: Date.now(), updatedAt: Date.now(), address, notes,
+    };
+    saveOrders([...orders, newOrder]);
+    const updatedSales = merchant.monthlySales + items.reduce((sum, i) => sum + i.quantity, 0);
+    const newTier: CommerceTier = updatedSales >= 500 ? "gold" : updatedSales > 100 ? "silver" : "bronze";
+    saveMerchants(merchants.map((m) => m.id === merchant.id ? { ...m, monthlySales: updatedSales, tier: newTier, monthlyDues: (m.monthlyDues ?? 0) + commissionAmount } : m));
+    setCommerceCart(null);
+    AsyncStorage.setItem("commerceCart", JSON.stringify(null));
+    return newOrder;
+  }, [currentUser, commerceCart, merchants, orders, getCommissionTier, affiliateLinks]);
 
   const createMerchantAccount = useCallback(
     async (name: string, email: string, governorate: string, password: string): Promise<{ success: boolean; error?: string }> => {
@@ -4435,6 +4525,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addMerchant, updateMerchantProfile, addProduct, updateProduct, deleteProduct,
       placeCommerceOrder, updateOrderStatus, getCommissionTier, recordAffiliateLink, getAffiliateForProduct,
       createMerchantAccount, getMerchantOrders,
+      commerceCart, addToCommerceCart, removeFromCommerceCart, clearCommerceCart, checkoutCommerceCart,
     }),
     [
       language, theme, currentUser, isSuperAdmin, isManager, isRestaurantOwner, isMerchantOwner, getMyRestaurant, getMyMerchant,
@@ -4481,6 +4572,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       merchants, products, orders, addMerchant, updateMerchantProfile, addProduct, updateProduct, deleteProduct,
       placeCommerceOrder, updateOrderStatus, getCommissionTier, recordAffiliateLink, getAffiliateForProduct,
       createMerchantAccount, getMerchantOrders, affiliateLinks,
+      commerceCart, addToCommerceCart, removeFromCommerceCart, clearCommerceCart, checkoutCommerceCart,
     ]
   );
 

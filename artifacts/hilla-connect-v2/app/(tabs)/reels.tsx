@@ -32,6 +32,10 @@ import { VerifiedBadge } from "@/components/VerifiedBadge";
 import MentionInput from "@/components/MentionInput";
 import MentionText from "@/components/MentionText";
 import { useThemeStore } from "@/store/themeStore";
+import { ShopNowSheet } from "@/components/ShopNowSheet";
+import { CartSheet } from "@/components/CartSheet";
+
+const REEL_TAGS = ["أزياء","إلكترونيات","طعام","تجميل","منزل","رياضة","سفر","ترفيه","تعليم","صحة","فن","تقنية"];
 
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -94,6 +98,7 @@ function ReelPlayerItem({
   onComment,
   onShare,
   onDelete,
+  onShopNow,
   isLiked,
   likesCount,
   commentsCount,
@@ -110,6 +115,7 @@ function ReelPlayerItem({
   onComment: () => void;
   onShare: () => void;
   onDelete: () => void;
+  onShopNow: () => void;
   isLiked: boolean;
   likesCount: number;
   commentsCount: number;
@@ -241,6 +247,30 @@ function ReelPlayerItem({
           </Text>
         )}
       </View>
+
+      {/* Shop Now FAB — only shown when reel has linked products */}
+      {(reel.linkedProductIds?.length ?? 0) > 0 && (
+        <TouchableOpacity
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onShopNow(); }}
+          style={[styles.shopNowFab, { bottom: insets.bottom + 100 }]}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={["#10B981", "#059669"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.shopNowGrad}
+          >
+            <Feather name="shopping-bag" size={16} color="#fff" strokeWidth={2} />
+            <Text style={styles.shopNowText}>تسوق الآن</Text>
+            <View style={styles.shopNowBadge}>
+              <Text style={{ color: "#10B981", fontSize: 10, fontFamily: "Inter_700Bold" }}>
+                {reel.linkedProductIds!.length}
+              </Text>
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
 
       {/* Action buttons - must be on top, so use onPress to stop propagation */}
       <View style={[styles.reelActions, { paddingBottom: insets.bottom + 90 }]}>
@@ -728,12 +758,24 @@ function PublishModal({
   insets: any;
 }) {
   const c = useThemeStore((s) => s.tokens);
-  const { addReel } = useApp();
+  const { addReel, products, isMerchantOwner, getMyMerchant } = useApp();
   const { showToast } = useToast();
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [filter, setFilter] = useState<ReelFilter>("none");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const myMerchant = isMerchantOwner ? getMyMerchant() : null;
+  const myProducts = myMerchant ? products.filter((p) => p.merchantId === myMerchant.id && p.isActive) : [];
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
+  };
+  const toggleProduct = (id: string) => {
+    setSelectedProducts((prev) => prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]);
+  };
 
   const handlePickVideo = async () => {
     if (Platform.OS === "web") {
@@ -760,12 +802,14 @@ function PublishModal({
       return;
     }
     setLoading(true);
-    addReel(videoUri, title.trim(), filter);
+    addReel(videoUri, title.trim(), filter, selectedTags, selectedProducts);
     setLoading(false);
     showToast("تم نشر المقطع بنجاح!", "success");
     setVideoUri(null);
     setTitle("");
     setFilter("none");
+    setSelectedTags([]);
+    setSelectedProducts([]);
     onClose();
   };
 
@@ -773,6 +817,8 @@ function PublishModal({
     setVideoUri(null);
     setTitle("");
     setFilter("none");
+    setSelectedTags([]);
+    setSelectedProducts([]);
     onClose();
   };
 
@@ -842,14 +888,67 @@ function PublishModal({
                 },
               ]}
             >
-              <Text
-                style={[styles.filterChipText, { color: filter === f.key ? "#fff" : c.textSecondary }]}
-              >
+              <Text style={[styles.filterChipText, { color: filter === f.key ? "#fff" : c.textSecondary }]}>
                 {f.label}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
+
+        <Text style={[styles.filterLabel, { color: c.textSecondary }]}>الوسوم</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+          {REEL_TAGS.map((tag) => {
+            const active = selectedTags.includes(tag);
+            return (
+              <TouchableOpacity
+                key={tag}
+                onPress={() => toggleTag(tag)}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: active ? "#7C3AED22" : c.backgroundTertiary,
+                    borderColor: active ? "#7C3AED" : c.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.filterChipText, { color: active ? "#7C3AED" : c.textSecondary }]}>
+                  #{tag}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {myProducts.length > 0 && (
+          <>
+            <Text style={[styles.filterLabel, { color: c.textSecondary }]}>ربط منتجاتك (تسوق مباشر)</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {myProducts.map((p) => {
+                  const active = selectedProducts.includes(p.id);
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      onPress={() => toggleProduct(p.id)}
+                      style={[
+                        styles.filterChip,
+                        {
+                          backgroundColor: active ? "#10B98118" : c.backgroundTertiary,
+                          borderColor: active ? "#10B981" : c.border,
+                        },
+                      ]}
+                    >
+                      <Feather name="shopping-bag" size={12} color={active ? "#10B981" : c.textSecondary} strokeWidth={1.5} />
+                      <Text style={[styles.filterChipText, { color: active ? "#10B981" : c.textSecondary }]}>
+                        {p.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </>
+        )}
 
         <View style={styles.publishBtns}>
           <TouchableOpacity onPress={handleClose} style={[styles.cancelPub, { borderColor: c.border }]}>
@@ -939,10 +1038,18 @@ export default function ReelsScreen() {
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60 });
 
   const [deleteReelId, setDeleteReelId] = useState<string | null>(null);
+  const [shopNowProductIds, setShopNowProductIds] = useState<string[]>([]);
+  const [shopNowVisible, setShopNowVisible] = useState(false);
+  const [cartVisible, setCartVisible] = useState(false);
 
   const handleDelete = (reelId: string) => {
     setDeleteReelId(reelId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
+  const handleShopNow = (reel: Reel) => {
+    setShopNowProductIds(reel.linkedProductIds ?? []);
+    setShopNowVisible(true);
   };
 
   const getCreator = (creatorId: string) => users.find((u) => u.id === creatorId);
@@ -1009,6 +1116,7 @@ export default function ReelsScreen() {
               onComment={() => { setCommentReel(item.id); setCommentReelOwnerId(item.creatorId); }}
               onShare={() => setShareReel(item.id)}
               onDelete={() => handleDelete(item.id)}
+              onShopNow={() => handleShopNow(item)}
               isLiked={isReelLiked(item.id)}
               likesCount={getReelLikesCount(item.id)}
               commentsCount={getReelComments(item.id).length}
@@ -1049,6 +1157,14 @@ export default function ReelsScreen() {
         />
       )}
       {/* Reel publishing now handled by the UniversalEditor at /create-story?mode=reel */}
+
+      <ShopNowSheet
+        productIds={shopNowProductIds}
+        visible={shopNowVisible}
+        onClose={() => setShopNowVisible(false)}
+        onOpenCart={() => { setShopNowVisible(false); setCartVisible(true); }}
+      />
+      <CartSheet visible={cartVisible} onClose={() => setCartVisible(false)} />
 
       {/* Custom Dark Delete Reel Modal */}
       <Modal
@@ -1185,6 +1301,37 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0,0,0,0.6)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
+  },
+  shopNowFab: {
+    position: "absolute",
+    left: 16,
+    borderRadius: 28,
+    overflow: "hidden",
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  shopNowGrad: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  shopNowText: {
+    color: "#fff",
+    fontFamily: "Inter_700Bold",
+    fontSize: 14,
+    textShadowColor: "rgba(0,0,0,0.4)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  shopNowBadge: {
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: "#fff",
+    alignItems: "center", justifyContent: "center",
   },
   reelActions: { position: "absolute", right: 12, bottom: 0, alignItems: "center", gap: 20 },
   actionBtn: { alignItems: "center", gap: 4, minWidth: 44, minHeight: 44, justifyContent: "center" },

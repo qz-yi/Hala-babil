@@ -290,6 +290,8 @@ export interface Reel {
   title: string;
   creatorId: string;
   filter: ReelFilter;
+  tags?: string[];
+  linkedProductIds?: string[];
   createdAt: number;
 }
 
@@ -488,7 +490,7 @@ interface AppContextValue {
   resetUserPassword: (userId: string, newPassword: string) => void;
   verifyUser: (userId: string, months: number) => void;
   revokeVerification: (userId: string) => void;
-  addReel: (videoUrl: string, title: string, filter: ReelFilter) => void;
+  addReel: (videoUrl: string, title: string, filter: ReelFilter, tags?: string[], linkedProductIds?: string[]) => void;
   deleteReel: (reelId: string) => void;
   likeReel: (reelId: string) => void;
   isReelLiked: (reelId: string) => boolean;
@@ -2491,9 +2493,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addReel = useCallback(
-    (videoUrl: string, title: string, filter: ReelFilter) => {
+    (videoUrl: string, title: string, filter: ReelFilter, tags?: string[], linkedProductIds?: string[]) => {
       if (!currentUser) return;
-      const reel: Reel = { id: generateId(), videoUrl, title, creatorId: currentUser.id, filter, createdAt: Date.now() };
+      const reel: Reel = { id: generateId(), videoUrl, title, creatorId: currentUser.id, filter, tags: tags ?? [], linkedProductIds: linkedProductIds ?? [], createdAt: Date.now() };
       saveReels([reel, ...reels]);
       const myFollowers = follows.filter((f) => f.followingId === currentUser.id && f.status === "accepted");
       const newNotifs: AppNotification[] = myFollowers.map((f) => ({

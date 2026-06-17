@@ -1,4 +1,1 @@
-- [Media Pipeline Architecture](media-pipeline.md) — Reel-to-Story uses dual persistence: sharedContentBridge (consumed once on editor mount) + useMediaStore (persists until explicit clear after publish).
-- [Call Timer Rule](call-timer-rule.md) — Timer MUST start only via onConnectionEstablished(); native path simulates with 2500ms timeout; never start on offer received (callee side).
-- [Expo Tunnel Underscore Fix](expo-tunnel-fix.md) — Set EXPO_TUNNEL_SUBDOMAIN=zentramapp in dev script to avoid Android toASCII failure from underscore in auto-generated subdomain.
-- [Hilla Connect Workflow Conflict](workflow-conflict.md) — "Hilla Connect" and "artifacts/hilla-connect-v2: expo" both use port 8080; only the artifact workflow should run; the other fails due to port conflict.
+- [Commerce Engine Architecture](commerce-engine.md) — how Zentram's shoppable reels + marketplace + merchant dashboard are wired together

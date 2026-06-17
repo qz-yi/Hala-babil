@@ -970,6 +970,281 @@ function PublishModal({
   );
 }
 
+// ───── Shoppable Reel Modal ─────
+function ShoppableReelModal({
+  visible,
+  onClose,
+  insets,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  insets: any;
+}) {
+  const c = useThemeStore((s) => s.tokens);
+  const { addReel, products, isMerchantOwner, getMyMerchant } = useApp();
+  const { showToast } = useToast();
+
+  const [step, setStep] = useState<1 | 2>(1);
+  const [videoUri, setVideoUri] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [filter, setFilter] = useState<ReelFilter>("none");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const myMerchant = isMerchantOwner ? getMyMerchant() : null;
+  const myProducts = myMerchant ? products.filter((p) => p.merchantId === myMerchant.id && p.isActive) : [];
+
+  const stepAnim = React.useRef(new Animated.Value(0)).current;
+  React.useEffect(() => {
+    Animated.spring(stepAnim, { toValue: step === 2 ? 1 : 0, useNativeDriver: true, tension: 70, friction: 12 }).start();
+  }, [step]);
+
+  const handlePickVideo = async () => {
+    if (Platform.OS === "web") { showToast("رفع الفيديو غير مدعوم على الويب", "info"); return; }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") { showToast("يرجى السماح بالوصول للمعرض", "error"); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets[0]) setVideoUri(result.assets[0].uri);
+  };
+
+  const handleNext = () => {
+    if (!videoUri) { showToast("يرجى اختيار مقطع فيديو أولاً", "error"); return; }
+    setStep(2);
+  };
+
+  const handlePublish = async () => {
+    if (!videoUri) return;
+    if (!selectedProduct) { showToast("يرجى اختيار منتج للمقطع التجاري", "error"); return; }
+    setLoading(true);
+    addReel(videoUri, title.trim(), filter, selectedTags, [selectedProduct]);
+    setLoading(false);
+    showToast("تم نشر المقطع التجاري بنجاح! 🛍️", "success");
+    resetAndClose();
+  };
+
+  const resetAndClose = () => {
+    setVideoUri(null); setTitle(""); setFilter("none");
+    setSelectedTags([]); setSelectedProduct(null); setStep(1); setLoading(false);
+    onClose();
+  };
+
+  const translateX = stepAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -(SCREEN_WIDTH + 40)] });
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={resetAndClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={resetAndClose} />
+      <View style={[styles.publishSheet, { backgroundColor: c.card, borderColor: c.border, paddingBottom: insets.bottom + 20 }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: c.border }]} />
+
+        {/* Step indicator */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 6 }}>
+          <View style={[styles.stepDot, { backgroundColor: c.accent }]} />
+          <View style={{ width: 32, height: 2, borderRadius: 1, backgroundColor: step === 2 ? c.accent : c.border }} />
+          <View style={[styles.stepDot, { backgroundColor: step === 2 ? c.accent : c.border }]} />
+        </View>
+
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16 }}>
+          <LinearGradient colors={["#F59E0B", "#EF4444"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.shoppableBadge}>
+            <Feather name="shopping-bag" size={12} color="#fff" strokeWidth={2} />
+            <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 11 }}>مقطع تجاري</Text>
+          </LinearGradient>
+          <Text style={[styles.sheetTitle, { color: c.text, marginBottom: 0 }]}>
+            {step === 1 ? "إعداد المقطع" : "اختيار المنتج"}
+          </Text>
+        </View>
+
+        {/* Sliding steps */}
+        <View style={{ overflow: "hidden" }}>
+          <Animated.View style={{ flexDirection: "row", transform: [{ translateX }], width: (SCREEN_WIDTH - 48) * 2 + 40 }}>
+
+            {/* Step 1 — Video + meta */}
+            <View style={{ width: SCREEN_WIDTH - 48 }}>
+              <TouchableOpacity
+                onPress={handlePickVideo}
+                style={[styles.videoPickBtn, { backgroundColor: videoUri ? `${c.accent}22` : c.backgroundTertiary, borderColor: videoUri ? c.accent : c.border }]}
+              >
+                <Feather name={videoUri ? "check-circle" : "film"} size={28} color={videoUri ? c.accent : c.textSecondary} strokeWidth={1.5} />
+                <Text style={[styles.videoPickText, { color: videoUri ? c.accent : c.textSecondary }]}>
+                  {videoUri ? "تم اختيار المقطع ✓" : "اختر مقطع الفيديو"}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={[styles.titleInput, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}>
+                <TextInput
+                  style={[styles.titleInputField, { color: c.text }]}
+                  value={title}
+                  onChangeText={setTitle}
+                  placeholder="وصف المقطع التجاري..."
+                  placeholderTextColor={c.textSecondary}
+                  textAlign="right"
+                  multiline
+                  maxLength={150}
+                />
+              </View>
+
+              <Text style={[styles.filterLabel, { color: c.textSecondary }]}>الفلاتر</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                {FILTERS.map((f) => (
+                  <TouchableOpacity
+                    key={f.key}
+                    onPress={() => setFilter(f.key)}
+                    style={[styles.filterChip, { backgroundColor: filter === f.key ? c.accent : c.backgroundTertiary, borderColor: filter === f.key ? c.accent : c.border }]}
+                  >
+                    <Text style={[styles.filterChipText, { color: filter === f.key ? "#fff" : c.textSecondary }]}>{f.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <View style={styles.publishBtns}>
+                <TouchableOpacity onPress={resetAndClose} style={[styles.cancelPub, { borderColor: c.border }]}>
+                  <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium" }}>إلغاء</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleNext} style={{ flex: 1 }}>
+                  <LinearGradient colors={["#F59E0B", "#EF4444"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.publishBtn}>
+                    <Text style={styles.publishBtnText}>التالي →</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Step 2 — Product tagging */}
+            <View style={{ width: SCREEN_WIDTH - 48, marginLeft: 40 }}>
+              <View style={{ backgroundColor: "#F59E0B18", borderRadius: 14, borderWidth: 1, borderColor: "#F59E0B44", padding: 12, marginBottom: 14, flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+                <Feather name="info" size={16} color="#F59E0B" strokeWidth={1.5} style={{ marginTop: 1 }} />
+                <Text style={{ color: c.text, fontFamily: "Inter_400Regular", fontSize: 13, flex: 1, lineHeight: 20 }}>
+                  اختر منتجاً من متجرك. سيظهر زر "تسوق الآن" في أسفل المقطع مرتبطاً بهذا المنتج مباشرة.
+                </Text>
+              </View>
+
+              {myProducts.length === 0 ? (
+                <View style={{ alignItems: "center", gap: 10, padding: 30 }}>
+                  <Feather name="package" size={40} color={c.border} strokeWidth={0.8} />
+                  <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", textAlign: "center" }}>
+                    لا توجد منتجات نشطة في متجرك
+                  </Text>
+                </View>
+              ) : (
+                <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator={false}>
+                  <View style={{ gap: 10 }}>
+                    {myProducts.map((p) => {
+                      const active = selectedProduct === p.id;
+                      return (
+                        <TouchableOpacity
+                          key={p.id}
+                          onPress={() => { Haptics.selectionAsync(); setSelectedProduct(active ? null : p.id); }}
+                          style={[styles.productTagRow, {
+                            backgroundColor: active ? `${c.accent}18` : c.backgroundTertiary,
+                            borderColor: active ? c.accent : c.border,
+                          }]}
+                        >
+                          {p.images[0] ? (
+                            <Image source={{ uri: p.images[0] }} style={styles.productTagImg} />
+                          ) : (
+                            <View style={[styles.productTagImgFallback, { backgroundColor: c.card }]}>
+                              <Feather name="image" size={16} color={c.border} />
+                            </View>
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: c.text, fontFamily: "Inter_600SemiBold", fontSize: 14 }} numberOfLines={1}>{p.name}</Text>
+                            <Text style={{ color: "#10B981", fontFamily: "Inter_700Bold", fontSize: 13 }}>{p.price.toLocaleString()} IQD</Text>
+                          </View>
+                          <View style={[styles.radioCircle, { borderColor: active ? c.accent : c.border, backgroundColor: active ? c.accent : "transparent" }]}>
+                            {active && <Feather name="check" size={12} color="#fff" strokeWidth={2.5} />}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              )}
+
+              <View style={[styles.publishBtns, { marginTop: 14 }]}>
+                <TouchableOpacity onPress={() => setStep(1)} style={[styles.cancelPub, { borderColor: c.border }]}>
+                  <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium" }}>← رجوع</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handlePublish} disabled={loading || !selectedProduct} style={{ flex: 1, opacity: !selectedProduct ? 0.5 : 1 }}>
+                  <LinearGradient
+                    colors={selectedProduct ? ["#F59E0B", "#EF4444"] : [c.border, c.border]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={styles.publishBtn}
+                  >
+                    <Feather name="shopping-bag" size={16} color="#fff" strokeWidth={2} />
+                    <Text style={styles.publishBtnText}>{loading ? "..." : "نشر المقطع التجاري"}</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Animated.View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ───── Reel Create Mode Picker ─────
+function ReelModePickerSheet({
+  visible,
+  onClose,
+  onRegular,
+  onShoppable,
+  isMerchant,
+  insets,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onRegular: () => void;
+  onShoppable: () => void;
+  isMerchant: boolean;
+  insets: any;
+}) {
+  const c = useThemeStore((s) => s.tokens);
+  if (!isMerchant) return null;
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose} />
+      <View style={[styles.modeSheet, { backgroundColor: c.card, borderColor: c.border, paddingBottom: insets.bottom + 24 }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: c.border }]} />
+        <Text style={[styles.sheetTitle, { color: c.text }]}>نوع المقطع</Text>
+
+        <TouchableOpacity onPress={onRegular} style={[styles.modeOption, { borderColor: c.border }]}>
+          <View style={[styles.modeIcon, { backgroundColor: "#7C3AED18" }]}>
+            <Feather name="film" size={24} color="#7C3AED" strokeWidth={1.5} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 16 }}>مقطع عادي</Text>
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 2 }}>
+              مقطع ترفيهي أو معلوماتي عادي
+            </Text>
+          </View>
+          <Feather name="chevron-left" size={20} color={c.textSecondary} strokeWidth={1.5} />
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={onShoppable} style={[styles.modeOption, { borderColor: "#F59E0B44", backgroundColor: "#F59E0B08" }]}>
+          <LinearGradient colors={["#F59E0B", "#EF4444"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.modeIcon}>
+            <Feather name="shopping-bag" size={22} color="#fff" strokeWidth={1.5} />
+          </LinearGradient>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 16 }}>مقطع تجاري</Text>
+              <View style={{ backgroundColor: "#F59E0B22", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 }}>
+                <Text style={{ color: "#F59E0B", fontFamily: "Inter_700Bold", fontSize: 10 }}>Shoppable</Text>
+              </View>
+            </View>
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 13, marginTop: 2 }}>
+              اربط منتجاً وأضف زر "تسوق الآن" للمشاهدين
+            </Text>
+          </View>
+          <Feather name="chevron-left" size={20} color="#F59E0B" strokeWidth={1.5} />
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
+
 // ───── Main Reels Screen ─────
 export default function ReelsScreen() {
   const {
@@ -981,6 +1256,7 @@ export default function ReelsScreen() {
     getReelComments,
     deleteReel,
     users,
+    isMerchantOwner,
   } = useApp();
   const insets = useSafeAreaInsets();
   const c = useThemeStore((s) => s.tokens);
@@ -1041,6 +1317,16 @@ export default function ReelsScreen() {
   const [shopNowProductIds, setShopNowProductIds] = useState<string[]>([]);
   const [shopNowVisible, setShopNowVisible] = useState(false);
   const [cartVisible, setCartVisible] = useState(false);
+  const [modePickerVisible, setModePickerVisible] = useState(false);
+  const [shoppableModalVisible, setShoppableModalVisible] = useState(false);
+
+  const handleCreateReel = () => {
+    if (isMerchantOwner) {
+      setModePickerVisible(true);
+    } else {
+      router.push({ pathname: "/create-story", params: { mode: "reel" } } as any);
+    }
+  };
 
   const handleDelete = (reelId: string) => {
     setDeleteReelId(reelId);
@@ -1134,11 +1420,17 @@ export default function ReelsScreen() {
       <TouchableOpacity
         style={[
           styles.addBtn,
-          { top: insets.top + 12, backgroundColor: "rgba(0,0,0,0.5)" },
+          { top: insets.top + 12, backgroundColor: isMerchantOwner ? "rgba(239,68,68,0.75)" : "rgba(0,0,0,0.5)" },
         ]}
-        onPress={() => router.push({ pathname: "/create-story", params: { mode: "reel" } } as any)}
+        onPress={handleCreateReel}
       >
-        <Feather name="plus" size={24} color="#fff" strokeWidth={2} />
+        {isMerchantOwner ? (
+          <LinearGradient colors={["#F59E0B", "#EF4444"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.merchantAddBtnGrad}>
+            <Feather name="shopping-bag" size={18} color="#fff" strokeWidth={2} />
+          </LinearGradient>
+        ) : (
+          <Feather name="plus" size={24} color="#fff" strokeWidth={2} />
+        )}
       </TouchableOpacity>
 
       {commentReel && (
@@ -1156,7 +1448,20 @@ export default function ReelsScreen() {
           onClose={() => setShareReel(null)}
         />
       )}
-      {/* Reel publishing now handled by the UniversalEditor at /create-story?mode=reel */}
+      <ReelModePickerSheet
+        visible={modePickerVisible}
+        onClose={() => setModePickerVisible(false)}
+        onRegular={() => { setModePickerVisible(false); router.push({ pathname: "/create-story", params: { mode: "reel" } } as any); }}
+        onShoppable={() => { setModePickerVisible(false); setShoppableModalVisible(true); }}
+        isMerchant={isMerchantOwner}
+        insets={insets}
+      />
+
+      <ShoppableReelModal
+        visible={shoppableModalVisible}
+        onClose={() => setShoppableModalVisible(false)}
+        insets={insets}
+      />
 
       <ShopNowSheet
         productIds={shopNowProductIds}
@@ -1427,7 +1732,7 @@ const styles = StyleSheet.create({
     flex: 1, height: 50, borderRadius: 14, borderWidth: 1,
     alignItems: "center", justifyContent: "center",
   },
-  publishBtn: { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  publishBtn: { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
   publishBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 16 },
   emptyContainer: {
     flex: 1, alignItems: "center", justifyContent: "center", gap: 16, padding: 32,
@@ -1439,4 +1744,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28, paddingVertical: 14, borderRadius: 16,
   },
   emptyBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  stepDot: { width: 10, height: 10, borderRadius: 5 },
+  shoppableBadge: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+  },
+  productTagRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    borderRadius: 14, borderWidth: 1.5, padding: 10,
+  },
+  productTagImg: { width: 52, height: 52, borderRadius: 10 },
+  productTagImgFallback: {
+    width: 52, height: 52, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
+  },
+  radioCircle: {
+    width: 24, height: 24, borderRadius: 12, borderWidth: 2,
+    alignItems: "center", justifyContent: "center",
+  },
+  modeSheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderTopWidth: 0.5,
+    paddingHorizontal: 20, paddingTop: 14, gap: 12,
+  },
+  modeOption: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderRadius: 18, borderWidth: 1.5, padding: 16,
+  },
+  modeIcon: {
+    width: 52, height: 52, borderRadius: 26,
+    alignItems: "center", justifyContent: "center",
+  },
+  merchantAddBtnGrad: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center",
+  },
 });

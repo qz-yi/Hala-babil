@@ -1,10 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -18,7 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeStore } from "@/store/themeStore";
-import { useApp, type Product, type Order, type CommerceTier } from "@/context/AppContext";
+import { useApp, type Product, type Order, type Merchant, type CommerceTier } from "@/context/AppContext";
 import { useToast } from "@/components/Toast";
 
 type Tab = "dashboard" | "catalog" | "orders";
@@ -42,13 +44,14 @@ const ORDER_STATUS_FLOW: string[] = ["pending", "warehouse", "in_transit", "deli
 export default function MyMerchantScreen() {
   const c = useThemeStore((s) => s.tokens);
   const insets = useSafeAreaInsets();
-  const { currentUser, isMerchantOwner, getMyMerchant, products, orders, addProduct, updateProduct, deleteProduct, updateOrderStatus } = useApp();
+  const { currentUser, isMerchantOwner, getMyMerchant, products, orders, addProduct, updateProduct, deleteProduct, updateOrderStatus, updateMerchantProfile } = useApp();
   const { showToast } = useToast();
   const topPad = Platform.OS === "web" ? 20 : insets.top;
   const botPad = Platform.OS === "web" ? 20 : insets.bottom;
 
   const [tab, setTab] = useState<Tab>("dashboard");
   const [addProductVisible, setAddProductVisible] = useState(false);
+  const [storeProfileVisible, setStoreProfileVisible] = useState(false);
 
   useEffect(() => {
     if (!currentUser) router.replace("/(auth)/login");
@@ -84,84 +87,44 @@ export default function MyMerchantScreen() {
 
   return (
     <View style={[st.root, { backgroundColor: c.background }]}>
-      {/* Header */}
-      <LinearGradient
-        colors={[`${tierColor}22`, c.background]}
-        style={[st.header, { paddingTop: topPad + 8, borderBottomColor: c.border }]}
-      >
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <View style={{ flex: 1 }}>
-            <Text style={[st.storeName, { color: c.text }]}>{merchant.name}</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
-              <View style={[st.tierBadge, { backgroundColor: `${tierColor}22`, borderColor: tierColor }]}>
-                <Feather name="award" size={11} color={tierColor} strokeWidth={1.5} />
-                <Text style={{ color: tierColor, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>
-                  {merchant.tier === "gold" ? "ذهبي" : merchant.tier === "silver" ? "فضي" : "برونزي"}
-                </Text>
-              </View>
-              <Text style={{ color: c.textSecondary, fontSize: 12, fontFamily: "Inter_400Regular" }}>
-                {merchant.governorate}
-              </Text>
-            </View>
-          </View>
-          <View style={[st.merchantIcon, { backgroundColor: `${tierColor}22` }]}>
-            <Feather name="package" size={28} color={tierColor} strokeWidth={1.2} />
+      {/* Header with optional cover photo */}
+      {merchant.coverPhoto ? (
+        <View style={{ position: "relative" }}>
+          <Image source={{ uri: merchant.coverPhoto }} style={[st.coverPhoto]} resizeMode="cover" />
+          <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" }} />
+          <View style={[st.headerInner, { paddingTop: topPad + 8 }]}>
+            <HeaderContent
+              merchant={merchant}
+              tierColor={tierColor}
+              tab={tab}
+              setTab={setTab}
+              totalRevenue={totalRevenue}
+              pendingOrders={pendingOrders}
+              myProducts={myProducts}
+              c={{ ...c, text: "#fff", textSecondary: "rgba(255,255,255,0.7)" }}
+              onEditProfile={() => setStoreProfileVisible(true)}
+            />
           </View>
         </View>
+      ) : (
+        <LinearGradient
+          colors={[`${tierColor}22`, c.background]}
+          style={[st.header, { paddingTop: topPad + 8, borderBottomColor: c.border }]}
+        >
+          <HeaderContent
+            merchant={merchant}
+            tierColor={tierColor}
+            tab={tab}
+            setTab={setTab}
+            totalRevenue={totalRevenue}
+            pendingOrders={pendingOrders}
+            myProducts={myProducts}
+            c={c}
+            onEditProfile={() => setStoreProfileVisible(true)}
+          />
+        </LinearGradient>
+      )}
 
-        {/* Stats row */}
-        <View style={st.statsRow}>
-          {[
-            { label: "الإيرادات", value: `${(totalRevenue / 1000).toFixed(0)}K IQD`, icon: "trending-up", color: "#10B981" },
-            { label: "الطلبات المعلقة", value: String(pendingOrders), icon: "clock", color: "#F59E0B" },
-            { label: "المنتجات", value: String(myProducts.length), icon: "box", color: c.accent },
-            { label: "إجمالي المبيعات", value: String(merchant.monthlySales), icon: "shopping-bag", color: "#8B5CF6" },
-          ].map((stat) => (
-            <View key={stat.label} style={[st.statCard, { backgroundColor: c.card, borderColor: c.border }]}>
-              <Feather name={stat.icon as any} size={18} color={stat.color} strokeWidth={1.5} />
-              <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 16 }}>{stat.value}</Text>
-              <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 10, textAlign: "center" }}>{stat.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Commission info */}
-        <View style={[st.commissionRow, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}>
-          <Feather name="percent" size={14} color={c.accent} strokeWidth={1.5} />
-          <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 12 }}>
-            عمولتك الحالية:{" "}
-            <Text style={{ color: c.accent, fontFamily: "Inter_600SemiBold" }}>
-              {merchant.tier === "gold" ? "1%" : merchant.tier === "silver" ? "1.5%" : "2%"}
-            </Text>
-            {" "}· {merchant.tier === "bronze" ? "0–100 مبيعة" : merchant.tier === "silver" ? "101–500 مبيعة" : "500+ مبيعة"}
-          </Text>
-        </View>
-
-        {/* Tabs */}
-        <View style={[st.tabs, { borderColor: c.border }]}>
-          {([
-            { key: "dashboard", label: "لوحة التحكم", icon: "bar-chart-2" },
-            { key: "catalog",   label: "المنتجات",   icon: "box" },
-            { key: "orders",    label: "الطلبات",     icon: "shopping-bag" },
-          ] as { key: Tab; label: string; icon: string }[]).map((t) => (
-            <TouchableOpacity
-              key={t.key}
-              onPress={() => { Haptics.selectionAsync(); setTab(t.key); }}
-              style={[
-                st.tabBtn,
-                tab === t.key && { borderBottomColor: c.accent, borderBottomWidth: 2 },
-              ]}
-            >
-              <Feather name={t.icon as any} size={14} color={tab === t.key ? c.accent : c.textSecondary} strokeWidth={1.5} />
-              <Text style={{ color: tab === t.key ? c.accent : c.textSecondary, fontFamily: tab === t.key ? "Inter_600SemiBold" : "Inter_400Regular", fontSize: 13 }}>
-                {t.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </LinearGradient>
-
-      {/* Tab Content */}
       {tab === "dashboard" && (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: botPad + 100 }}>
           <Text style={[st.sectionTitle, { color: c.text }]}>آخر الطلبات</Text>
@@ -204,9 +167,13 @@ export default function MyMerchantScreen() {
           ) : (
             myProducts.map((product) => (
               <View key={product.id} style={[st.productRow, { backgroundColor: c.card, borderColor: c.border }]}>
-                <View style={[st.productRowImg, { backgroundColor: c.backgroundTertiary }]}>
-                  <Feather name="image" size={22} color={c.border} strokeWidth={1} />
-                </View>
+                {product.images[0] ? (
+                  <Image source={{ uri: product.images[0] }} style={st.productRowImg} />
+                ) : (
+                  <View style={[st.productRowImgFallback, { backgroundColor: c.backgroundTertiary }]}>
+                    <Feather name="image" size={22} color={c.border} strokeWidth={1} />
+                  </View>
+                )}
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={{ color: c.text, fontFamily: "Inter_600SemiBold", fontSize: 14 }} numberOfLines={1}>
                     {product.name}
@@ -220,6 +187,14 @@ export default function MyMerchantScreen() {
                         {product.stock > 0 ? `${product.stock} قطعة` : "نفد"}
                       </Text>
                     </View>
+                    {product.images.length > 1 && (
+                      <View style={[st.stockBadge, { backgroundColor: "#7C3AED18" }]}>
+                        <Feather name="image" size={10} color="#7C3AED" />
+                        <Text style={{ color: "#7C3AED", fontSize: 11, fontFamily: "Inter_400Regular" }}>
+                          {product.images.length} صور
+                        </Text>
+                      </View>
+                    )}
                     <View style={[st.stockBadge, { backgroundColor: c.backgroundTertiary }]}>
                       <Text style={{ color: c.textSecondary, fontSize: 11, fontFamily: "Inter_400Regular" }}>
                         {product.category}
@@ -288,7 +263,111 @@ export default function MyMerchantScreen() {
           setAddProductVisible(false);
         }}
       />
+
+      <StoreProfileModal
+        visible={storeProfileVisible}
+        merchant={merchant}
+        onClose={() => setStoreProfileVisible(false)}
+        onSave={(data) => {
+          updateMerchantProfile(merchant.id, data);
+          showToast("تم تحديث ملف المتجر!", "success");
+          setStoreProfileVisible(false);
+        }}
+      />
     </View>
+  );
+}
+
+function HeaderContent({
+  merchant, tierColor, tab, setTab, totalRevenue, pendingOrders, myProducts, c, onEditProfile
+}: {
+  merchant: Merchant; tierColor: string; tab: Tab; setTab: (t: Tab) => void;
+  totalRevenue: number; pendingOrders: number; myProducts: Product[]; c: any;
+  onEditProfile: () => void;
+}) {
+  return (
+    <>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <View style={{ flex: 1 }}>
+          <Text style={[st.storeName, { color: c.text }]}>{merchant.name}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+            <View style={[st.tierBadge, { backgroundColor: `${tierColor}22`, borderColor: tierColor }]}>
+              <Feather name="award" size={11} color={tierColor} strokeWidth={1.5} />
+              <Text style={{ color: tierColor, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>
+                {merchant.tier === "gold" ? "ذهبي" : merchant.tier === "silver" ? "فضي" : "برونزي"}
+              </Text>
+            </View>
+            <Text style={{ color: c.textSecondary, fontSize: 12, fontFamily: "Inter_400Regular" }}>
+              {merchant.governorate}
+            </Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+          <TouchableOpacity
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onEditProfile(); }}
+            style={[st.editProfileBtn, { backgroundColor: `${tierColor}22`, borderColor: tierColor }]}
+          >
+            <Feather name="edit-2" size={13} color={tierColor} strokeWidth={1.5} />
+            <Text style={{ color: tierColor, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>تحديث المتجر</Text>
+          </TouchableOpacity>
+          {merchant.logo ? (
+            <Image source={{ uri: merchant.logo }} style={[st.merchantLogoImg, { borderColor: tierColor }]} />
+          ) : (
+            <View style={[st.merchantIcon, { backgroundColor: `${tierColor}22` }]}>
+              <Feather name="package" size={28} color={tierColor} strokeWidth={1.2} />
+            </View>
+          )}
+        </View>
+      </View>
+
+      <View style={st.statsRow}>
+        {[
+          { label: "الإيرادات", value: `${(totalRevenue / 1000).toFixed(0)}K IQD`, icon: "trending-up", color: "#10B981" },
+          { label: "الطلبات المعلقة", value: String(pendingOrders), icon: "clock", color: "#F59E0B" },
+          { label: "المنتجات", value: String(myProducts.length), icon: "box", color: c.accent ?? "#7C3AED" },
+          { label: "إجمالي المبيعات", value: String(merchant.monthlySales), icon: "shopping-bag", color: "#8B5CF6" },
+        ].map((stat) => (
+          <View key={stat.label} style={[st.statCard, { backgroundColor: (c.card ?? "rgba(255,255,255,0.1)"), borderColor: (c.border ?? "rgba(255,255,255,0.2)") }]}>
+            <Feather name={stat.icon as any} size={18} color={stat.color} strokeWidth={1.5} />
+            <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 16 }}>{stat.value}</Text>
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 10, textAlign: "center" }}>{stat.label}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={[st.commissionRow, { backgroundColor: c.backgroundTertiary ?? "rgba(255,255,255,0.1)", borderColor: c.border ?? "rgba(255,255,255,0.2)" }]}>
+        <Feather name="percent" size={14} color={c.accent ?? "#7C3AED"} strokeWidth={1.5} />
+        <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 12 }}>
+          عمولتك الحالية:{" "}
+          <Text style={{ color: c.accent ?? "#7C3AED", fontFamily: "Inter_600SemiBold" }}>
+            {merchant.tier === "gold" ? "1%" : merchant.tier === "silver" ? "1.5%" : "2%"}
+          </Text>
+          {" "}· {merchant.tier === "bronze" ? "0–100 مبيعة" : merchant.tier === "silver" ? "101–500 مبيعة" : "500+ مبيعة"}
+        </Text>
+      </View>
+
+      <View style={[st.tabs, { borderColor: c.border ?? "rgba(255,255,255,0.2)" }]}>
+        {([
+          { key: "dashboard", label: "لوحة التحكم", icon: "bar-chart-2" },
+          { key: "catalog",   label: "المنتجات",   icon: "box" },
+          { key: "orders",    label: "الطلبات",     icon: "shopping-bag" },
+        ] as { key: Tab; label: string; icon: string }[]).map((t) => (
+          <TouchableOpacity
+            key={t.key}
+            onPress={() => { Haptics.selectionAsync(); setTab(t.key); }}
+            style={[
+              st.tabBtn,
+              tab === t.key && { borderBottomColor: c.accent ?? "#7C3AED", borderBottomWidth: 2 },
+            ]}
+          >
+            <Feather name={t.icon as any} size={14} color={tab === t.key ? (c.accent ?? "#7C3AED") : c.textSecondary} strokeWidth={1.5} />
+            <Text style={{ color: tab === t.key ? (c.accent ?? "#7C3AED") : c.textSecondary, fontFamily: tab === t.key ? "Inter_600SemiBold" : "Inter_400Regular", fontSize: 13 }}>
+              {t.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </>
   );
 }
 
@@ -310,7 +389,6 @@ function OrderCard({ order, c, onAdvance }: { order: Order; c: any; onAdvance: (
           <Text style={{ color: status.color, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>{status.label}</Text>
         </View>
       </View>
-
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
         <View>
           <Text style={{ color: "#10B981", fontFamily: "Inter_700Bold", fontSize: 16 }}>
@@ -335,26 +413,51 @@ function OrderCard({ order, c, onAdvance }: { order: Order; c: any; onAdvance: (
 }
 
 const PRODUCT_CATEGORIES = ["fashion","electronics","food","beauty","home","sports","other"];
+const MAX_GALLERY = 5;
 
 function AddProductModal({
-  visible,
-  merchantId,
-  onClose,
-  onAdd,
+  visible, merchantId, onClose, onAdd,
 }: {
-  visible: boolean;
-  merchantId: string;
-  onClose: () => void;
-  onAdd: (data: any) => void;
+  visible: boolean; merchantId: string; onClose: () => void; onAdd: (data: any) => void;
 }) {
   const c = useThemeStore((s) => s.tokens);
   const insets = useSafeAreaInsets();
+  const { showToast } = useToast();
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [stock, setStock] = useState("");
   const [sku, setSku] = useState("");
   const [category, setCategory] = useState("other");
   const [description, setDescription] = useState("");
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
+
+  const handlePickImages = async () => {
+    if (Platform.OS === "web") {
+      showToast("اختيار الصور من الويب غير مدعوم حالياً", "info");
+      return;
+    }
+    const remaining = MAX_GALLERY - galleryImages.length;
+    if (remaining <= 0) {
+      showToast(`الحد الأقصى ${MAX_GALLERY} صور`, "error");
+      return;
+    }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") { showToast("يرجى السماح بالوصول للمعرض", "error"); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.75,
+      selectionLimit: remaining,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      const newUris = result.assets.map((a) => a.uri);
+      setGalleryImages((prev) => [...prev, ...newUris].slice(0, MAX_GALLERY));
+    }
+  };
+
+  const removeImage = (idx: number) => {
+    setGalleryImages((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   const handleAdd = () => {
     if (!name.trim() || !price.trim() || !stock.trim()) return;
@@ -363,13 +466,13 @@ function AddProductModal({
       name: name.trim(),
       description: description.trim(),
       price: parseFloat(price),
-      images: [],
+      images: galleryImages,
       stock: parseInt(stock),
       sku: sku.trim() || undefined,
       category,
       isActive: true,
     });
-    setName(""); setPrice(""); setStock(""); setSku(""); setDescription(""); setCategory("other");
+    setName(""); setPrice(""); setStock(""); setSku(""); setDescription(""); setCategory("other"); setGalleryImages([]);
   };
 
   return (
@@ -382,6 +485,43 @@ function AddProductModal({
             منتج جديد
           </Text>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+
+            {/* Gallery Section */}
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium", fontSize: 13 }}>
+              معرض الصور ({galleryImages.length}/{MAX_GALLERY})
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                {galleryImages.map((uri, idx) => (
+                  <View key={idx} style={st.galleryThumb}>
+                    <Image source={{ uri }} style={st.galleryThumbImg} />
+                    <TouchableOpacity
+                      onPress={() => removeImage(idx)}
+                      style={st.galleryRemove}
+                    >
+                      <Feather name="x" size={12} color="#fff" strokeWidth={2.5} />
+                    </TouchableOpacity>
+                    {idx === 0 && (
+                      <View style={st.galleryMainBadge}>
+                        <Text style={{ color: "#fff", fontSize: 9, fontFamily: "Inter_600SemiBold" }}>رئيسية</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+                {galleryImages.length < MAX_GALLERY && (
+                  <TouchableOpacity
+                    onPress={handlePickImages}
+                    style={[st.galleryAddBtn, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}
+                  >
+                    <Feather name="plus" size={24} color={c.textSecondary} strokeWidth={1.5} />
+                    <Text style={{ color: c.textSecondary, fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 4 }}>
+                      إضافة
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </ScrollView>
+
             {[
               { value: name, set: setName, placeholder: "اسم المنتج *", icon: "tag" as const },
               { value: price, set: setPrice, placeholder: "السعر (IQD) *", icon: "dollar-sign" as const, keyboard: "decimal-pad" as const },
@@ -444,12 +584,135 @@ function AddProductModal({
   );
 }
 
+function StoreProfileModal({
+  visible, merchant, onClose, onSave,
+}: {
+  visible: boolean; merchant: Merchant; onClose: () => void; onSave: (data: Partial<Merchant>) => void;
+}) {
+  const c = useThemeStore((s) => s.tokens);
+  const insets = useSafeAreaInsets();
+  const { showToast } = useToast();
+  const [logo, setLogo] = useState<string | undefined>(merchant.logo);
+  const [coverPhoto, setCoverPhoto] = useState<string | undefined>(merchant.coverPhoto);
+  const [bio, setBio] = useState(merchant.bio ?? "");
+
+  useEffect(() => {
+    if (visible) {
+      setLogo(merchant.logo);
+      setCoverPhoto(merchant.coverPhoto);
+      setBio(merchant.bio ?? "");
+    }
+  }, [visible]);
+
+  const pickImage = async (type: "logo" | "cover") => {
+    if (Platform.OS === "web") { showToast("اختيار الصور من الويب غير مدعوم", "info"); return; }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") { showToast("يرجى السماح بالوصول للمعرض", "error"); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      aspect: type === "logo" ? [1, 1] : [16, 9],
+      allowsEditing: true,
+    });
+    if (!result.canceled && result.assets[0]) {
+      if (type === "logo") setLogo(result.assets[0].uri);
+      else setCoverPhoto(result.assets[0].uri);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.6)" }} onPress={onClose} />
+      <KeyboardAvoidingView behavior="padding" style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
+        <View style={[st.addModal, { backgroundColor: c.card, borderColor: c.border, paddingBottom: (Platform.OS === "web" ? 20 : insets.bottom) + 16 }]}>
+          <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: c.border, alignSelf: "center", marginBottom: 16 }} />
+          <Text style={{ color: c.text, fontFamily: "Inter_700Bold", fontSize: 18, textAlign: "center", marginBottom: 20 }}>
+            تحديث ملف المتجر
+          </Text>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 16 }}>
+
+            {/* Cover Photo */}
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium", fontSize: 13 }}>صورة الغلاف</Text>
+            <TouchableOpacity onPress={() => pickImage("cover")} style={[st.coverPickerBtn, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}>
+              {coverPhoto ? (
+                <>
+                  <Image source={{ uri: coverPhoto }} style={st.coverPickerImg} resizeMode="cover" />
+                  <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 14, alignItems: "center", justifyContent: "center" }}>
+                    <Feather name="camera" size={28} color="#fff" strokeWidth={1.5} />
+                    <Text style={{ color: "#fff", fontFamily: "Inter_500Medium", fontSize: 13, marginTop: 6 }}>تغيير الغلاف</Text>
+                  </View>
+                </>
+              ) : (
+                <View style={{ alignItems: "center", gap: 8 }}>
+                  <Feather name="image" size={36} color={c.textSecondary} strokeWidth={1} />
+                  <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 14 }}>اختر صورة الغلاف</Text>
+                  <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 11 }}>16:9 موصى به</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {/* Logo */}
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_500Medium", fontSize: 13 }}>شعار المتجر</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+              <TouchableOpacity onPress={() => pickImage("logo")} style={[st.logoPickerBtn, { backgroundColor: c.backgroundTertiary, borderColor: c.border }]}>
+                {logo ? (
+                  <>
+                    <Image source={{ uri: logo }} style={st.logoPickerImg} />
+                    <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)", borderRadius: 44, alignItems: "center", justifyContent: "center" }}>
+                      <Feather name="camera" size={22} color="#fff" strokeWidth={1.5} />
+                    </View>
+                  </>
+                ) : (
+                  <Feather name="upload" size={28} color={c.textSecondary} strokeWidth={1} />
+                )}
+              </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: c.text, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>شعار المتجر</Text>
+                <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 }}>
+                  يظهر في قائمة المنتجات وبطاقة التاجر
+                </Text>
+              </View>
+            </View>
+
+            {/* Bio */}
+            <View style={[st.inputWrap, { backgroundColor: c.backgroundTertiary, borderColor: c.border, height: 80, alignItems: "flex-start", paddingVertical: 10 }]}>
+              <Feather name="edit-3" size={16} color={c.textSecondary} strokeWidth={1.5} style={{ marginTop: 2 }} />
+              <TextInput
+                value={bio}
+                onChangeText={setBio}
+                placeholder="وصف المتجر (اختياري)"
+                placeholderTextColor={c.textSecondary}
+                multiline
+                style={{ flex: 1, color: c.text, fontFamily: "Inter_400Regular", fontSize: 14 }}
+                textAlign="right"
+              />
+            </View>
+
+            <TouchableOpacity
+              onPress={() => onSave({ logo, coverPhoto, bio: bio.trim() || undefined })}
+              style={{ borderRadius: 16, overflow: "hidden" }}
+            >
+              <LinearGradient colors={["#7C3AED", "#4F46E5"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ padding: 16, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: "#fff", fontFamily: "Inter_700Bold", fontSize: 16 }}>حفظ التغييرات</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 const st = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 16, paddingBottom: 0, borderBottomWidth: 0.5, gap: 12 },
+  coverPhoto: { width: "100%", height: 180 },
+  headerInner: { position: "absolute", left: 0, right: 0, bottom: 0, top: 0, paddingHorizontal: 16, gap: 12 },
   storeName: { fontSize: 24, fontFamily: "Inter_700Bold" },
   tierBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1 },
-  merchantIcon: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center" },
+  editProfileBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  merchantIcon: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
+  merchantLogoImg: { width: 56, height: 56, borderRadius: 28, borderWidth: 2 },
   statsRow: { flexDirection: "row", gap: 10 },
   statCard: { flex: 1, borderRadius: 14, borderWidth: 0.5, padding: 10, alignItems: "center", gap: 4 },
   commissionRow: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 12, borderWidth: 0.5, padding: 10 },
@@ -458,8 +721,9 @@ const st = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 4 },
   emptyBox: { alignItems: "center", justifyContent: "center", gap: 12, padding: 40, borderRadius: 20, borderWidth: 0.5, borderStyle: "dashed" },
   productRow: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 16, borderWidth: 0.5, padding: 12 },
-  productRowImg: { width: 56, height: 56, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  stockBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  productRowImg: { width: 64, height: 64, borderRadius: 10 },
+  productRowImgFallback: { width: 64, height: 64, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  stockBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
   iconBtn: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   orderCard: { borderRadius: 16, borderWidth: 0.5, padding: 14, gap: 4 },
   statusBadge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
@@ -468,5 +732,14 @@ const st = StyleSheet.create({
   addProductGrad: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 16 },
   addModal: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 0.5, padding: 20 },
   inputWrap: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 0.5, borderRadius: 14, paddingHorizontal: 14, height: 50 },
-  catChip: { borderWidth: 0.5, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  catChip: { borderWidth: 0.5, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
+  galleryThumb: { width: 80, height: 80, borderRadius: 12, overflow: "hidden", position: "relative" },
+  galleryThumbImg: { width: 80, height: 80 },
+  galleryRemove: { position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center" },
+  galleryMainBadge: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(124,58,237,0.85)", paddingVertical: 3, alignItems: "center" },
+  galleryAddBtn: { width: 80, height: 80, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", alignItems: "center", justifyContent: "center" },
+  coverPickerBtn: { height: 140, borderRadius: 14, borderWidth: 1, borderStyle: "dashed", overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  coverPickerImg: { width: "100%", height: "100%", position: "absolute" },
+  logoPickerBtn: { width: 88, height: 88, borderRadius: 44, borderWidth: 1, borderStyle: "dashed", alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  logoPickerImg: { width: 88, height: 88, borderRadius: 44 },
 });

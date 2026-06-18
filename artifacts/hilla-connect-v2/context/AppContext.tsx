@@ -11,6 +11,34 @@ import React, {
 import { router } from "expo-router";
 import { setSharedContent } from "@/lib/sharedContentBridge";
 import { useMediaStore } from "@/store/mediaStore";
+import {
+  authApi,
+  usersApi,
+  roomsApi,
+  messagesApi,
+  getToken,
+  type ServerUser,
+} from "@/services/api";
+import { getSocket, registerUserSocket } from "@/hooks/useSocket";
+
+// ─── Helper: ServerUser → local User ─────────────────────────────────────────
+// Defined after type exports — forward reference is resolved at runtime.
+function serverUserToLocal(su: ServerUser): any {
+  return {
+    id: su.id,
+    name: su.name,
+    username: su.username ?? undefined,
+    email: su.email,
+    avatar: su.image ?? undefined,
+    bio: su.bio ?? undefined,
+    accountType: su.accountType ?? "public",
+    primaryGovernorate: su.primaryGovernorate ?? undefined,
+    role: su.role ?? undefined,
+    isBanned: su.isBanned,
+    isActive: su.isActive,
+    createdAt: su.createdAt,
+  };
+}
 
 export type Language = "ar" | "en";
 export type Theme = "light" | "dark";
@@ -1221,6 +1249,99 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     loadData();
   }, []);
 
+  // ── Re-register socket + load cloud data whenever currentUser changes ─────
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Register this device's socket with the server
+    registerUserSocket(currentUser.id);
+
+    // Pull fresh cloud rooms list and merge into local state
+    roomsApi.listRooms().then((cloudRooms) => {
+      if (!cloudRooms || cloudRooms.length === 0) return;
+      setRooms((prev) => {
+        const byId = new Map(prev.map((r) => [r.id, r]));
+        cloudRooms.forEach((cr: any) => {
+          if (!byId.has(cr.id)) {
+            byId.set(cr.id, {
+              id: cr.id,
+              roomCode: cr.roomCode ?? "",
+              name: cr.name,
+              image: cr.image ?? undefined,
+              ownerId: cr.ownerId,
+              ownerName: cr.ownerName ?? "",
+              seats: cr.seats ?? Array(8).fill(null),
+              seatUsers: Array(8).fill(null),
+              lockedSeats: Array(8).fill(false),
+              chat: [],
+              bannedUsers: [],
+              mutedUsers: [],
+              isHidden: cr.isHidden ?? false,
+              createdAt: cr.createdAt ?? Date.now(),
+            });
+          }
+        });
+        return Array.from(byId.values());
+      });
+    }).catch(() => {});
+
+    // ── Socket: incoming private message ──────────────────────────────────
+    const socket = getSocket();
+    const handlePrivateMessage = (payload: {
+      conversationId: string;
+      message: {
+        id: string;
+        senderId: string;
+        senderName: string;
+        content: string;
+        type: string;
+        mediaUrl?: string;
+        timestamp: number;
+      };
+    }) => {
+      if (!payload?.conversationId || !payload?.message) return;
+      const incoming = payload.message;
+      setConversations((prev) => {
+        const exists = prev.find((c) => c.id === payload.conversationId);
+        const newMsg: any = {
+          id: incoming.id,
+          senderId: incoming.senderId,
+          receiverId: currentUser.id,
+          content: incoming.content,
+          type: incoming.type as any,
+          mediaUrl: incoming.mediaUrl,
+          timestamp: incoming.timestamp,
+          read: false,
+        };
+        if (exists) {
+          return prev.map((c) =>
+            c.id === payload.conversationId
+              ? { ...c, messages: [...(c.messages ?? []), newMsg], lastMessage: newMsg, updatedAt: Date.now() }
+              : c
+          );
+        }
+        // New conversation — create a shell
+        const otherUser = prev
+          .flatMap((c) => c.participantUsers ?? [])
+          .find((u: any) => u?.id === incoming.senderId);
+        const newConvo: any = {
+          id: payload.conversationId,
+          participants: [incoming.senderId, currentUser.id],
+          participantUsers: otherUser ? [otherUser] : [],
+          messages: [newMsg],
+          lastMessage: newMsg,
+          updatedAt: Date.now(),
+        };
+        return [...prev, newConvo];
+      });
+    };
+
+    socket.on("private-message", handlePrivateMessage);
+    return () => {
+      socket.off("private-message", handlePrivateMessage);
+    };
+  }, [currentUser?.id]);
+
   const loadData = async () => {
     try {
       const keys = [
@@ -1549,6 +1670,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     async (identifier: string, password: string): Promise<boolean> => {
+      // ── Super admin shortcut (local only) ────────────────────────────────
       if (identifier === SUPER_ADMIN_PHONE && password === SUPER_ADMIN_PASSWORD) {
         let adminUser = users.find((u) => u.phone === SUPER_ADMIN_PHONE);
         if (!adminUser) {
@@ -1577,6 +1699,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await AsyncStorage.setItem("currentUser", JSON.stringify(adminUser));
         return true;
       }
+
+      // ── Cloud login (API) ─────────────────────────────────────────────────
+      try {
+        const result = await authApi.login({ identifier, password });
+        if ("token" in result && result.user) {
+          const localUser = serverUserToLocal(result.user) as User;
+          // Merge into users list (update if already exists)
+          saveUsers([...users.filter((u) => u.id !== localUser.id), localUser]);
+          setCurrentUser(localUser);
+          await AsyncStorage.setItem("currentUser", JSON.stringify(localUser));
+          registerUserSocket(localUser.id);
+          return true;
+        }
+        // API says wrong credentials — don't fall through to local
+        if ("error" in result && (result.error === "invalid_credentials" || result.error === "account_banned")) {
+          return false;
+        }
+      } catch {
+        // Network error — fall through to local auth
+      }
+
+      // ── Local fallback ────────────────────────────────────────────────────
       const id = identifier.trim().toLowerCase();
       const user = users.find(
         (u) =>
@@ -1588,6 +1732,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (user.isBanned) return false;
       setCurrentUser(user);
       await AsyncStorage.setItem("currentUser", JSON.stringify(user));
+      registerUserSocket(user.id);
       return true;
     },
     [users, passwords]
@@ -1609,6 +1754,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(
     async (name: string, username: string, email: string, governorate: string, password: string): Promise<{ success: boolean; error?: "email_exists" | "username_exists" }> => {
+      // ── Cloud registration (API) ──────────────────────────────────────────
+      try {
+        const result = await authApi.register({ name, username, email, password, governorate });
+        if ("token" in result && result.user) {
+          const localUser = serverUserToLocal(result.user) as User;
+          saveUsers([...users.filter((u) => u.id !== localUser.id), localUser]);
+          setCurrentUser(localUser);
+          await AsyncStorage.setItem("currentUser", JSON.stringify(localUser));
+          registerUserSocket(localUser.id);
+          return { success: true };
+        }
+        if ("error" in result && result.error === "email_exists") return { success: false, error: "email_exists" };
+        if ("error" in result && result.error === "username_exists") return { success: false, error: "username_exists" };
+      } catch {
+        // Network error — fall through to local registration
+      }
+
+      // ── Local fallback ────────────────────────────────────────────────────
       const emailExists = users.some((u) => u.email.toLowerCase() === email.toLowerCase());
       if (emailExists) return { success: false, error: "email_exists" };
       const usernameExists = users.some((u) => u.username && u.username.toLowerCase() === username.toLowerCase());
@@ -1630,6 +1793,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await AsyncStorage.setItem("passwords", JSON.stringify(newPasswords));
       setCurrentUser(newUser);
       await AsyncStorage.setItem("currentUser", JSON.stringify(newUser));
+      registerUserSocket(newUser.id);
       return { success: true };
     },
     [users, passwords]
@@ -1842,9 +2006,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!currentUser) return null;
       const existingRoom = rooms.find((r) => r.ownerId === currentUser.id);
       if (existingRoom) return null;
+      const roomCode = generateRoomCode();
+      const localId = generateId();
       const newRoom: Room = {
-        id: generateId(),
-        roomCode: generateRoomCode(),
+        id: localId,
+        roomCode,
         name,
         image,
         ownerId: currentUser.id,
@@ -1861,6 +2027,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       newRoom.seats[0] = currentUser.id;
       newRoom.seatUsers[0] = currentUser;
       saveRooms([...rooms, newRoom]);
+
+      // Sync to cloud (fire and forget — local state already updated)
+      roomsApi.createRoom({
+        name,
+        image,
+        ownerId: currentUser.id,
+        ownerName: currentUser.name,
+        roomCode,
+        seats: newRoom.seats,
+      }).then((serverRoom) => {
+        if (serverRoom) {
+          // Update room id to server id so other devices can find it
+          const updated = [...rooms, newRoom].map((r) =>
+            r.id === localId ? { ...r, id: serverRoom.id, roomCode: serverRoom.roomCode ?? r.roomCode } : r
+          );
+          saveRooms(updated);
+        }
+      }).catch(() => {});
+
       return newRoom;
     },
     [currentUser, rooms]
@@ -1935,6 +2120,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return { ...r, presentUserIds, chat: [...r.chat.slice(-100), systemMsg] };
       });
       saveRooms(updated);
+      // Sync to cloud + subscribe to room socket channel
+      roomsApi.joinRoom(roomId, {
+        userId: currentUser.id,
+        userName: currentUser.name,
+        userImage: currentUser.avatar,
+        seatIndex: -1,
+      }).catch(() => {});
+      try { getSocket().emit("room:subscribe", roomId); } catch {}
     },
     [currentUser, rooms]
   );
@@ -1948,6 +2141,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return { ...r, presentUserIds };
       });
       saveRooms(updated);
+      // Sync to cloud
+      roomsApi.leaveRoom(roomId, currentUser.id).catch(() => {});
+      try { getSocket().emit("room:unsubscribe", roomId); } catch {}
     },
     [currentUser, rooms]
   );
@@ -1973,6 +2169,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return { ...r, seats, seatUsers, presentUserIds, isHidden: false, chat: [...r.chat.slice(-100), systemMsg] };
       });
       saveRooms(updated);
+      // Sync to cloud
+      roomsApi.leaveRoom(roomId, currentUser.id).catch(() => {});
+      try { getSocket().emit("room:unsubscribe", roomId); } catch {}
     },
     [currentUser, rooms]
   );
@@ -2322,6 +2521,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updated = [...conversations, newConvo];
       }
       saveConversations(updated);
+
+      // ── Sync to cloud via API (fire-and-forget) ───────────────────────────
+      // findOrCreate a cloud chat, then persist the message
+      ;(async () => {
+        try {
+          const chat = await messagesApi.findOrCreateChat(currentUser.id, receiverId);
+          if (chat) {
+            await messagesApi.sendMessage(chat.id, {
+              senderId: currentUser.id,
+              receiverId,
+              content,
+              type: type as string,
+              mediaUrl,
+            });
+          }
+        } catch {}
+      })();
+
+      // ── Broadcast over Socket so the receiver's device updates in real-time ─
+      try {
+        getSocket().emit("private-message", {
+          conversationId,
+          receiverId,
+          message: {
+            id: msg.id,
+            senderId: msg.senderId,
+            senderName: currentUser.name,
+            content,
+            type,
+            mediaUrl,
+            timestamp: msg.timestamp,
+            read: false,
+          },
+        });
+      } catch {}
     },
     [currentUser, conversations, users]
   );
@@ -2969,6 +3203,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     (query: string): User[] => {
       if (!query.trim()) return [];
       const q = query.trim().toLowerCase();
+      // Kick off async API search to refresh local cache
+      usersApi.search(query).then((remoteUsers) => {
+        if (!remoteUsers?.length) return;
+        setUsers((prev) => {
+          const byId = new Map(prev.map((u) => [u.id, u]));
+          remoteUsers.forEach((ru: any) => {
+            if (!byId.has(ru.id)) {
+              byId.set(ru.id, serverUserToLocal(ru) as User);
+            }
+          });
+          const next = Array.from(byId.values());
+          AsyncStorage.setItem("users", JSON.stringify(next));
+          return next;
+        });
+      }).catch(() => {});
       return users.filter(
         (u) =>
           u.id !== currentUser?.id &&

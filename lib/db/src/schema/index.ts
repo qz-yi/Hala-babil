@@ -27,13 +27,26 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   username: text("username").unique(),
   email: text("email").notNull().unique(),
-  phoneNumber: text("phone_number").notNull().unique(),
+  phoneNumber: text("phone_number").unique(),
   age: integer("age"),
   image: text("image"),
   bio: text("bio"),
-  accountType: text("account_type").default("public"), // public | private
+  accountType: text("account_type").default("public"),
   pushToken: text("push_token"),
+  primaryGovernorate: text("primary_governorate"),
+  role: text("role").default("USER"),
+  isBanned: boolean("is_banned").default(false),
+  isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 1b. كلمات مرور المستخدمين (مشفرة bcrypt)
+export const userPasswords = pgTable("user_passwords", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // 2. جدول المطاعم (Hilla Connect)
@@ -62,16 +75,34 @@ export const rooms = pgTable("rooms", {
   name: text("name").notNull(),
   description: text("description"),
   roomImage: text("room_image"),
-  creatorId: integer("creator_id").references(() => users.id),
+  roomCode: text("room_code").unique(),
+  creatorId: text("creator_id").notNull(),
+  creatorName: text("creator_name"),
   isVoiceActive: boolean("is_voice_active").default(true),
+  isHidden: boolean("is_hidden").default(false),
+  seats: jsonb("seats").$type<(string | null)[]>().default(sql`'[null,null,null,null,null,null,null,null]'::jsonb`),
+  bannedUsers: jsonb("banned_users").$type<string[]>().default(sql`'[]'::jsonb`),
+  mutedUsers: jsonb("muted_users").$type<string[]>().default(sql`'[]'::jsonb`),
+  chat: jsonb("chat").$type<unknown[]>().default(sql`'[]'::jsonb`),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// 4b. أعضاء الغرف الصوتية (مقاعد + حضور)
+export const roomParticipants = pgTable("room_participants", {
+  id: serial("id").primaryKey(),
+  roomId: integer("room_id").references(() => rooms.id, { onDelete: "cascade" }).notNull(),
+  userId: text("user_id").notNull(),
+  userName: text("user_name"),
+  userImage: text("user_image"),
+  seatIndex: integer("seat_index").default(-1),
+  joinedAt: timestamp("joined_at").defaultNow(),
 });
 
 // 5. الدردشات الخاصة
 export const privateChats = pgTable("private_chats", {
   id: serial("id").primaryKey(),
-  user1Id: integer("user1_id").references(() => users.id),
-  user2Id: integer("user2_id").references(() => users.id),
+  user1Id: text("user1_id").notNull(),
+  user2Id: text("user2_id").notNull(),
   lastActivity: timestamp("last_activity").defaultNow(),
 });
 
@@ -79,11 +110,16 @@ export const privateChats = pgTable("private_chats", {
 export const privateMessages = pgTable("private_messages", {
   id: serial("id").primaryKey(),
   chatId: integer("chat_id").references(() => privateChats.id),
-  senderId: integer("sender_id").references(() => users.id),
+  senderId: text("sender_id").notNull(),
+  receiverId: text("receiver_id").notNull(),
   content: text("content"),
   mediaUrl: text("media_url"),
-  type: text("type").default("text"), // text | image | video | audio | audio_call | video_call
+  type: text("type").default("text"),
   duration: integer("duration"),
+  isRead: boolean("is_read").default(false),
+  isDeleted: boolean("is_deleted").default(false),
+  sharedContent: jsonb("shared_content"),
+  replyToId: integer("reply_to_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -93,7 +129,7 @@ export const reels = pgTable("reels", {
   videoUrl: text("video_url").notNull(),
   title: text("title"),
   creatorId: integer("creator_id").references(() => users.id),
-  filter: text("filter").default("none"), // none, grayscale, warm, cool, vintage
+  filter: text("filter").default("none"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -117,10 +153,12 @@ export const comments = pgTable("comments", {
 // 10. جدول المنشورات (Posts)
 export const posts = pgTable("posts", {
   id: serial("id").primaryKey(),
-  creatorId: integer("creator_id").references(() => users.id),
+  creatorId: text("creator_id").notNull(),
+  creatorName: text("creator_name"),
+  creatorImage: text("creator_image"),
   content: text("content"),
   mediaUrl: text("media_url"),
-  mediaType: text("media_type").default("none"), // none | image | video
+  mediaType: text("media_type").default("none"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -128,7 +166,7 @@ export const posts = pgTable("posts", {
 export const postLikes = pgTable("post_likes", {
   id: serial("id").primaryKey(),
   postId: integer("post_id").references(() => posts.id),
-  userId: integer("user_id").references(() => users.id),
+  userId: text("user_id").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -136,7 +174,9 @@ export const postLikes = pgTable("post_likes", {
 export const postComments = pgTable("post_comments", {
   id: serial("id").primaryKey(),
   postId: integer("post_id").references(() => posts.id),
-  userId: integer("user_id").references(() => users.id),
+  userId: text("user_id").notNull(),
+  userName: text("user_name"),
+  userImage: text("user_image"),
   content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -152,7 +192,7 @@ export const stories = pgTable("stories", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   mediaUrl: text("media_url"),
-  mediaType: text("media_type").notNull().default("image"), // image | video
+  mediaType: text("media_type").notNull().default("image"),
   caption: text("caption"),
   filter: text("filter").notNull().default("none"),
   sharedPost: jsonb("shared_post").$type<Record<string, unknown> | null>(),
@@ -164,25 +204,25 @@ export const stories = pgTable("stories", {
 export const storyViews = pgTable("story_views", {
   id: serial("id").primaryKey(),
   storyId: integer("story_id").references(() => stories.id),
-  viewerId: integer("viewer_id").references(() => users.id),
+  viewerId: text("viewer_id").notNull(),
   viewedAt: timestamp("viewed_at").defaultNow(),
 });
 
 // 15. جدول المتابعة (Follows)
 export const follows = pgTable("follows", {
   id: serial("id").primaryKey(),
-  followerId: integer("follower_id").references(() => users.id),
-  followingId: integer("following_id").references(() => users.id),
-  status: text("status").default("accepted"), // accepted | pending
+  followerId: text("follower_id").notNull(),
+  followingId: text("following_id").notNull(),
+  status: text("status").default("accepted"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 // 16. جدول الإشعارات (Notifications)
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
-  recipientId: integer("recipient_id").references(() => users.id),
-  senderId: integer("sender_id").references(() => users.id),
-  type: text("type").notNull(), // follow_request | follow_accept | like | comment | post | story | message
+  recipientId: text("recipient_id").notNull(),
+  senderId: text("sender_id"),
+  type: text("type").notNull(),
   referenceId: text("reference_id"),
   message: text("message"),
   isRead: boolean("is_read").default(false),

@@ -2,6 +2,7 @@ import { createServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
 import app from "./app";
 import { logger } from "./lib/logger";
+import { setSocketIo } from "./lib/socketSingleton";
 
 const rawPort = process.env["PORT"];
 
@@ -27,13 +28,13 @@ const io = new SocketIOServer(httpServer, {
   path: "/socket.io/",
 });
 
+// Make io accessible from routes via singleton
+setSocketIo(io);
+
 // ─── Game Rooms: roomId → ephemeral GameState ────────────────────────────────
 const gameRooms = new Map<string, any>();
 
 // ─── Presence Map: userId → Set<socketId> ────────────────────────────────────
-// Tracks all active sockets for each user so we can:
-//   1. Broadcast incoming-call to ALL devices at once
-//   2. Dismiss ringing on all OTHER devices when one answers
 const presenceMap = new Map<string, Set<string>>();
 
 function addPresence(userId: string, socketId: string) {
@@ -55,13 +56,25 @@ io.on("connection", (socket) => {
   let registeredUserId: string | null = null;
 
   // ── Personal room registration + Presence Manager ────────────────────────
-  // Each socket joins its personal room (for targeted signals).
-  // Also tracked in presenceMap for cross-device broadcast.
   socket.on("register-user", (userId: string) => {
     registeredUserId = userId;
     socket.join(`user_${userId}`);
     addPresence(userId, socket.id);
     logger.info({ userId, socketId: socket.id }, "[socket.io] User registered");
+
+    // Broadcast online status
+    io.emit("user:online", { userId });
+  });
+
+  // ── Subscribe to voice room socket room ──────────────────────────────────
+  // Client emits this to receive room:participant-joined/left + room:message events
+  socket.on("room:subscribe", (roomId: string) => {
+    socket.join(`room_${roomId}`);
+    logger.info({ roomId, socketId: socket.id }, "[socket.io] Subscribed to room channel");
+  });
+
+  socket.on("room:unsubscribe", (roomId: string) => {
+    socket.leave(`room_${roomId}`);
   });
 
   // ── Call Room (WebRTC signaling room) ─────────────────────────────────────
@@ -94,9 +107,7 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("call-ended");
   });
 
-  // ── NEW: Cold-call initiation ─────────────────────────────────────────────
-  // Caller emits this BEFORE navigating to the call screen.
-  // Server broadcasts `incoming-call` to ALL devices of the target user.
+  // ── Cold-call initiation ──────────────────────────────────────────────────
   socket.on("initiate-call", (payload: {
     targetUserId: string;
     fromUserId: string;
@@ -115,21 +126,17 @@ io.on("connection", (socket) => {
     });
   });
 
-  // ── NEW: Callee accepts ───────────────────────────────────────────────────
-  // 1. Notify caller their call was accepted.
-  // 2. Dismiss ringing on ALL OTHER devices of the same callee user.
+  // ── Callee accepts ────────────────────────────────────────────────────────
   socket.on("accept-call", (payload: {
     callRoomId: string;
     fromUserId: string;
     calleeUserId: string;
   }) => {
     logger.info({ payload }, "[socket.io] Call accepted");
-    // Tell the caller
     io.to(`user_${payload.fromUserId}`).emit("call-accepted", {
       callRoomId: payload.callRoomId,
       calleeUserId: payload.calleeUserId,
     });
-    // Dismiss on all OTHER callee devices (not the one that answered)
     const calleeSockets = presenceMap.get(payload.calleeUserId);
     if (calleeSockets) {
       calleeSockets.forEach((sid) => {
@@ -140,7 +147,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ── NEW: Callee declines ──────────────────────────────────────────────────
+  // ── Callee declines ───────────────────────────────────────────────────────
   socket.on("decline-call", (payload: {
     callRoomId: string;
     fromUserId: string;
@@ -150,7 +157,6 @@ io.on("connection", (socket) => {
     io.to(`user_${payload.fromUserId}`).emit("call-declined", {
       callRoomId: payload.callRoomId,
     });
-    // Also dismiss on any other callee devices still ringing
     const calleeSockets = presenceMap.get(payload.calleeUserId);
     if (calleeSockets) {
       calleeSockets.forEach((sid) => {
@@ -161,7 +167,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ── NEW: Caller cancels before answer ─────────────────────────────────────
+  // ── Caller cancels before answer ──────────────────────────────────────────
   socket.on("cancel-call", (payload: {
     callRoomId: string;
     targetUserId: string;
@@ -172,7 +178,31 @@ io.on("connection", (socket) => {
     });
   });
 
-  // ── In-call multi-party invite (existing) ─────────────────────────────────
+  // ── Private message relay ────────────────────────────────────────────────
+  // Client emits this; server fans it out to all sockets of the target user.
+  socket.on("private-message", (payload: {
+    conversationId: string;
+    receiverId: string;
+    message: {
+      id: string;
+      senderId: string;
+      senderName: string;
+      content: string;
+      type: string;
+      mediaUrl?: string;
+      timestamp: number;
+      read: boolean;
+    };
+  }) => {
+    if (!payload?.receiverId) return;
+    logger.info({ to: payload.receiverId }, "[socket.io] Relaying private-message");
+    io.to(`user_${payload.receiverId}`).emit("private-message", {
+      conversationId: payload.conversationId,
+      message: payload.message,
+    });
+  });
+
+  // ── In-call multi-party invite ─────────────────────────────────────────────
   socket.on("invite-to-call", (payload: {
     targetUserId: string;
     fromUserId: string;
@@ -235,6 +265,7 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     if (registeredUserId) {
       removePresence(registeredUserId, socket.id);
+      io.emit("user:offline", { userId: registeredUserId });
       logger.info({ userId: registeredUserId, socketId: socket.id }, "[socket.io] Presence removed");
     }
     logger.info({ socketId: socket.id }, "[socket.io] Client disconnected");

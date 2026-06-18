@@ -1,9 +1,39 @@
-import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useRef } from "react";
+import {
+  Animated,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { Circle, G, Line, Rect, Svg } from "react-native-svg";
 
-import { TicTacToeState, GamePlayer } from "./gameTypes";
+import TurnTimer from "@/components/games/TurnTimer";
+import { GamePlayer, TicTacToeState } from "./gameTypes";
+
+// ── SVG Board constants ────────────────────────────────────────────────────
+const BOARD_SIZE = 270;
+const CELL = BOARD_SIZE / 3; // 90
+const PAD = 12; // inner padding for grid lines
+
+const cellCenter = (idx: number) => ({
+  cx: (idx % 3) * CELL + CELL / 2,
+  cy: Math.floor(idx / 3) * CELL + CELL / 2,
+});
+
+const WIN_LINE_ENDPOINTS: Record<string, [number, number, number, number]> = {
+  "0,1,2": [PAD, CELL / 2, BOARD_SIZE - PAD, CELL / 2],
+  "3,4,5": [PAD, CELL * 1.5, BOARD_SIZE - PAD, CELL * 1.5],
+  "6,7,8": [PAD, CELL * 2.5, BOARD_SIZE - PAD, CELL * 2.5],
+  "0,3,6": [CELL / 2, PAD, CELL / 2, BOARD_SIZE - PAD],
+  "1,4,7": [CELL * 1.5, PAD, CELL * 1.5, BOARD_SIZE - PAD],
+  "2,5,8": [CELL * 2.5, PAD, CELL * 2.5, BOARD_SIZE - PAD],
+  "0,4,8": [PAD + 4, PAD + 4, BOARD_SIZE - PAD - 4, BOARD_SIZE - PAD - 4],
+  "2,4,6": [BOARD_SIZE - PAD - 4, PAD + 4, PAD + 4, BOARD_SIZE - PAD - 4],
+};
 
 interface Props {
   state: TicTacToeState;
@@ -12,6 +42,7 @@ interface Props {
   currentUserId: string;
   isMyTurn: boolean;
   amIPlayer: boolean;
+  turnTimeLeft: number;
   onPlay: (cellIndex: number) => void;
   onReset: () => void;
 }
@@ -23,6 +54,7 @@ export default function TicTacToeGame({
   currentUserId,
   isMyTurn,
   amIPlayer,
+  turnTimeLeft,
   onPlay,
   onReset,
 }: Props) {
@@ -30,32 +62,60 @@ export default function TicTacToeGame({
   const currentPlayer = players[currentTurnIndex];
   const isFinished = state.winLine !== null || state.isDraw;
 
-  const getCellStyle = (idx: number) => {
-    const isWin = state.winLine?.includes(idx);
-    const cell = state.board[idx];
-    return {
-      bg: isWin
-        ? cell === "X" ? "rgba(99,102,241,0.3)" : "rgba(239,68,68,0.3)"
-        : "rgba(255,255,255,0.06)",
-      border: isWin
-        ? cell === "X" ? "#6366F1" : "#EF4444"
-        : "rgba(255,255,255,0.12)",
-    };
-  };
+  // ── Per-cell scale animations ──────────────────────────────────────────
+  const cellScales = useRef(
+    Array(9).fill(null).map(() => new Animated.Value(0)),
+  );
+  const prevBoard = useRef<typeof state.board>(Array(9).fill(null));
 
-  const renderSymbol = (cell: "X" | "O" | null, idx: number) => {
-    if (!cell) return null;
-    const isWin = state.winLine?.includes(idx);
-    const color = cell === "X" ? "#6366F1" : "#EF4444";
-    return (
-      <Text style={[styles.cellSymbol, { color: isWin ? color : color + "cc" }]}>
-        {cell === "X" ? "✕" : "○"}
-      </Text>
-    );
-  };
+  // Initialize existing pieces on first render (e.g. joining a mid-game)
+  useEffect(() => {
+    state.board.forEach((cell, i) => {
+      if (cell !== null) cellScales.current[i].setValue(1);
+    });
+    prevBoard.current = [...state.board];
+  }, []);
+
+  // Animate newly placed pieces
+  useEffect(() => {
+    state.board.forEach((cell, i) => {
+      if (cell !== null && prevBoard.current[i] === null) {
+        cellScales.current[i].setValue(0);
+        Animated.spring(cellScales.current[i], {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 240,
+          friction: 9,
+        }).start();
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+    });
+    prevBoard.current = [...state.board];
+  }, [state.board]);
+
+  // Win line animation
+  const winOpacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (state.winLine) {
+      winOpacity.setValue(0);
+      Animated.timing(winOpacity, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [state.winLine]);
+
+  const winLineKey = state.winLine ? state.winLine.join(",") : null;
+  const winEndpoints = winLineKey ? WIN_LINE_ENDPOINTS[winLineKey] : null;
+  const winColor = state.winLine && state.board[state.winLine[0]] === "X"
+    ? "#6366F1" : "#EF4444";
 
   return (
     <View style={styles.container}>
+      {/* Turn timer */}
+      <TurnTimer timeLeft={turnTimeLeft} isActive={!isFinished && amIPlayer} />
+
       {/* Status bar */}
       <View style={styles.statusBar}>
         <Text style={styles.lastAction}>{state.lastAction}</Text>
@@ -76,9 +136,16 @@ export default function TicTacToeGame({
               ]}
             >
               <View style={[styles.symbolBadge, { backgroundColor: symColor + "22" }]}>
-                <Text style={[styles.symbolBadgeText, { color: symColor }]}>
-                  {sym === "X" ? "✕" : "○"}
-                </Text>
+                <Svg width={28} height={28} viewBox="0 0 28 28">
+                  {sym === "X" ? (
+                    <G>
+                      <Line x1={5} y1={5} x2={23} y2={23} stroke={symColor} strokeWidth={3.5} strokeLinecap="round" />
+                      <Line x1={23} y1={5} x2={5} y2={23} stroke={symColor} strokeWidth={3.5} strokeLinecap="round" />
+                    </G>
+                  ) : (
+                    <Circle cx={14} cy={14} r={10} stroke={symColor} strokeWidth={3.5} fill="none" />
+                  )}
+                </Svg>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.playerName} numberOfLines={1}>{p.name}</Text>
@@ -96,47 +163,153 @@ export default function TicTacToeGame({
         })}
       </View>
 
-      {/* Grid */}
-      <View style={styles.gridWrap}>
-        <View style={styles.grid}>
-          {state.board.map((cell, idx) => {
-            const cellStyle = getCellStyle(idx);
-            const canPlay = isMyTurn && !cell && !isFinished && amIPlayer;
-            return (
-              <TouchableOpacity
-                key={idx}
-                onPress={() => canPlay && onPlay(idx)}
-                activeOpacity={canPlay ? 0.7 : 1}
-                style={[
-                  styles.cell,
-                  { backgroundColor: cellStyle.bg, borderColor: cellStyle.border },
-                  canPlay && styles.cellPlayable,
-                ]}
-              >
-                {renderSymbol(cell, idx)}
-                {!cell && canPlay && (
-                  <Text style={styles.cellHint}>
-                    {mySymbol === "X" ? "✕" : "○"}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+      {/* ── SVG BOARD ── */}
+      <View style={styles.boardWrap}>
+        {/* Grid lines */}
+        <Svg
+          width={BOARD_SIZE}
+          height={BOARD_SIZE}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        >
+          {/* Background */}
+          <Rect
+            x={0} y={0}
+            width={BOARD_SIZE} height={BOARD_SIZE}
+            rx={20} ry={20}
+            fill="rgba(255,255,255,0.04)"
+          />
+          {/* Vertical dividers */}
+          <Line
+            x1={CELL} y1={PAD} x2={CELL} y2={BOARD_SIZE - PAD}
+            stroke="rgba(255,255,255,0.2)" strokeWidth={2} strokeLinecap="round"
+          />
+          <Line
+            x1={CELL * 2} y1={PAD} x2={CELL * 2} y2={BOARD_SIZE - PAD}
+            stroke="rgba(255,255,255,0.2)" strokeWidth={2} strokeLinecap="round"
+          />
+          {/* Horizontal dividers */}
+          <Line
+            x1={PAD} y1={CELL} x2={BOARD_SIZE - PAD} y2={CELL}
+            stroke="rgba(255,255,255,0.2)" strokeWidth={2} strokeLinecap="round"
+          />
+          <Line
+            x1={PAD} y1={CELL * 2} x2={BOARD_SIZE - PAD} y2={CELL * 2}
+            stroke="rgba(255,255,255,0.2)" strokeWidth={2} strokeLinecap="round"
+          />
 
-        {/* Win overlay lines (visual) */}
-        {state.winLine && (
-          <View style={styles.winOverlay} pointerEvents="none">
-            <LinearGradient
-              colors={
-                state.board[state.winLine[0]] === "X"
-                  ? ["#6366F180", "#6366F120"]
-                  : ["#EF444480", "#EF444420"]
-              }
-              style={styles.winLine}
+          {/* Win line */}
+          {winEndpoints && (
+            <Line
+              x1={winEndpoints[0]} y1={winEndpoints[1]}
+              x2={winEndpoints[2]} y2={winEndpoints[3]}
+              stroke={winColor}
+              strokeWidth={5}
+              strokeLinecap="round"
+              opacity={0.85}
             />
-          </View>
-        )}
+          )}
+        </Svg>
+
+        {/* Pieces — Animated.View over each cell */}
+        {state.board.map((cell, idx) => {
+          if (!cell) return null;
+          const col = idx % 3;
+          const row = Math.floor(idx / 3);
+          const isWin = state.winLine?.includes(idx) ?? false;
+          const scale = cellScales.current[idx];
+
+          return (
+            <Animated.View
+              key={idx}
+              style={{
+                position: "absolute",
+                left: col * CELL,
+                top: row * CELL,
+                width: CELL,
+                height: CELL,
+                alignItems: "center",
+                justifyContent: "center",
+                transform: [{ scale }],
+              }}
+              pointerEvents="none"
+            >
+              {cell === "X" ? (
+                <Svg width={58} height={58} viewBox="0 0 58 58">
+                  <Line
+                    x1={10} y1={10} x2={48} y2={48}
+                    stroke={isWin ? "#818CF8" : "#6366F1"}
+                    strokeWidth={isWin ? 8 : 6}
+                    strokeLinecap="round"
+                  />
+                  <Line
+                    x1={48} y1={10} x2={10} y2={48}
+                    stroke={isWin ? "#818CF8" : "#6366F1"}
+                    strokeWidth={isWin ? 8 : 6}
+                    strokeLinecap="round"
+                  />
+                </Svg>
+              ) : (
+                <Svg width={58} height={58} viewBox="0 0 58 58">
+                  <Circle
+                    cx={29} cy={29} r={23}
+                    stroke={isWin ? "#F87171" : "#EF4444"}
+                    strokeWidth={isWin ? 8 : 6}
+                    fill="none"
+                  />
+                </Svg>
+              )}
+            </Animated.View>
+          );
+        })}
+
+        {/* Hint ghost on empty canPlay cells */}
+        {!isFinished && isMyTurn && amIPlayer && state.board.map((cell, idx) => {
+          if (cell !== null) return null;
+          const col = idx % 3;
+          const row = Math.floor(idx / 3);
+          return (
+            <View
+              key={`hint${idx}`}
+              style={{
+                position: "absolute",
+                left: col * CELL,
+                top: row * CELL,
+                width: CELL,
+                height: CELL,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              pointerEvents="none"
+            >
+              {mySymbol === "X" ? (
+                <Svg width={40} height={40} viewBox="0 0 40 40">
+                  <Line x1={7} y1={7} x2={33} y2={33} stroke="rgba(99,102,241,0.2)" strokeWidth={5} strokeLinecap="round" />
+                  <Line x1={33} y1={7} x2={7} y2={33} stroke="rgba(99,102,241,0.2)" strokeWidth={5} strokeLinecap="round" />
+                </Svg>
+              ) : (
+                <Svg width={40} height={40} viewBox="0 0 40 40">
+                  <Circle cx={20} cy={20} r={14} stroke="rgba(239,68,68,0.2)" strokeWidth={5} fill="none" />
+                </Svg>
+              )}
+            </View>
+          );
+        })}
+
+        {/* Touch targets — invisible Pressable over each cell */}
+        {Array.from({ length: 9 }).map((_, idx) => {
+          const col = idx % 3;
+          const row = Math.floor(idx / 3);
+          const cell = state.board[idx];
+          const canPlay = isMyTurn && !cell && !isFinished && amIPlayer;
+          return (
+            <Pressable
+              key={`touch${idx}`}
+              style={{ position: "absolute", left: col * CELL, top: row * CELL, width: CELL, height: CELL }}
+              onPress={() => canPlay && onPlay(idx)}
+            />
+          );
+        })}
       </View>
 
       {/* Turn indicator */}
@@ -149,12 +322,12 @@ export default function TicTacToeGame({
           ) : amIPlayer ? (
             <Text style={styles.waitText}>انتظر دور {currentPlayer?.name}...</Text>
           ) : (
-            <Text style={styles.waitText}>تتفرج على اللعبة</Text>
+            <Text style={styles.waitText}>تتفرج على اللعبة 👀</Text>
           )}
         </View>
       )}
 
-      {/* Draw / Reset */}
+      {/* Reset button after game ends */}
       {isFinished && (
         <TouchableOpacity onPress={onReset} style={styles.resetBtn} activeOpacity={0.8}>
           <LinearGradient
@@ -162,8 +335,7 @@ export default function TicTacToeGame({
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
             style={styles.resetBtnGradient}
           >
-            <Ionicons name="refresh" size={18} color="#fff" />
-            <Text style={styles.resetBtnText}>لعبة جديدة</Text>
+            <Text style={styles.resetBtnText}>🔄 لعبة جديدة</Text>
           </LinearGradient>
         </TouchableOpacity>
       )}
@@ -172,19 +344,17 @@ export default function TicTacToeGame({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, alignItems: "center" },
+  container: { flex: 1, alignItems: "center", paddingTop: 4 },
   statusBar: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.07)",
     borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8,
-    marginBottom: 16, width: "100%",
+    marginBottom: 14, width: "92%",
   },
   lastAction: {
     color: "rgba(255,255,255,0.85)", fontFamily: "Inter_500Medium",
     fontSize: 13, textAlign: "center",
   },
-  playersRow: {
-    flexDirection: "row", gap: 10, width: "100%", marginBottom: 20,
-  },
+  playersRow: { flexDirection: "row", gap: 10, width: "92%", marginBottom: 20 },
   playerCard: {
     flex: 1, flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 14,
@@ -194,7 +364,6 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 10,
     alignItems: "center", justifyContent: "center",
   },
-  symbolBadgeText: { fontSize: 18, fontFamily: "Inter_700Bold" },
   playerName: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
   youLabel: { fontSize: 10, fontFamily: "Inter_500Medium", marginTop: 2 },
   activeDot: {
@@ -202,25 +371,20 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,215,0,0.2)",
     alignItems: "center", justifyContent: "center",
   },
-  gridWrap: { position: "relative", marginBottom: 20 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 10, width: 270 },
-  cell: {
-    width: 82, height: 82, borderRadius: 16, borderWidth: 1.5,
-    alignItems: "center", justifyContent: "center",
+  boardWrap: {
+    width: BOARD_SIZE, height: BOARD_SIZE,
+    position: "relative",
+    marginBottom: 20,
   },
-  cellPlayable: { borderStyle: "dashed" },
-  cellSymbol: { fontSize: 38, fontFamily: "Inter_700Bold" },
-  cellHint: { fontSize: 28, color: "rgba(255,255,255,0.18)", fontFamily: "Inter_700Bold" },
-  winOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
-  winLine: { width: "80%", height: 6, borderRadius: 3 },
-  turnRow: { alignItems: "center" },
+  turnRow: { alignItems: "center", marginTop: 4 },
   myTurnPill: {
     backgroundColor: "rgba(99,102,241,0.25)", borderRadius: 20,
     paddingHorizontal: 20, paddingVertical: 10,
+    borderWidth: 1, borderColor: "rgba(99,102,241,0.4)",
   },
   myTurnText: { color: "#6366F1", fontFamily: "Inter_700Bold", fontSize: 15 },
   waitText: { color: "rgba(255,255,255,0.45)", fontFamily: "Inter_400Regular", fontSize: 14 },
-  resetBtn: { marginTop: 8, width: "80%" },
+  resetBtn: { marginTop: 16, width: "80%" },
   resetBtnGradient: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 8, borderRadius: 16, paddingVertical: 14,

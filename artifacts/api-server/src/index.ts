@@ -27,6 +27,9 @@ const io = new SocketIOServer(httpServer, {
   path: "/socket.io/",
 });
 
+// ─── Game Rooms: roomId → ephemeral GameState ────────────────────────────────
+const gameRooms = new Map<string, any>();
+
 // ─── Presence Map: userId → Set<socketId> ────────────────────────────────────
 // Tracks all active sockets for each user so we can:
 //   1. Broadcast incoming-call to ALL devices at once
@@ -183,6 +186,49 @@ io.on("connection", (socket) => {
       newRoomId: payload.callRoomId,
       callType: payload.callType,
     });
+  });
+
+  // ── GAME ROOMS ────────────────────────────────────────────────────────────
+  socket.on("game:join-room", (roomId: string) => {
+    socket.join(`game_${roomId}`);
+    const existing = gameRooms.get(roomId);
+    if (existing) socket.emit("game:state", existing);
+    logger.info({ roomId, socketId: socket.id }, "[game] Joined game room");
+  });
+
+  socket.on("game:start", (payload: { roomId: string; gameState: any }) => {
+    gameRooms.set(payload.roomId, payload.gameState);
+    io.to(`game_${payload.roomId}`).emit("game:state", payload.gameState);
+    logger.info({ roomId: payload.roomId, gameType: payload.gameState?.gameType }, "[game] Started");
+  });
+
+  socket.on("game:move", (payload: {
+    roomId: string;
+    newState: any;
+    playerId: string;
+    moveType: string;
+  }) => {
+    const current = gameRooms.get(payload.roomId);
+    if (!current) return;
+    const expected = current.players?.[current.currentTurnIndex];
+    if (expected?.id !== payload.playerId) {
+      logger.warn({ expected: expected?.id, got: payload.playerId }, "[game] Move rejected: wrong turn");
+      return;
+    }
+    gameRooms.set(payload.roomId, payload.newState);
+    socket.to(`game_${payload.roomId}`).emit("game:state", payload.newState);
+    logger.info({ roomId: payload.roomId, moveType: payload.moveType }, "[game] Move applied");
+  });
+
+  socket.on("game:reset", (payload: { roomId: string; newState: any }) => {
+    gameRooms.set(payload.roomId, payload.newState);
+    io.to(`game_${payload.roomId}`).emit("game:state", payload.newState);
+  });
+
+  socket.on("game:end", (roomId: string) => {
+    gameRooms.delete(roomId);
+    io.to(`game_${roomId}`).emit("game:ended");
+    logger.info({ roomId }, "[game] Ended");
   });
 
   // ── Disconnect cleanup ────────────────────────────────────────────────────

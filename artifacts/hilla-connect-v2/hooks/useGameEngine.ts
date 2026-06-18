@@ -1,11 +1,14 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  GameState, GameType, GamePlayer,
+  GameState, GameType, GamePlayer, GameStatus,
   DominoTile, DominoState,
   TicTacToeState, TicTacToeSymbol, TicTacToeCell,
   checkTicTacToeWin,
   PLAYER_COLORS,
 } from "@/components/games/gameTypes";
+import { getSocket } from "@/hooks/useSocket";
+
+const TURN_SECONDS = 30;
 
 // ════════════════════════════════════════════
 //  DOMINO helpers
@@ -19,11 +22,6 @@ function buildDominoes(): DominoTile[] {
     }
   }
   return shuffle(tiles);
-}
-
-function canPlayDomino(tile: DominoTile, leftEnd: number, rightEnd: number): boolean {
-  return tile.a === leftEnd || tile.b === leftEnd ||
-    tile.a === rightEnd || tile.b === rightEnd;
 }
 
 // ════════════════════════════════════════════
@@ -42,13 +40,101 @@ function uid(): string {
   return Math.random().toString(36).slice(2, 9);
 }
 
+function emitMove(roomId: string, newState: GameState, playerId: string, moveType: string) {
+  try {
+    getSocket().emit("game:move", { roomId, newState, playerId, moveType });
+  } catch {
+    // socket not connected — local-only mode
+  }
+}
+
+function emitReset(roomId: string, newState: GameState) {
+  try {
+    getSocket().emit("game:reset", { roomId, newState });
+  } catch {
+    // socket not connected — local-only mode
+  }
+}
+
 // ════════════════════════════════════════════
 //  Main Hook
 // ════════════════════════════════════════════
-export function useGameEngine(currentUserId: string) {
+export function useGameEngine(currentUserId: string, roomId?: string) {
   const [game, setGame] = useState<GameState | null>(null);
+  const [turnTimeLeft, setTurnTimeLeft] = useState(TURN_SECONDS);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isMyTurnRef = useRef(false);
+  const gameRef = useRef<GameState | null>(null);
 
-  // ── Start / Init ──────────────────────────
+  // Keep gameRef in sync for use in timer callbacks
+  useEffect(() => { gameRef.current = game; }, [game]);
+
+  // ── Socket: join game room + listen for remote state ──────────────────────
+  useEffect(() => {
+    if (!roomId) return;
+    const socket = getSocket();
+
+    const rejoinRoom = () => {
+      socket.emit("game:join-room", roomId);
+    };
+    rejoinRoom();
+
+    const onGameState = (newState: GameState) => {
+      setGame(newState);
+    };
+    const onGameEnded = () => {
+      setGame(null);
+    };
+
+    socket.on("game:state", onGameState);
+    socket.on("game:ended", onGameEnded);
+    socket.on("reconnect", rejoinRoom);
+
+    return () => {
+      socket.off("game:state", onGameState);
+      socket.off("game:ended", onGameEnded);
+      socket.off("reconnect", rejoinRoom);
+    };
+  }, [roomId]);
+
+  // ── Turn timer: resets whenever currentTurnIndex or game ID changes ────────
+  useEffect(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    if (!game || game.status !== "playing") {
+      setTurnTimeLeft(TURN_SECONDS);
+      return;
+    }
+
+    setTurnTimeLeft(TURN_SECONDS);
+
+    timerRef.current = setInterval(() => {
+      setTurnTimeLeft((t) => {
+        if (t <= 1) return 0;
+        return t - 1;
+      });
+    }, 1000);
+
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [game?.currentTurnIndex, game?.id, game?.status]);
+
+  // ── Auto-pass when timer expires (domino only) ────────────────────────────
+  useEffect(() => {
+    if (turnTimeLeft !== 0) return;
+    const g = gameRef.current;
+    if (!g || g.status !== "playing") return;
+    const isMyT = g.players[g.currentTurnIndex]?.id === currentUserId;
+    if (!isMyT) return;
+
+    if (g.gameType === "domino") {
+      // Trigger draw/pass via a micro-timeout to avoid setState-in-setState
+      setTimeout(() => dominoDrawFromBoneyard(), 0);
+    }
+    // Reset timer regardless
+    setTurnTimeLeft(TURN_SECONDS);
+  }, [turnTimeLeft]);
+
+  // ── Start / Init ──────────────────────────────────────────────────────────
   const startGame = useCallback((gameType: GameType, players: GamePlayer[]) => {
     const baseState: GameState = {
       id: uid(),
@@ -60,22 +146,33 @@ export function useGameEngine(currentUserId: string) {
       startTime: Date.now(),
     };
 
-    if (gameType === "domino") {
-      baseState.domino = initDomino(players);
-    } else if (gameType === "tictactoe") {
-      baseState.tictactoe = initTicTacToe(players);
-    }
+    if (gameType === "domino") baseState.domino = initDomino(players);
+    else if (gameType === "tictactoe") baseState.tictactoe = initTicTacToe(players);
 
     setGame(baseState);
 
+    if (roomId) {
+      try { getSocket().emit("game:start", { roomId, gameState: baseState }); } catch { /* offline */ }
+    }
+
     setTimeout(() => {
-      setGame((g) => g ? { ...g, status: "playing" } : g);
+      setGame((g) => {
+        if (!g) return g;
+        const updated: GameState = { ...g, status: "playing" };
+        if (roomId) {
+          try { getSocket().emit("game:start", { roomId, gameState: updated }); } catch { /* offline */ }
+        }
+        return updated;
+      });
     }, 2800);
-  }, []);
+  }, [roomId]);
 
   const endGame = useCallback(() => {
     setGame(null);
-  }, []);
+    if (roomId) {
+      try { getSocket().emit("game:end", roomId); } catch { /* offline */ }
+    }
+  }, [roomId]);
 
   const openSelector = useCallback((gameType: GameType, players: GamePlayer[]) => {
     setGame({
@@ -89,7 +186,7 @@ export function useGameEngine(currentUserId: string) {
     });
   }, []);
 
-  // ── TIC-TAC-TOE Init ──────────────────────
+  // ── TIC-TAC-TOE Init ──────────────────────────────────────────────────────
   function initTicTacToe(players: GamePlayer[]): TicTacToeState {
     const symbols: Record<string, TicTacToeSymbol> = {};
     symbols[players[0].id] = "X";
@@ -104,7 +201,7 @@ export function useGameEngine(currentUserId: string) {
     };
   }
 
-  // ── TIC-TAC-TOE Actions ───────────────────
+  // ── TIC-TAC-TOE Actions ───────────────────────────────────────────────────
   const ticTacToePlay = useCallback((cellIndex: number) => {
     setGame((g) => {
       if (!g?.tictactoe || g.status !== "playing") return g;
@@ -122,19 +219,16 @@ export function useGameEngine(currentUserId: string) {
       const winLine = checkTicTacToeWin(newBoard, mySymbol);
       const isDraw = !winLine && newBoard.every((c) => c !== null);
       const nextSymbol: TicTacToeSymbol = mySymbol === "X" ? "O" : "X";
-      const numPlayers = g.players.length;
-      const newTurnIdx = (g.currentTurnIndex + 1) % numPlayers;
+      const newTurnIdx = (g.currentTurnIndex + 1) % g.players.length;
+      const winner = winLine ? player.id : null;
+      const status: GameStatus = winner || isDraw ? "finished" : "playing";
 
       const actionLabel = winLine
         ? `🏆 ${player.name} فاز باللعبة!`
-        : isDraw
-        ? "🤝 تعادل! اللعبة انتهت"
+        : isDraw ? "🤝 تعادل! اللعبة انتهت"
         : `${player.name} لعب في الخانة ${cellIndex + 1}`;
 
-      const winner = winLine ? player.id : null;
-      const status = winner || isDraw ? "finished" : "playing";
-
-      return {
+      const newGame: GameState = {
         ...g,
         currentTurnIndex: newTurnIdx,
         winner,
@@ -148,13 +242,16 @@ export function useGameEngine(currentUserId: string) {
           lastAction: actionLabel,
         },
       };
+
+      if (roomId) emitMove(roomId, newGame, currentUserId, "tictactoe:play");
+      return newGame;
     });
-  }, [currentUserId]);
+  }, [currentUserId, roomId]);
 
   const ticTacToeReset = useCallback(() => {
     setGame((g) => {
       if (!g?.tictactoe) return g;
-      return {
+      const newGame: GameState = {
         ...g,
         status: "playing",
         winner: null,
@@ -168,10 +265,12 @@ export function useGameEngine(currentUserId: string) {
           lastAction: "لعبة جديدة! ⭕",
         },
       };
+      if (roomId) emitReset(roomId, newGame);
+      return newGame;
     });
-  }, []);
+  }, [roomId]);
 
-  // ── DOMINO Init ───────────────────────────
+  // ── DOMINO Init ───────────────────────────────────────────────────────────
   function initDomino(players: GamePlayer[]): DominoState {
     const tiles = buildDominoes();
     const hands: Record<string, DominoTile[]> = {};
@@ -183,7 +282,8 @@ export function useGameEngine(currentUserId: string) {
       idx += handSize;
     }
 
-    const firstTile = hands[players[0].id].find((t) => t.a === t.b && t.a === 6) ??
+    const firstTile =
+      hands[players[0].id].find((t) => t.a === t.b && t.a === 6) ??
       hands[players[0].id][0];
 
     const updHand = hands[players[0].id].filter((t) => t.id !== firstTile.id);
@@ -200,6 +300,7 @@ export function useGameEngine(currentUserId: string) {
     };
   }
 
+  // ── DOMINO Actions ────────────────────────────────────────────────────────
   const dominoPlayTile = useCallback((tileId: string, side: "left" | "right") => {
     setGame((g) => {
       if (!g?.domino || g.status !== "playing") return g;
@@ -227,12 +328,10 @@ export function useGameEngine(currentUserId: string) {
       }
 
       const newHand = hand.filter((_, i) => i !== tileIdx);
-      const numPlayers = g.players.length;
-      const newTurnIdx = (g.currentTurnIndex + 1) % numPlayers;
-
+      const newTurnIdx = (g.currentTurnIndex + 1) % g.players.length;
       const winner = newHand.length === 0 ? player.id : null;
 
-      return {
+      const newGame: GameState = {
         ...g,
         currentTurnIndex: newTurnIdx,
         winner,
@@ -247,8 +346,11 @@ export function useGameEngine(currentUserId: string) {
           lastAction: `${player.name} لعب ${tile.a}|${tile.b} 🀱`,
         },
       };
+
+      if (roomId) emitMove(roomId, newGame, currentUserId, "domino:play");
+      return newGame;
     });
-  }, [currentUserId]);
+  }, [currentUserId, roomId]);
 
   const dominoDrawFromBoneyard = useCallback(() => {
     setGame((g) => {
@@ -261,30 +363,42 @@ export function useGameEngine(currentUserId: string) {
         const numPlayers = g.players.length;
         const newPassCount = s.passCount + 1;
         if (newPassCount >= numPlayers) {
-          const lowestPips = g.players.reduce((best, p) => {
-            const pips = s.hands[p.id].reduce((sum, t) => sum + t.a + t.b, 0);
-            return pips < best.pips ? { id: p.id, pips } : best;
-          }, { id: g.players[0].id, pips: Infinity });
-          return { ...g, winner: lowestPips.id, status: "finished" };
+          const lowestPips = g.players.reduce(
+            (best, p) => {
+              const pips = s.hands[p.id].reduce((sum, t) => sum + t.a + t.b, 0);
+              return pips < best.pips ? { id: p.id, pips } : best;
+            },
+            { id: g.players[0].id, pips: Infinity },
+          );
+          const newGame: GameState = { ...g, winner: lowestPips.id, status: "finished" };
+          if (roomId) emitMove(roomId, newGame, currentUserId, "domino:end");
+          return newGame;
         }
-        return { ...g, currentTurnIndex: (g.currentTurnIndex + 1) % numPlayers, domino: { ...s, passCount: newPassCount, lastAction: `${player.name} مرّر (لا يوجد قطع) ⏭️` } };
+        const newGame: GameState = {
+          ...g,
+          currentTurnIndex: (g.currentTurnIndex + 1) % g.players.length,
+          domino: { ...s, passCount: newPassCount, lastAction: `${player.name} مرّر (لا يوجد قطع) ⏭️` },
+        };
+        if (roomId) emitMove(roomId, newGame, currentUserId, "domino:pass");
+        return newGame;
       }
 
       const drawn = s.boneyard[0];
-      const newBoneyard = s.boneyard.slice(1);
-      return {
+      const newGame: GameState = {
         ...g,
         domino: {
           ...s,
           hands: { ...s.hands, [player.id]: [...s.hands[player.id], drawn] },
-          boneyard: newBoneyard,
+          boneyard: s.boneyard.slice(1),
           lastAction: `${player.name} سحب من المخزون 📤`,
         },
       };
+      if (roomId) emitMove(roomId, newGame, currentUserId, "domino:draw");
+      return newGame;
     });
-  }, [currentUserId]);
+  }, [currentUserId, roomId]);
 
-  // ── Getters ───────────────────────────────
+  // ── Derived ───────────────────────────────────────────────────────────────
   const isMyTurn = game
     ? game.players[game.currentTurnIndex]?.id === currentUserId
     : false;
@@ -293,10 +407,13 @@ export function useGameEngine(currentUserId: string) {
     ? game.players.some((p) => p.id === currentUserId)
     : false;
 
+  isMyTurnRef.current = isMyTurn;
+
   return {
     game,
     isMyTurn,
     amIPlayer,
+    turnTimeLeft,
     startGame,
     endGame,
     openSelector,

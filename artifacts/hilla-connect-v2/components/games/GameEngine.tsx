@@ -43,11 +43,11 @@ export default function GameEngine({
   const bgOpacity = useRef(new Animated.Value(0)).current;
 
   const {
-    game, isMyTurn, amIPlayer,
+    game, isMyTurn, amIPlayer, turnTimeLeft,
     startGame, endGame,
     ticTacToePlay, ticTacToeReset,
     dominoPlayTile, dominoDrawFromBoneyard,
-  } = useGameEngine(currentUserId);
+  } = useGameEngine(currentUserId, roomId);
 
   React.useEffect(() => {
     if (visible) {
@@ -246,6 +246,7 @@ export default function GameEngine({
                     currentUserId={currentUserId}
                     isMyTurn={isMyTurn}
                     amIPlayer={amIPlayer}
+                    turnTimeLeft={turnTimeLeft}
                     onPlay={ticTacToePlay}
                     onReset={ticTacToeReset}
                   />
@@ -258,6 +259,7 @@ export default function GameEngine({
                     currentUserId={currentUserId}
                     isMyTurn={isMyTurn}
                     amIPlayer={amIPlayer}
+                    turnTimeLeft={turnTimeLeft}
                     onPlayTile={dominoPlayTile}
                     onDrawFromBoneyard={dominoDrawFromBoneyard}
                   />

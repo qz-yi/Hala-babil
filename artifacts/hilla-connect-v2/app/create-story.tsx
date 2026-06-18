@@ -1679,8 +1679,9 @@ export default function CreateStoryScreen() {
   // available screen real estate (e.g. a very tall portrait image inside
   // a phone screen).
   const frameSizeStyle: { width: number | "100%"; height: number | "100%" } = (() => {
-    if (!effectiveAspectRatio) {
-      // Fullscreen → fill whatever space the letterbox gives us.
+    if (showLanding || !effectiveAspectRatio) {
+      // Landing chooser or fullscreen mode → fill the entire letterbox so no
+      // bounded rectangle is visible behind the picker cards.
       return { width: "100%", height: "100%" };
     }
     const screenW = SCREEN.width;

@@ -7,6 +7,7 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
   Dimensions,
   FlatList,
   Image,
@@ -788,7 +789,7 @@ function PublishModal({
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      mediaTypes: ["videos" as any],
       quality: 0.7,
     });
     if (!result.canceled && result.assets[0]) {
@@ -1005,7 +1006,7 @@ function ShoppableReelModal({
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") { showToast("يرجى السماح بالوصول للمعرض", "error"); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      mediaTypes: ["videos" as any],
       quality: 0.7,
     });
     if (!result.canceled && result.assets[0]) setVideoUri(result.assets[0].uri);

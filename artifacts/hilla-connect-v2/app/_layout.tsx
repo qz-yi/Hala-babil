@@ -131,30 +131,54 @@ function NotificationSetup() {
   useEffect(() => {
     if (!currentUser || !Notifications) return;
 
-    registerForPushNotifications().then((_token) => {});
+    // Fail-safe: notifications may not be available in Expo Go on all platforms
+    let registered = false;
+    try {
+      registerForPushNotifications().catch(() => {});
 
-    notificationListener.current = Notifications.addNotificationReceivedListener((_notification: any) => {});
+      notificationListener.current = Notifications.addNotificationReceivedListener(
+        (_notification: any) => {},
+      );
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener((response: any) => {
-      const data = response.notification.request.content.data as any;
-      if (!data) return;
-      const { type, referenceId, senderId } = data;
-      if (type === "message" && senderId) {
-        router.push(`/chat/${senderId}` as any);
-      } else if ((type === "comment" || type === "like" || type === "mention") && referenceId) {
-        router.push(`/post/${referenceId}` as any);
-      } else if (type === "follow_request" || type === "follow_accept") {
-        router.push(`/profile/${senderId}` as any);
-      } else if (type === "story" && senderId) {
-        router.push(`/story/${senderId}` as any);
-      } else {
-        router.push("/notifications" as any);
-      }
-    });
+      responseListener.current = Notifications.addNotificationResponseReceivedListener(
+        (response: any) => {
+          try {
+            const data = response?.notification?.request?.content?.data as any;
+            if (!data) return;
+            const { type, referenceId, senderId } = data;
+            // POP_TO_TOP guard: use replace instead of push to avoid invalid stack
+            // context errors when navigating from a notification to a tab screen
+            const safeNavigate = (path: string) => {
+              try {
+                router.push(path as any);
+              } catch {
+                try { router.replace(path as any); } catch { /* ignore */ }
+              }
+            };
+            if (type === "message" && senderId) {
+              safeNavigate(`/chat/${senderId}`);
+            } else if ((type === "comment" || type === "like" || type === "mention") && referenceId) {
+              safeNavigate(`/post/${referenceId}`);
+            } else if (type === "follow_request" || type === "follow_accept") {
+              safeNavigate(`/profile/${senderId}`);
+            } else if (type === "story" && senderId) {
+              safeNavigate(`/story/${senderId}`);
+            } else {
+              safeNavigate("/notifications");
+            }
+          } catch { /* ignore malformed notification */ }
+        },
+      );
+      registered = true;
+    } catch {
+      // expo-notifications not available in this environment (Expo Go web / simulator)
+    }
 
     return () => {
-      notificationListener.current?.remove();
-      responseListener.current?.remove();
+      if (registered) {
+        notificationListener.current?.remove();
+        responseListener.current?.remove();
+      }
     };
   }, [currentUser?.id]);
 

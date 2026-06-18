@@ -220,6 +220,17 @@ function ProfileDrawer({
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 48 }}>
           {page === "settings" && (
             <>
+              <TouchableOpacity
+                onPress={() => { onClose(); setTimeout(() => router.push("/my-orders"), 350); }}
+                style={[styles.drawerItem, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}
+              >
+                <View style={[styles.drawerItemIcon, { backgroundColor: "#10B98122" }]}>
+                  <Feather name="shopping-bag" size={18} color="#10B981" strokeWidth={1.5} />
+                </View>
+                <Text style={[styles.drawerItemText, { color: colors.text }]}>طلباتي</Text>
+                <Feather name="chevron-right" size={16} color={colors.textSecondary} strokeWidth={1.5} />
+              </TouchableOpacity>
+
               <TouchableOpacity onPress={() => onSettingsItem("accountType")} style={[styles.drawerItem, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
                 <View style={[styles.drawerItemIcon, { backgroundColor: "#9B59B622" }]}>
                   <Feather name="lock" size={18} color="#9B59B6" strokeWidth={1.5} />

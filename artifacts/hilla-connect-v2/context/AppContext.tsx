@@ -193,7 +193,7 @@ export interface GovernorateImage {
 
 
 export type CommerceTier = "bronze" | "silver" | "gold";
-export type OrderStatus = "pending" | "warehouse" | "in_transit" | "delivered" | "returned";
+export type OrderStatus = "pending" | "accepted" | "shipped" | "delivered" | "cancelled";
 export type PaymentMethod = "cod" | "zaincash" | "fastpay" | "dafaa";
 
 export interface ProductVariation {
@@ -397,7 +397,7 @@ export interface AppNotification {
   senderId: string;
   senderName: string;
   senderAvatar?: string;
-  type: "follow_request" | "follow_accept" | "like" | "comment" | "post" | "story" | "message" | "story_like" | "story_reply" | "mention" | "story_mention";
+  type: "follow_request" | "follow_accept" | "like" | "comment" | "post" | "story" | "message" | "story_like" | "story_reply" | "mention" | "story_mention" | "order_update";
   referenceId?: string;
   message: string;
   isRead: boolean;
@@ -626,6 +626,25 @@ interface AppContextValue {
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
   placeOrder: (paymentMethod: PaymentMethod, address?: string, notes?: string) => Promise<Order | null>;
+  // Product social actions
+  savedProducts: string[];
+  productLikes: Record<string, string[]>;
+  followedMerchants: string[];
+  blockedMerchantIds: string[];
+  toggleSaveProduct: (productId: string) => void;
+  isProductSaved: (productId: string) => boolean;
+  toggleLikeProduct: (productId: string) => void;
+  isProductLiked: (productId: string) => boolean;
+  getProductLikesCount: (productId: string) => number;
+  toggleFollowMerchant: (merchantId: string) => void;
+  isMerchantFollowed: (merchantId: string) => boolean;
+  blockMerchantStore: (merchantId: string) => void;
+  unblockMerchantStore: (merchantId: string) => void;
+  isMerchantBlocked: (merchantId: string) => boolean;
+  cancelOrder: (orderId: string) => void;
+  acceptOrder: (orderId: string) => void;
+  rejectOrder: (orderId: string) => void;
+  getMyOrders: () => Order[];
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -1179,6 +1198,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [affiliateLinks, setAffiliateLinks] = useState<AffiliateRecord[]>([]);
+  const [savedProducts, setSavedProductsState] = useState<string[]>([]);
+  const [productLikes, setProductLikesState] = useState<Record<string, string[]>>({});
+  const [followedMerchants, setFollowedMerchantsState] = useState<string[]>([]);
+  const [blockedMerchantIds, setBlockedMerchantIdsState] = useState<string[]>([]);
 
   const minimizeRoom = useCallback((roomId: string, roomName: string, roomImage?: string) => {
     setIsRoomMinimized(true);
@@ -1207,6 +1230,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         "closeFriendsLists", "follows", "notifications", "savedPosts", "governorateImages",
         "groupChats", "privacySettings",
         "merchants", "products", "orders", "cart",
+        "savedProducts", "productLikes", "followedMerchants", "blockedMerchantIds",
       ];
       const values = await AsyncStorage.multiGet(keys);
       const data = Object.fromEntries(values.map(([k, v]) => [k, v]));
@@ -1257,6 +1281,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.products) setProducts(JSON.parse(data.products));
       if (data.orders) setOrders(JSON.parse(data.orders));
       if (data.cart) setCart(JSON.parse(data.cart));
+      if (data.savedProducts) setSavedProductsState(JSON.parse(data.savedProducts));
+      if (data.productLikes) setProductLikesState(JSON.parse(data.productLikes));
+      if (data.followedMerchants) setFollowedMerchantsState(JSON.parse(data.followedMerchants));
+      if (data.blockedMerchantIds) setBlockedMerchantIdsState(JSON.parse(data.blockedMerchantIds));
     } catch (e) {}
   };
 
@@ -1281,6 +1309,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const saveProducts = (p: Product[]) => { setProducts(p); AsyncStorage.setItem("products", JSON.stringify(p)); };
   const saveOrders = (o: Order[]) => { setOrders(o); AsyncStorage.setItem("orders", JSON.stringify(o)); };
   const saveCart = (c: CommerceCart | null) => { setCart(c); AsyncStorage.setItem("cart", JSON.stringify(c)); };
+  const saveSavedProducts = (s: string[]) => { setSavedProductsState(s); AsyncStorage.setItem("savedProducts", JSON.stringify(s)); };
+  const saveProductLikes = (l: Record<string, string[]>) => { setProductLikesState(l); AsyncStorage.setItem("productLikes", JSON.stringify(l)); };
+  const saveFollowedMerchants = (f: string[]) => { setFollowedMerchantsState(f); AsyncStorage.setItem("followedMerchants", JSON.stringify(f)); };
+  const saveBlockedMerchantIds = (b: string[]) => { setBlockedMerchantIdsState(b); AsyncStorage.setItem("blockedMerchantIds", JSON.stringify(b)); };
 
   const savePost = useCallback((postId: string) => {
     setSavedPostsState((prev) => {
@@ -1376,6 +1408,117 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const getMerchantOrders = useCallback((merchantId: string): Order[] => {
     return orders.filter((o) => o.merchantId === merchantId);
   }, [orders]);
+
+  const getMyOrders = useCallback((): Order[] => {
+    if (!currentUser) return [];
+    return orders.filter((o) => o.customerId === currentUser.id).sort((a, b) => b.createdAt - a.createdAt);
+  }, [orders, currentUser]);
+
+  const _pushOrderNotification = useCallback((customerId: string, message: string, orderId: string) => {
+    const notif: AppNotification = {
+      id: generateId(),
+      recipientId: customerId,
+      senderId: "system",
+      senderName: "سفرة بابل",
+      type: "order_update",
+      referenceId: orderId,
+      message,
+      isRead: false,
+      createdAt: Date.now(),
+    };
+    setNotifications((prev) => {
+      const next = [notif, ...prev];
+      AsyncStorage.setItem("notifications", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const cancelOrder = useCallback((orderId: string) => {
+    const order = orders.find((o) => o.id === orderId);
+    if (!order || order.status !== "pending") return;
+    saveOrders(orders.map((o) => o.id === orderId ? { ...o, status: "cancelled" as OrderStatus, updatedAt: Date.now() } : o));
+  }, [orders]);
+
+  const acceptOrder = useCallback((orderId: string) => {
+    const order = orders.find((o) => o.id === orderId);
+    if (!order) return;
+    const updated = orders.map((o) => o.id === orderId ? { ...o, status: "accepted" as OrderStatus, updatedAt: Date.now() } : o);
+    saveOrders(updated);
+    _pushOrderNotification(order.customerId, "✅ تم قبول طلبك! سيتم شحنه قريباً.", orderId);
+  }, [orders, _pushOrderNotification]);
+
+  const rejectOrder = useCallback((orderId: string) => {
+    const order = orders.find((o) => o.id === orderId);
+    if (!order) return;
+    const updated = orders.map((o) => o.id === orderId ? { ...o, status: "cancelled" as OrderStatus, updatedAt: Date.now() } : o);
+    saveOrders(updated);
+    _pushOrderNotification(order.customerId, "❌ تم رفض طلبك من قِبَل التاجر.", orderId);
+  }, [orders, _pushOrderNotification]);
+
+  const toggleSaveProduct = useCallback((productId: string) => {
+    setSavedProductsState((prev) => {
+      const next = prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId];
+      AsyncStorage.setItem("savedProducts", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const isProductSaved = useCallback((productId: string) => savedProducts.includes(productId), [savedProducts]);
+
+  const toggleLikeProduct = useCallback((productId: string) => {
+    if (!currentUser) return;
+    setProductLikesState((prev) => {
+      const likers = prev[productId] ?? [];
+      const next = likers.includes(currentUser.id)
+        ? { ...prev, [productId]: likers.filter((id) => id !== currentUser.id) }
+        : { ...prev, [productId]: [...likers, currentUser.id] };
+      AsyncStorage.setItem("productLikes", JSON.stringify(next));
+      return next;
+    });
+  }, [currentUser]);
+
+  const isProductLiked = useCallback((productId: string): boolean => {
+    if (!currentUser) return false;
+    return (productLikes[productId] ?? []).includes(currentUser.id);
+  }, [productLikes, currentUser]);
+
+  const getProductLikesCount = useCallback((productId: string): number => {
+    return (productLikes[productId] ?? []).length;
+  }, [productLikes]);
+
+  const toggleFollowMerchant = useCallback((merchantId: string) => {
+    setFollowedMerchantsState((prev) => {
+      const next = prev.includes(merchantId) ? prev.filter((id) => id !== merchantId) : [...prev, merchantId];
+      AsyncStorage.setItem("followedMerchants", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const isMerchantFollowed = useCallback((merchantId: string): boolean => followedMerchants.includes(merchantId), [followedMerchants]);
+
+  const blockMerchantStore = useCallback((merchantId: string) => {
+    setBlockedMerchantIdsState((prev) => {
+      if (prev.includes(merchantId)) return prev;
+      const next = [...prev, merchantId];
+      AsyncStorage.setItem("blockedMerchantIds", JSON.stringify(next));
+      return next;
+    });
+    setFollowedMerchantsState((prev) => {
+      const next = prev.filter((id) => id !== merchantId);
+      AsyncStorage.setItem("followedMerchants", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const unblockMerchantStore = useCallback((merchantId: string) => {
+    setBlockedMerchantIdsState((prev) => {
+      const next = prev.filter((id) => id !== merchantId);
+      AsyncStorage.setItem("blockedMerchantIds", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const isMerchantBlocked = useCallback((merchantId: string): boolean => blockedMerchantIds.includes(merchantId), [blockedMerchantIds]);
 
 
   const createMerchantAccount = useCallback(
@@ -4217,6 +4360,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateOrderStatus, getCommissionTier, recordAffiliateLink, getAffiliateForProduct,
       createMerchantAccount, getMerchantOrders,
       cart, addToCart, removeFromCart, clearCart, placeOrder,
+      savedProducts, productLikes, followedMerchants, blockedMerchantIds,
+      toggleSaveProduct, isProductSaved, toggleLikeProduct, isProductLiked, getProductLikesCount,
+      toggleFollowMerchant, isMerchantFollowed, blockMerchantStore, unblockMerchantStore, isMerchantBlocked,
+      cancelOrder, acceptOrder, rejectOrder, getMyOrders,
     }),
     [
       language, theme, currentUser, isSuperAdmin, isManager, isMerchantOwner, getMyMerchant,
@@ -4260,6 +4407,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateOrderStatus, getCommissionTier, recordAffiliateLink, getAffiliateForProduct,
       createMerchantAccount, getMerchantOrders, affiliateLinks,
       cart, addToCart, removeFromCart, clearCart, placeOrder,
+      savedProducts, productLikes, followedMerchants, blockedMerchantIds,
+      toggleSaveProduct, isProductSaved, toggleLikeProduct, isProductLiked, getProductLikesCount,
+      toggleFollowMerchant, isMerchantFollowed, blockMerchantStore, unblockMerchantStore, isMerchantBlocked,
+      cancelOrder, acceptOrder, rejectOrder, getMyOrders,
     ]
   );
 

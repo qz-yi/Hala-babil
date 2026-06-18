@@ -26,12 +26,12 @@ import { useToast } from "@/components/Toast";
 
 type Tab = "dashboard" | "catalog" | "orders";
 
-const ORDER_STATUSES: Record<string, { label: string; color: string }> = {
-  pending:    { label: "قيد الانتظار",  color: "#F59E0B" },
-  warehouse:  { label: "في المستودع",   color: "#3B82F6" },
-  in_transit: { label: "قيد التوصيل",  color: "#8B5CF6" },
-  delivered:  { label: "تم التوصيل",   color: "#10B981" },
-  returned:   { label: "مُعاد",         color: "#EF4444" },
+const ORDER_STATUSES: Record<string, { label: string; color: string; icon: string }> = {
+  pending:   { label: "قيد الانتظار", color: "#F59E0B", icon: "clock"        },
+  accepted:  { label: "تم القبول",   color: "#3B82F6", icon: "check-circle"  },
+  shipped:   { label: "قيد الشحن",   color: "#8B5CF6", icon: "truck"         },
+  delivered: { label: "تم التوصيل", color: "#10B981", icon: "package"        },
+  cancelled: { label: "ملغي",        color: "#EF4444", icon: "x-circle"      },
 };
 
 const TIER_COLORS: Record<CommerceTier, string> = {
@@ -40,7 +40,7 @@ const TIER_COLORS: Record<CommerceTier, string> = {
   gold:   "#FFD700",
 };
 
-const ORDER_STATUS_FLOW = ["pending", "warehouse", "in_transit", "delivered"];
+const ORDER_STATUS_FLOW = ["pending", "accepted", "shipped", "delivered"];
 
 // ─── Main Screen ────────────────────────────────────────────────────────────
 export default function MyMerchantScreen() {
@@ -50,6 +50,7 @@ export default function MyMerchantScreen() {
   const {
     currentUser, isMerchantOwner, getMyMerchant, products, orders,
     addProduct, updateProduct, deleteProduct, updateOrderStatus, updateMerchantProfile,
+    acceptOrder, rejectOrder,
   } = useApp();
   const { showToast } = useToast();
 
@@ -175,6 +176,8 @@ export default function MyMerchantScreen() {
                   key={order.id}
                   order={order}
                   c={c}
+                  onAccept={(o) => { acceptOrder?.(o.id); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); showToast("تم قبول الطلب ✅", "success"); }}
+                  onReject={(o) => { rejectOrder?.(o.id); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); showToast("تم رفض الطلب", "error"); }}
                   onAdvance={(o) => {
                     const idx = ORDER_STATUS_FLOW.indexOf(o.status);
                     if (idx < ORDER_STATUS_FLOW.length - 1) {
@@ -293,16 +296,8 @@ export default function MyMerchantScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => {
-                        Alert.alert("حذف المنتج", "هل أنت متأكد؟", [
-                          { text: "إلغاء", style: "cancel" },
-                          {
-                            text: "حذف", style: "destructive",
-                            onPress: () => {
-                              deleteProduct?.(product.id);
-                              showToast("تم حذف المنتج", "info");
-                            },
-                          },
-                        ]);
+                        deleteProduct?.(product.id);
+                        showToast("تم حذف المنتج", "info");
                       }}
                       style={[st.iconBtn, { backgroundColor: "#EF444418" }]}
                     >
@@ -339,6 +334,8 @@ export default function MyMerchantScreen() {
                   key={order.id}
                   order={order}
                   c={c}
+                  onAccept={(o) => { acceptOrder?.(o.id); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); showToast("تم قبول الطلب ✅", "success"); }}
+                  onReject={(o) => { rejectOrder?.(o.id); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); showToast("تم رفض الطلب", "error"); }}
                   onAdvance={(o) => {
                     const idx = ORDER_STATUS_FLOW.indexOf(o.status);
                     if (idx < ORDER_STATUS_FLOW.length - 1) {
@@ -527,32 +524,50 @@ function HeaderContent({
 }
 
 // ─── OrderCard ───────────────────────────────────────────────────────────────
-function OrderCard({ order, c, onAdvance }: { order: Order; c: any; onAdvance: (o: Order) => void }) {
-  const status = ORDER_STATUSES[order.status] ?? { label: order.status, color: "#888" };
-  const canAdvance = order.status !== "delivered" && order.status !== "returned";
+function OrderCard({
+  order, c, onAdvance, onAccept, onReject,
+}: {
+  order: Order; c: any;
+  onAdvance: (o: Order) => void;
+  onAccept: (o: Order) => void;
+  onReject: (o: Order) => void;
+}) {
+  const status = ORDER_STATUSES[order.status] ?? { label: order.status, color: "#888", icon: "help-circle" };
+  const canAdvance = order.status === "accepted" || order.status === "shipped";
+  const isPending = order.status === "pending";
+  const isFinal = order.status === "delivered" || order.status === "cancelled";
+
   return (
     <View style={[st.orderCard, { backgroundColor: c.card, borderColor: c.border }]}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ color: c.text, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
-            طلب #{order.id.slice(-6).toUpperCase()}
-          </Text>
-          <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 }}>
-            {new Date(order.createdAt).toLocaleDateString("ar-IQ")} · {order.items.length} منتج
-          </Text>
+      {/* Accent stripe */}
+      <View style={[st.orderAccentStripe, { backgroundColor: status.color }]} />
+
+      <View style={{ flex: 1, padding: 14, gap: 8 }}>
+        {/* Header */}
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ color: c.text, fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
+              طلب #{order.id.slice(-6).toUpperCase()}
+            </Text>
+            <Text style={{ color: c.textSecondary, fontFamily: "Inter_400Regular", fontSize: 12, marginTop: 2 }}>
+              {new Date(order.createdAt).toLocaleDateString("ar-IQ")} · {order.items.length} منتج
+            </Text>
+          </View>
+          <View style={[st.statusBadge, { backgroundColor: `${status.color}18`, borderColor: status.color }]}>
+            <Feather name={status.icon as any} size={11} color={status.color} strokeWidth={2} />
+            <Text style={{ color: status.color, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>
+              {status.label}
+            </Text>
+          </View>
         </View>
-        <View style={[st.statusBadge, {
-          backgroundColor: `${status.color}18`,
-          borderColor: status.color,
-          flexShrink: 0,
-        }]}>
-          <Text style={{ color: status.color, fontFamily: "Inter_600SemiBold", fontSize: 11 }}>
-            {status.label}
-          </Text>
-        </View>
-      </View>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
-        <View style={{ flex: 1, minWidth: 0 }}>
+
+        {/* Items summary */}
+        <Text style={{ color: c.textSecondary, fontSize: 12, fontFamily: "Inter_400Regular" }} numberOfLines={1}>
+          {order.items.map((i) => `${i.productName} ×${i.quantity}`).join(" · ")}
+        </Text>
+
+        {/* Total */}
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <Text style={{ color: "#10B981", fontFamily: "Inter_700Bold", fontSize: 16 }}>
             {order.totalIQD.toLocaleString()} IQD
           </Text>
@@ -560,13 +575,65 @@ function OrderCard({ order, c, onAdvance }: { order: Order; c: any; onAdvance: (
             {order.paymentMethod === "cod" ? "كاش عند الاستلام" : order.paymentMethod}
           </Text>
         </View>
+
+        {/* Address */}
+        {order.address ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Feather name="map-pin" size={12} color={c.textSecondary} strokeWidth={1.5} />
+            <Text style={{ color: c.textSecondary, fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 }} numberOfLines={1}>
+              {order.address}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Action buttons */}
+        {isPending && (
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+            <TouchableOpacity
+              onPress={() => onAccept(order)}
+              style={{ flex: 1, borderRadius: 12, overflow: "hidden" }}
+            >
+              <LinearGradient
+                colors={["#10B981", "#059669"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={st.orderActionBtn}
+              >
+                <Feather name="check" size={14} color="#fff" strokeWidth={2.5} />
+                <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>قبول</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => onReject(order)}
+              style={{ flex: 1, borderRadius: 12, overflow: "hidden" }}
+            >
+              <LinearGradient
+                colors={["#EF4444", "#c0392b"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={st.orderActionBtn}
+              >
+                <Feather name="x" size={14} color="#fff" strokeWidth={2.5} />
+                <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>رفض</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {canAdvance && (
           <TouchableOpacity
             onPress={() => onAdvance(order)}
-            style={[st.advanceBtn, { backgroundColor: c.accent, flexShrink: 0 }]}
+            style={{ borderRadius: 12, overflow: "hidden", marginTop: 4 }}
           >
-            <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 12 }}>تقدم الحالة</Text>
-            <Feather name="arrow-left" size={14} color="#fff" strokeWidth={2} />
+            <LinearGradient
+              colors={["#7C3AED", "#4F46E5"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={st.orderActionBtn}
+            >
+              <Feather name="arrow-left" size={14} color="#fff" strokeWidth={2} />
+              <Text style={{ color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 13 }}>تقدم الحالة</Text>
+            </LinearGradient>
           </TouchableOpacity>
         )}
       </View>
@@ -955,9 +1022,11 @@ const st = StyleSheet.create({
   productRowImgFallback: { width: 64, height: 64, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   stockBadge:      { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
   iconBtn:         { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  orderCard:       { borderRadius: 16, borderWidth: 0.5, padding: 14 },
-  statusBadge:     { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  advanceBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  orderCard:         { borderRadius: 16, borderWidth: 0.5, flexDirection: "row", overflow: "hidden" },
+  orderAccentStripe: { width: 4 },
+  orderActionBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10 },
+  statusBadge:       { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, flexShrink: 0 },
+  advanceBtn:        { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   addProductBtn:   { borderRadius: 16, overflow: "hidden" },
   addProductGrad:  { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 16 },
   backdrop:        { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.58)" },

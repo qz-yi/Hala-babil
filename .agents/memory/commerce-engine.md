@@ -41,6 +41,24 @@ description: Architecture decisions for Safrat Babel (سفرة بابل) shoppab
 - **Floating particle animation**: green cart icon flies upward + toward cart button on "أضف" tap, via `Animated.timing` + translateX/Y/scale/opacity interpolations
 - **Image count badge**: overlay badge on product card when `product.images.length > 1`
 
+## Social Commerce Layer (v3)
+- `savedProducts`, `productLikes`, `followedMerchants`, `blockedMerchantIds` — all in AppContext, persisted to AsyncStorage
+- Social functions: `toggleSaveProduct`, `isProductSaved`, `toggleLikeProduct`, `isProductLiked`, `getProductLikesCount`, `toggleFollowMerchant`, `isMerchantFollowed`, `blockMerchantStore`, `unblockMerchantStore`, `isMerchantBlocked`
+- Order lifecycle: `pending → accepted → shipped → delivered` (terminal). `cancelled` is terminal from any state.
+- Merchant actions: `acceptOrder` / `rejectOrder` (for pending) → pushes `AppNotification` type `"order_update"` to customer
+- Customer action: `cancelOrder` (only from `pending`)
+- `getMyOrders()` → customer's own orders sorted by createdAt desc
+
+## Screen Files (updated/added)
+- `app/store/[id].tsx` — Store Profile: follow/block/chat, product catalog, posts/reels grid, image lightbox. Nav: `router.push('/store/<merchantId>')`
+- `app/my-orders.tsx` — Customer My Orders: status filter tabs, order detail bottom sheet, cancel modal
+- `restaurants.tsx` — added ❤️ like + 🔖 save buttons per card; merchant badge now links to `/store/[id]`
+- `my-merchant.tsx` — `ORDER_STATUS_FLOW = ["pending","accepted","shipped","delivered"]`; OrderCard shows Accept/Reject for pending, advance button for accepted/shipped. Alert.alert removed.
+- `profile.tsx drawer` — added "طلباتي" → `/my-orders` entry in settings section
+
+## ORDER_STATUSES convention (my-merchant.tsx)
+`pending | accepted | shipped | delivered | cancelled` — old keys `warehouse / in_transit / returned` are gone.
+
 ## Static Build Pattern
 - App is served via `artifacts/hilla-connect-v2/server/serve.js` on port 5000
 - After any code changes, must run: `cd artifacts/hilla-connect-v2 && npx expo export --platform web --output-dir static-build`

@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useThemeStore } from "@/store/themeStore";
+import { router } from "expo-router";
 import { useApp, type Product } from "@/context/AppContext";
 import { ShopNowSheet } from "@/components/ShopNowSheet";
 import { CartSheet } from "@/components/CartSheet";
@@ -211,7 +212,11 @@ function ProductQuickViewSheet({
 export default function MarketplaceScreen() {
   const c = useThemeStore((s) => s.tokens);
   const insets = useSafeAreaInsets();
-  const { products, merchants, addToCart, cart } = useApp();
+  const {
+    products, merchants, addToCart, cart,
+    toggleLikeProduct, isProductLiked, getProductLikesCount,
+    toggleSaveProduct, isProductSaved,
+  } = useApp();
   const { showToast } = useToast();
 
   const [search, setSearch] = useState("");
@@ -411,12 +416,17 @@ export default function MarketplaceScreen() {
 
                   <View style={st.cardBody}>
                     {merchant && (
-                      <View style={[st.merchantBadge, { backgroundColor: `${c.accent}18` }]}>
+                      <TouchableOpacity
+                        onPress={() => router.push(`/store/${merchant.id}` as any)}
+                        activeOpacity={0.75}
+                        style={[st.merchantBadge, { backgroundColor: `${c.accent}18` }]}
+                      >
                         <Feather name="package" size={10} color={c.accent} strokeWidth={1.5} />
                         <Text style={{ color: c.accent, fontFamily: "Inter_500Medium", fontSize: 10 }} numberOfLines={1}>
                           {merchant.name}
                         </Text>
-                      </View>
+                        <Feather name="chevron-left" size={9} color={c.accent} strokeWidth={1.5} />
+                      </TouchableOpacity>
                     )}
                     <Text style={[st.productName, { color: c.text }]} numberOfLines={2}>{product.name}</Text>
                     <Text style={[st.productPrice, { color: "#10B981" }]}>
@@ -435,6 +445,48 @@ export default function MarketplaceScreen() {
                     {product.stock === 0 && (
                       <Text style={{ color: "#EF4444", fontSize: 11, fontFamily: "Inter_400Regular" }}>نفد المخزون</Text>
                     )}
+
+                    {/* Social actions row */}
+                    <View style={st.socialRow}>
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          toggleLikeProduct(product.id);
+                        }}
+                        style={st.socialBtn}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Feather
+                          name="heart"
+                          size={14}
+                          color={isProductLiked(product.id) ? "#EF4444" : c.textSecondary}
+                          strokeWidth={isProductLiked(product.id) ? 2.5 : 1.5}
+                        />
+                        {getProductLikesCount(product.id) > 0 && (
+                          <Text style={{ color: isProductLiked(product.id) ? "#EF4444" : c.textSecondary, fontSize: 10, fontFamily: "Inter_500Medium" }}>
+                            {getProductLikesCount(product.id)}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          toggleSaveProduct(product.id);
+                          showToast(isProductSaved(product.id) ? "تمت الإزالة من المحفوظات" : "تم الحفظ ✨", isProductSaved(product.id) ? "info" : "success");
+                        }}
+                        style={st.socialBtn}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Feather
+                          name={isProductSaved(product.id) ? "bookmark" : "bookmark"}
+                          size={14}
+                          color={isProductSaved(product.id) ? c.accent : c.textSecondary}
+                          strokeWidth={isProductSaved(product.id) ? 2.5 : 1.5}
+                        />
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   <TouchableOpacity
@@ -614,6 +666,8 @@ const st = StyleSheet.create({
     borderRadius: 10,
     alignSelf: "flex-start",
   },
+  socialRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 },
+  socialBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
   addChip: { marginHorizontal: 10, marginBottom: 10, borderRadius: 10, overflow: "hidden" },
   addChipGrad: {
     flexDirection: "row",

@@ -89,38 +89,32 @@ export default function UserActionsModal({
 
         {isRoomOwner && (
           <View style={styles.actions}>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: `${userColor}15`, borderColor: `${userColor}33` }]}
-              onPress={handleMute}
-            >
-              <Ionicons
-                name={isMuted ? "mic-outline" : "mic-off-outline"}
-                size={20}
-                color={userColor}
-              />
+            <TouchableOpacity style={styles.actionRow} onPress={handleMute} activeOpacity={0.6}>
+              <View style={[styles.actionIconSlot]}>
+                <Ionicons name={isMuted ? "mic-outline" : "mic-off-outline"} size={21} color={userColor} />
+              </View>
               <Text style={[styles.actionText, { color: userColor }]}>
                 {isMuted ? "رفع الكتم" : "كتم"}
               </Text>
+              <Ionicons name="chevron-forward" size={15} color={colors.textSecondary} />
             </TouchableOpacity>
+            <View style={[styles.actionDivider, { backgroundColor: colors.border }]} />
 
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: "#F59E0B15", borderColor: "#F59E0B33" }]}
-              onPress={handleKick}
-            >
-              <Ionicons name="exit-outline" size={20} color="#F59E0B" />
-              <Text style={[styles.actionText, { color: "#F59E0B" }]}>
-                {t("kickFromRoom")}
-              </Text>
+            <TouchableOpacity style={styles.actionRow} onPress={handleKick} activeOpacity={0.6}>
+              <View style={styles.actionIconSlot}>
+                <Ionicons name="exit-outline" size={21} color="#F59E0B" />
+              </View>
+              <Text style={[styles.actionText, { color: "#F59E0B" }]}>{t("kickFromRoom")}</Text>
+              <Ionicons name="chevron-forward" size={15} color={colors.textSecondary} />
             </TouchableOpacity>
+            <View style={[styles.actionDivider, { backgroundColor: colors.border }]} />
 
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: `${colors.danger}15`, borderColor: `${colors.danger}33` }]}
-              onPress={handleBan}
-            >
-              <Ionicons name="ban-outline" size={20} color={colors.danger} />
-              <Text style={[styles.actionText, { color: colors.danger }]}>
-                حظر
-              </Text>
+            <TouchableOpacity style={styles.actionRow} onPress={handleBan} activeOpacity={0.6}>
+              <View style={styles.actionIconSlot}>
+                <Ionicons name="ban-outline" size={21} color={colors.danger} />
+              </View>
+              <Text style={[styles.actionText, { color: colors.danger }]}>حظر</Text>
+              <Ionicons name="chevron-forward" size={15} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
         )}
@@ -185,19 +179,27 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
   },
   actions: {
-    gap: 10,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  actionBtn: {
+  actionRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    borderWidth: 1,
+    gap: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 4,
+    minHeight: 52,
+  },
+  actionIconSlot: {
+    width: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 54,
   },
   actionText: {
+    flex: 1,
     fontSize: 15,
     fontWeight: "500",
     fontFamily: "Inter_500Medium",

@@ -1522,78 +1522,55 @@ export default function ChatScreen() {
           <View style={[blockModalStyles.handle, { backgroundColor: c.border }]} />
           <Text style={[menuStyles.heading, { color: c.text }]}>{otherUser?.name}</Text>
 
-          <TouchableOpacity
-            style={menuStyles.row}
-            onPress={() => { setShowMenu(false); setShowThemePicker(true); }}
-            activeOpacity={0.7}
-          >
-            <View style={[menuStyles.iconWrap, { backgroundColor: `${accentColor}22` }]}>
+          <TouchableOpacity style={menuStyles.row} onPress={() => { setShowMenu(false); setShowThemePicker(true); }} activeOpacity={0.65}>
+            <View style={[menuStyles.iconWrap, { backgroundColor: `${accentColor}18` }]}>
               <Feather name="droplet" size={18} color={accentColor} strokeWidth={1.5} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[menuStyles.rowTitle, { color: c.text }]}>لون المحادثة</Text>
               <Text style={[menuStyles.rowSub, { color: c.textSecondary }]}>اختر لون مميز للخلفية</Text>
             </View>
+            <Feather name="chevron-right" size={15} color={c.textSecondary} strokeWidth={1.5} />
           </TouchableOpacity>
+          <View style={[menuStyles.rowDivider, { backgroundColor: c.border }]} />
 
           <TouchableOpacity
             style={menuStyles.row}
-            onPress={() => {
-              setShowMenu(false);
-              if (!convo) return;
-              if (convo.archived) unarchiveConversation(id);
-              else archiveConversation(id);
-            }}
-            activeOpacity={0.7}
+            onPress={() => { setShowMenu(false); if (!convo) return; if (convo.archived) unarchiveConversation(id); else archiveConversation(id); }}
+            activeOpacity={0.65}
           >
-            <View style={[menuStyles.iconWrap, { backgroundColor: "#F59E0B22" }]}>
+            <View style={[menuStyles.iconWrap, { backgroundColor: "#F59E0B18" }]}>
               <Feather name="archive" size={18} color="#F59E0B" strokeWidth={1.5} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[menuStyles.rowTitle, { color: c.text }]}>
-                {convo?.archived ? "إلغاء الأرشفة" : "أرشفة المحادثة"}
-              </Text>
-              <Text style={[menuStyles.rowSub, { color: c.textSecondary }]}>
-                {convo?.archived ? "إعادة المحادثة إلى القائمة الرئيسية" : "إخفاء المحادثة من القائمة الرئيسية"}
-              </Text>
+              <Text style={[menuStyles.rowTitle, { color: c.text }]}>{convo?.archived ? "إلغاء الأرشفة" : "أرشفة المحادثة"}</Text>
+              <Text style={[menuStyles.rowSub, { color: c.textSecondary }]}>{convo?.archived ? "إعادة المحادثة إلى القائمة الرئيسية" : "إخفاء المحادثة من القائمة الرئيسية"}</Text>
             </View>
+            <Feather name="chevron-right" size={15} color={c.textSecondary} strokeWidth={1.5} />
           </TouchableOpacity>
+          <View style={[menuStyles.rowDivider, { backgroundColor: c.border }]} />
 
-          <TouchableOpacity
-            style={menuStyles.row}
-            onPress={() => { setShowMenu(false); setMenuConfirm("delete"); }}
-            activeOpacity={0.7}
-          >
-            <View style={[menuStyles.iconWrap, { backgroundColor: "#FF3B5C22" }]}>
+          <TouchableOpacity style={menuStyles.row} onPress={() => { setShowMenu(false); setMenuConfirm("delete"); }} activeOpacity={0.65}>
+            <View style={[menuStyles.iconWrap, { backgroundColor: "#FF3B5C18" }]}>
               <Feather name="trash-2" size={18} color="#FF3B5C" strokeWidth={1.5} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[menuStyles.rowTitle, { color: c.text }]}>حذف المحادثة</Text>
               <Text style={[menuStyles.rowSub, { color: c.textSecondary }]}>سيتم حذف الرسائل لديك فقط</Text>
             </View>
+            <Feather name="chevron-right" size={15} color={c.textSecondary} strokeWidth={1.5} />
           </TouchableOpacity>
+          <View style={[menuStyles.rowDivider, { backgroundColor: c.border }]} />
 
-          <TouchableOpacity
-            style={menuStyles.row}
-            onPress={() => { setShowMenu(false); setMenuConfirm("block"); }}
-            activeOpacity={0.7}
-          >
-            <View style={[menuStyles.iconWrap, { backgroundColor: otherUser && isBlocked(otherUser.id) ? "#10B98122" : "#FF3B5C22" }]}>
-              <Feather
-                name={otherUser && isBlocked(otherUser.id) ? "user-check" : "slash"}
-                size={18}
-                color={otherUser && isBlocked(otherUser.id) ? "#10B981" : "#FF3B5C"}
-                strokeWidth={1.5}
-              />
+          <TouchableOpacity style={menuStyles.row} onPress={() => { setShowMenu(false); setMenuConfirm("block"); }} activeOpacity={0.65}>
+            <View style={[menuStyles.iconWrap, { backgroundColor: otherUser && isBlocked(otherUser.id) ? "#10B98118" : "#FF3B5C18" }]}>
+              <Feather name={otherUser && isBlocked(otherUser.id) ? "user-check" : "slash"} size={18} color={otherUser && isBlocked(otherUser.id) ? "#10B981" : "#FF3B5C"} strokeWidth={1.5} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[menuStyles.rowTitle, { color: c.text }]}>
-                {otherUser && isBlocked(otherUser.id) ? "إلغاء حظر المستخدم" : "حظر المستخدم"}
-              </Text>
-              <Text style={[menuStyles.rowSub, { color: c.textSecondary }]}>
-                {otherUser && isBlocked(otherUser.id) ? "السماح بالرسائل مرة أخرى" : "لن تتلقى رسائل أو مكالمات منه"}
-              </Text>
+              <Text style={[menuStyles.rowTitle, { color: c.text }]}>{otherUser && isBlocked(otherUser.id) ? "إلغاء حظر المستخدم" : "حظر المستخدم"}</Text>
+              <Text style={[menuStyles.rowSub, { color: c.textSecondary }]}>{otherUser && isBlocked(otherUser.id) ? "السماح بالرسائل مرة أخرى" : "لن تتلقى رسائل أو مكالمات منه"}</Text>
             </View>
+            <Feather name="chevron-right" size={15} color={c.textSecondary} strokeWidth={1.5} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -1770,10 +1747,11 @@ const menuStyles = StyleSheet.create({
   },
   row: {
     flexDirection: "row", alignItems: "center", gap: 14,
-    paddingVertical: 12, paddingHorizontal: 4,
+    paddingVertical: 13, paddingHorizontal: 4, minHeight: 54,
   },
+  rowDivider: { height: StyleSheet.hairlineWidth, marginLeft: 54 },
   iconWrap: {
-    width: 40, height: 40, borderRadius: 12,
+    width: 38, height: 38, borderRadius: 19,
     alignItems: "center", justifyContent: "center",
   },
   rowTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },

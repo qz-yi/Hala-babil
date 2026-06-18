@@ -40,6 +40,10 @@ args = "Hilla Connect"
 task = "workflow.run"
 args = "API Server"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "artifacts/mockup-sandbox: Component Preview Server"
+
 [[workflows.workflow]]
 name = "Hilla Connect"
 author = "agent"
@@ -62,6 +66,18 @@ outputType = "console"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd artifacts/api-server && PORT=3000 node --enable-source-maps ./dist/index.mjs"
+
+[[workflows.workflow]]
+name = "artifacts/mockup-sandbox: Component Preview Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/mockup-sandbox run dev"
+waitForPort = 3002
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [userenv]
 

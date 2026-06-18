@@ -14,7 +14,7 @@ interface GlassCardProps {
 
 /**
  * A context-aware card that renders as a frosted-glass BlurView when the
- * "glass" overlay is active, and as a standard View otherwise.
+ * Glass engine is active, and as a standard View otherwise.
  */
 export function GlassCard({
   children,
@@ -22,10 +22,10 @@ export function GlassCard({
   intensity = 60,
   borderRadius = 20,
 }: GlassCardProps) {
-  const { overlays } = useThemeStore();
+  const activeOverlay = useThemeStore((s) => s.activeOverlay);
   const colors = useColors();
 
-  if (overlays.glass && Platform.OS !== "web") {
+  if (activeOverlay === "glass" && Platform.OS !== "web") {
     return (
       <BlurView
         intensity={intensity}
@@ -34,7 +34,7 @@ export function GlassCard({
           st.base,
           {
             borderRadius,
-            borderColor: colors.border,
+            borderColor: colors.glassBorder,
             borderWidth: 0.6,
             overflow: "hidden",
           },

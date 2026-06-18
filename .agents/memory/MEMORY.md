@@ -1,2 +1,3 @@
 - [Commerce Engine Architecture](commerce-engine.md) — how Zentram's shoppable reels + marketplace + merchant dashboard are wired together
 - [Call Signaling Architecture](call-signaling.md) — Presence Manager, IncomingCallOverlay, cross-device dismiss pattern; all signal flow decisions
+- [Theme Engine Architecture](theme-engine.md) — 6-theme ThemeStore + 4 visual engines (Glass/Cinematic/Motion/Creator) with radio-button exclusivity; key API decisions

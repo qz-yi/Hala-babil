@@ -23,6 +23,9 @@ import { IncomingCallOverlay } from "@/components/IncomingCallOverlay";
 import { useThemeStore } from "@/store/themeStore";
 import { useCallStore } from "@/store/callStore";
 import { getSocket, registerUserSocket } from "@/hooks/useSocket";
+import { EngineProvider } from "@/context/EngineContext";
+import { GlobalEngineLayer } from "@/components/engines/GlobalEngineLayer";
+import { useColors } from "@/hooks/useColors";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -185,12 +188,16 @@ function NotificationSetup() {
   return null;
 }
 
-function RootLayoutNav() {
-  const tokens = useThemeStore((s) => s.tokens);
-  const bg = tokens.background;
+function RootLayoutNavInner() {
+  // useColors() applies engine token overrides (Creator → #050505, Cinematic → deep dark, etc.)
+  const colors = useColors();
+  const bg = colors.background;
+  const dur = colors.animationDuration;
 
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
+      {/* Global engine visual layer — renders above all content, no pointer events */}
+      <GlobalEngineLayer />
       <CallSetup />
       <NotificationSetup />
       <Stack
@@ -198,7 +205,7 @@ function RootLayoutNav() {
           headerShown: false,
           contentStyle: { backgroundColor: bg },
           animation: "fade_from_bottom",
-          animationDuration: 220,
+          animationDuration: dur,
         }}
       >
         <Stack.Screen name="index" />
@@ -227,6 +234,14 @@ function RootLayoutNav() {
       <FloatingRoomWidget />
       <IncomingCallOverlay />
     </View>
+  );
+}
+
+function RootLayoutNav() {
+  return (
+    <EngineProvider>
+      <RootLayoutNavInner />
+    </EngineProvider>
   );
 }
 

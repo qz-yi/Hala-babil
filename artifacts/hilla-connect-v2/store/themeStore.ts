@@ -6,11 +6,15 @@ import { THEMES, ThemeName, OverlayMode, ThemeTokens } from "@/theme/tokens";
 
 export interface ThemeState {
   activeTheme: ThemeName;
-  overlays: Record<OverlayMode, boolean>;
+  /** Radio-button: only ONE engine can run at a time. null = all off. */
+  activeOverlay: OverlayMode | null;
   tokens: ThemeTokens;
 
   setTheme: (name: ThemeName) => void;
-  toggleOverlay: (mode: OverlayMode) => void;
+  /** Activates an engine. Calling with the same engine that's already active
+   *  turns it OFF (toggle-off). Calling with a different engine switches to it
+   *  instantly, deactivating the previous one. */
+  setOverlay: (mode: OverlayMode | null) => void;
   isOverlayActive: (mode: OverlayMode) => boolean;
 }
 
@@ -18,24 +22,20 @@ export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
       activeTheme: "classicDark",
-      overlays: {
-        glass: false,
-        cinematic: false,
-        motion: false,
-        creator: false,
-      },
+      activeOverlay: null,
       tokens: THEMES["classicDark"],
 
       setTheme: (name) => {
         set({ activeTheme: name, tokens: THEMES[name] });
       },
 
-      toggleOverlay: (mode) => {
-        const current = get().overlays;
-        set({ overlays: { ...current, [mode]: !current[mode] } });
+      setOverlay: (mode) => {
+        const current = get().activeOverlay;
+        // Toggle-off if same engine tapped again, otherwise switch to new engine
+        set({ activeOverlay: current === mode ? null : mode });
       },
 
-      isOverlayActive: (mode) => get().overlays[mode],
+      isOverlayActive: (mode) => get().activeOverlay === mode,
     }),
     {
       name: "zentram-theme-store",

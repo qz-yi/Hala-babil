@@ -1256,37 +1256,68 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Register this device's socket with the server
     registerUserSocket(currentUser.id);
 
-    // Pull fresh cloud rooms list and merge into local state
+    const socket = getSocket();
+
+    // Helper: convert a ServerRoom to the local Room shape
+    const serverRoomToLocal = (cr: any): Room => ({
+      id: cr.id,
+      roomCode: cr.roomCode ?? "",
+      name: cr.name,
+      image: cr.image ?? undefined,
+      ownerId: cr.ownerId,
+      ownerName: cr.ownerName ?? "",
+      seats: cr.seats ?? Array(8).fill(null),
+      seatUsers: Array(8).fill(null),
+      lockedSeats: Array(8).fill(false),
+      chat: cr.chat ?? [],
+      bannedUsers: cr.bannedUsers ?? [],
+      mutedUsers: cr.mutedUsers ?? [],
+      isHidden: cr.isHidden ?? false,
+      createdAt: cr.createdAt ?? Date.now(),
+    });
+
+    // ── Initial full load from REST API (replaces local state entirely) ────
     roomsApi.listRooms().then((cloudRooms) => {
-      if (!cloudRooms || cloudRooms.length === 0) return;
-      setRooms((prev) => {
-        const byId = new Map(prev.map((r) => [r.id, r]));
-        cloudRooms.forEach((cr: any) => {
-          if (!byId.has(cr.id)) {
-            byId.set(cr.id, {
-              id: cr.id,
-              roomCode: cr.roomCode ?? "",
-              name: cr.name,
-              image: cr.image ?? undefined,
-              ownerId: cr.ownerId,
-              ownerName: cr.ownerName ?? "",
-              seats: cr.seats ?? Array(8).fill(null),
-              seatUsers: Array(8).fill(null),
-              lockedSeats: Array(8).fill(false),
-              chat: [],
-              bannedUsers: [],
-              mutedUsers: [],
-              isHidden: cr.isHidden ?? false,
-              createdAt: cr.createdAt ?? Date.now(),
-            });
-          }
-        });
-        return Array.from(byId.values());
-      });
+      console.log(`📋 [APP] Loaded ${cloudRooms.length} rooms from server`);
+      setRooms(cloudRooms.map(serverRoomToLocal));
     }).catch(() => {});
 
+    // ── Socket: rooms_update — server broadcasts full list on any change ───
+    const handleRoomsUpdate = (serverRooms: any[]) => {
+      console.log(`🔄 [APP] rooms_update received — ${serverRooms.length} rooms`);
+      setRooms(serverRooms.map(serverRoomToLocal));
+    };
+
+    // ── Socket: room:created — single new room ─────────────────────────────
+    const handleRoomCreated = (cr: any) => {
+      console.log(`➕ [APP] room:created — roomId: ${cr.id}`);
+      setRooms((prev) => {
+        if (prev.find((r) => r.id === cr.id)) return prev;
+        return [...prev, serverRoomToLocal(cr)];
+      });
+    };
+
+    // ── Socket: room:deleted — remove room from list ───────────────────────
+    const handleRoomDeleted = ({ roomId }: { roomId: string }) => {
+      console.log(`🗑️  [APP] room:deleted — roomId: ${roomId}`);
+      setRooms((prev) => prev.filter((r) => r.id !== roomId));
+    };
+
+    // ── Socket: room:message — append message to room chat ────────────────
+    const handleRoomMessage = ({ roomId, message }: { roomId: string; message: any }) => {
+      setRooms((prev) =>
+        prev.map((r) =>
+          r.id === roomId ? { ...r, chat: [...(r.chat ?? []), message] } : r
+        )
+      );
+    };
+
+    socket.on("rooms_update", handleRoomsUpdate);
+    socket.on("room:created", handleRoomCreated);
+    socket.on("room:deleted", handleRoomDeleted);
+    socket.on("room:message", handleRoomMessage);
+
     // ── Socket: incoming private message ──────────────────────────────────
-    const socket = getSocket();
     const handlePrivateMessage = (payload: {
       conversationId: string;
       message: {
@@ -1338,6 +1369,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     socket.on("private-message", handlePrivateMessage);
     return () => {
+      socket.off("rooms_update", handleRoomsUpdate);
+      socket.off("room:created", handleRoomCreated);
+      socket.off("room:deleted", handleRoomDeleted);
+      socket.off("room:message", handleRoomMessage);
       socket.off("private-message", handlePrivateMessage);
     };
   }, [currentUser?.id]);
@@ -1345,7 +1380,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const loadData = async () => {
     try {
       const keys = [
-        "language", "theme", "currentUser", "users", "rooms", "conversations",
+        "language", "theme", "currentUser", "users", "conversations",
         "passwords", "blockedUsers", "reels", "reelLikes",
         "reelComments", "posts", "postLikes", "postComments", "stories",
         "closeFriendsLists", "follows", "notifications", "savedPosts", "governorateImages",
@@ -1360,7 +1395,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.theme) setTheme(data.theme as Theme);
       if (data.currentUser) setCurrentUser(JSON.parse(data.currentUser));
       if (data.users) setUsers(JSON.parse(data.users));
-      if (data.rooms) setRooms(JSON.parse(data.rooms));
+      // rooms are NOT loaded from AsyncStorage — server is the only source of truth
       if (data.conversations) setConversations(JSON.parse(data.conversations));
       if (data.passwords) setPasswords(JSON.parse(data.passwords));
       if (data.blockedUsers) setBlockedUsers(JSON.parse(data.blockedUsers));
@@ -1410,7 +1445,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const saveUsers = (u: User[]) => { setUsers(u); AsyncStorage.setItem("users", JSON.stringify(u)); };
-  const saveRooms = (r: Room[]) => { setRooms(r); AsyncStorage.setItem("rooms", JSON.stringify(r)); };
+  // Rooms are server-only — never persisted to AsyncStorage
+  const saveRooms = (r: Room[]) => { setRooms(r); };
   const saveConversations = (c: Conversation[]) => { setConversations(c); AsyncStorage.setItem("conversations", JSON.stringify(c)); };
   const saveReels = (r: Reel[]) => { setReels(r); AsyncStorage.setItem("reels", JSON.stringify(r)); };
   const saveLikes = (l: ReelLike[]) => { setReelLikes(l); AsyncStorage.setItem("reelLikes", JSON.stringify(l)); };
@@ -2007,46 +2043,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const existingRoom = rooms.find((r) => r.ownerId === currentUser.id);
       if (existingRoom) return null;
       const roomCode = generateRoomCode();
-      const localId = generateId();
-      const newRoom: Room = {
-        id: localId,
-        roomCode,
+
+      // API-first: wait for server to create the room and return the canonical ID.
+      // The server will emit rooms_update + room:created to ALL clients so the
+      // room list updates on every device without any local state manipulation.
+      const serverRoom = await roomsApi.createRoom({
         name,
         image,
         ownerId: currentUser.id,
         ownerName: currentUser.name,
+        roomCode,
         seats: Array(8).fill(null),
+      });
+
+      if (!serverRoom) {
+        console.log("❌ [APP] createRoom — server returned null, room not created");
+        return null;
+      }
+
+      console.log(`✅ [APP] createRoom — server confirmed roomId: ${serverRoom.id}`);
+
+      // Build the local Room shape from the confirmed server response
+      const confirmedRoom: Room = {
+        id: serverRoom.id,
+        roomCode: serverRoom.roomCode ?? roomCode,
+        name: serverRoom.name,
+        image: serverRoom.image ?? image,
+        ownerId: serverRoom.ownerId,
+        ownerName: serverRoom.ownerName ?? currentUser.name,
+        seats: serverRoom.seats ?? Array(8).fill(null),
         seatUsers: Array(8).fill(null),
         lockedSeats: Array(8).fill(false),
         chat: [],
         bannedUsers: [],
         mutedUsers: [],
-        isHidden: false,
-        createdAt: Date.now(),
+        isHidden: serverRoom.isHidden ?? false,
+        createdAt: serverRoom.createdAt ?? Date.now(),
       };
-      newRoom.seats[0] = currentUser.id;
-      newRoom.seatUsers[0] = currentUser;
-      saveRooms([...rooms, newRoom]);
 
-      // Sync to cloud (fire and forget — local state already updated)
-      roomsApi.createRoom({
-        name,
-        image,
-        ownerId: currentUser.id,
-        ownerName: currentUser.name,
-        roomCode,
-        seats: newRoom.seats,
-      }).then((serverRoom) => {
-        if (serverRoom) {
-          // Update room id to server id so other devices can find it
-          const updated = [...rooms, newRoom].map((r) =>
-            r.id === localId ? { ...r, id: serverRoom.id, roomCode: serverRoom.roomCode ?? r.roomCode } : r
-          );
-          saveRooms(updated);
-        }
-      }).catch(() => {});
-
-      return newRoom;
+      return confirmedRoom;
     },
     [currentUser, rooms]
   );

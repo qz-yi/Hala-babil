@@ -117,6 +117,10 @@ router.post("/rooms", optionalAuth, async (req: AuthRequest, res) => {
     const io = getSocketIo();
     if (io) {
       io.emit("room:created", room);
+      // Broadcast the full rooms list so every client can do a full replace
+      const allRooms = await pool.query(`SELECT * FROM rooms ORDER BY created_at DESC`);
+      io.emit("rooms_update", allRooms.rows.map(normalizeRoom));
+      console.log(`📡 [SERVER] rooms_update broadcast — ${allRooms.rowCount} rooms after create`);
     }
 
     logger.info({ roomId: room.id, creatorId }, "[rooms] Room created");
@@ -322,6 +326,10 @@ router.delete("/rooms/:roomId", optionalAuth, async (req: AuthRequest, res) => {
     const io = getSocketIo();
     if (io) {
       io.emit("room:deleted", { roomId });
+      // Broadcast updated full rooms list so every client replaces their state
+      const allRooms = await pool.query(`SELECT * FROM rooms ORDER BY created_at DESC`);
+      io.emit("rooms_update", allRooms.rows.map(normalizeRoom));
+      console.log(`📡 [SERVER] rooms_update broadcast — ${allRooms.rowCount} rooms after delete`);
     }
 
     logger.info({ roomId }, "[rooms] Room deleted");

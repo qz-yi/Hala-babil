@@ -16,6 +16,18 @@ export function getSocket(): Socket {
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
     });
+
+    sharedSocket.on("connect", () => {
+      console.log(`\n✅ [APP] Connected to server successfully — socketId: ${sharedSocket?.id} — server: ${API_BASE || "(relative)"}`);
+    });
+
+    sharedSocket.on("disconnect", (reason) => {
+      console.log(`⚠️  [APP] Disconnected from server — reason: ${reason}`);
+    });
+
+    sharedSocket.on("connect_error", (err) => {
+      console.log(`❌ [APP] Connection error — ${err.message}`);
+    });
   }
   return sharedSocket;
 }

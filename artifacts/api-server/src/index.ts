@@ -52,6 +52,7 @@ function removePresence(userId: string, socketId: string) {
 // ─── Socket.IO ────────────────────────────────────────────────────────────────
 io.on("connection", (socket) => {
   logger.info({ socketId: socket.id }, "[socket.io] Client connected");
+  console.log(`\n✅ [SERVER] New device connected — socketId: ${socket.id}`);
 
   let registeredUserId: string | null = null;
 
@@ -61,6 +62,7 @@ io.on("connection", (socket) => {
     socket.join(`user_${userId}`);
     addPresence(userId, socket.id);
     logger.info({ userId, socketId: socket.id }, "[socket.io] User registered");
+    console.log(`✅ [SERVER] User registered — userId: ${userId} — socketId: ${socket.id}`);
 
     // Broadcast online status
     io.emit("user:online", { userId });

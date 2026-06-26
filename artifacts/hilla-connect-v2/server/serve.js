@@ -5,6 +5,7 @@
  */
 
 const http = require("http");
+const net = require("net");
 const fs = require("fs");
 const path = require("path");
 
@@ -124,27 +125,26 @@ const server = http.createServer((req, res) => {
 });
 
 // Handle WebSocket upgrades for socket.io proxy
+// Uses net.connect (raw TCP) — http.request cannot tunnel WebSocket upgrades.
 server.on("upgrade", (req, socket, head) => {
   if (req.url && (req.url.startsWith("/socket.io/") || req.url.startsWith("/api/"))) {
-    const options = {
-      hostname: "127.0.0.1",
-      port: API_PORT,
-      path: req.url,
-      headers: req.headers,
-    };
-
-    const proxyReq = http.request(options);
-    proxyReq.on("upgrade", (proxyRes, proxySocket) => {
-      socket.write(
-        "HTTP/1.1 101 Switching Protocols\r\n" +
-        Object.entries(proxyRes.headers).map(([k, v]) => `${k}: ${v}`).join("\r\n") +
-        "\r\n\r\n"
-      );
-      proxySocket.pipe(socket);
-      socket.pipe(proxySocket);
+    const upstream = net.connect(API_PORT, "127.0.0.1", () => {
+      // Forward the raw HTTP upgrade request to the upstream API server
+      let raw = `${req.method} ${req.url} HTTP/1.1\r\n`;
+      for (const [key, val] of Object.entries(req.headers)) {
+        raw += `${key}: ${Array.isArray(val) ? val.join(", ") : val}\r\n`;
+      }
+      raw += "\r\n";
+      upstream.write(raw);
+      if (head && head.length > 0) upstream.write(head);
+      // Bidirectional pipe — both sides exchange WebSocket frames directly
+      upstream.pipe(socket);
+      socket.pipe(upstream);
     });
-    proxyReq.on("error", () => socket.destroy());
-    proxyReq.end();
+    upstream.on("error", () => { try { socket.destroy(); } catch (_) {} });
+    socket.on("error", () => { try { upstream.destroy(); } catch (_) {} });
+    socket.on("end", () => { try { upstream.end(); } catch (_) {} });
+    upstream.on("end", () => { try { socket.end(); } catch (_) {} });
   } else {
     socket.destroy();
   }

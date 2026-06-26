@@ -1352,6 +1352,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       );
     };
 
+    // ── Socket: room:state — server sends full participant snapshot on subscribe ─
+    const handleRoomState = ({ roomId, participants, seats: serverSeats }: {
+      roomId: string;
+      participants: { userId: string; userName: string | null; userImage: string | null; seatIndex: number }[];
+      seats: (string | null)[];
+    }) => {
+      console.log(`🏠 [APP] room:state snapshot — room: ${roomId} participants: ${participants.length}`);
+      setRooms((prev) =>
+        prev.map((r) => {
+          if (r.id !== roomId) return r;
+          const seats = Array(8).fill(null) as (string | null)[];
+          const seatUsers = Array(8).fill(null) as any[];
+          const presentUserIds: string[] = [];
+          for (const p of participants) {
+            presentUserIds.push(p.userId);
+            if (p.seatIndex >= 0 && p.seatIndex < 8) {
+              seats[p.seatIndex] = p.userId;
+              seatUsers[p.seatIndex] = { id: p.userId, name: p.userName ?? "", avatar: p.userImage } as any;
+            }
+          }
+          return { ...r, seats, seatUsers, presentUserIds };
+        })
+      );
+    };
+
+    socket.on("room:state", handleRoomState);
     socket.on("room:participant-joined", handleParticipantJoined);
     socket.on("user_joined", handleParticipantJoined);
     socket.on("room:participant-left", handleParticipantLeft);
@@ -1481,6 +1507,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       socket.off("room:created", handleRoomCreated);
       socket.off("room:deleted", handleRoomDeleted);
       socket.off("room:message", handleRoomMessage);
+      socket.off("room:state", handleRoomState);
       socket.off("room:participant-joined", handleParticipantJoined);
       socket.off("user_joined", handleParticipantJoined);
       socket.off("room:participant-left", handleParticipantLeft);

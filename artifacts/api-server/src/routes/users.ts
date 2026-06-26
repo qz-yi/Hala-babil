@@ -226,6 +226,24 @@ router.get("/users/:userId", async (req, res) => {
   }
 });
 
+// ─── GET /api/admin/users — all users (super admin only) ─────────────────────
+router.get("/admin/users", authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const roleResult = await pool.query(`SELECT role FROM users WHERE id = $1`, [req.userId]);
+    const role = roleResult.rows[0]?.["role"] as string | undefined;
+    if (role !== "SUPER_ADMIN" && role !== "ADMIN" && role !== "MANAGER") {
+      return res.status(403).json({ error: "forbidden" });
+    }
+    const result = await pool.query(
+      `SELECT * FROM users ORDER BY created_at DESC LIMIT 500`
+    );
+    return res.json({ users: result.rows.map(normalizeUser) });
+  } catch (err) {
+    logger.error({ err }, "[users] Admin list failed");
+    return res.status(500).json({ error: "list_failed" });
+  }
+});
+
 // ─── POST /api/users/change-password ────────────────────────────────────────
 router.post("/users/change-password", authMiddleware, async (req: AuthRequest, res) => {
   const { oldPassword, newPassword } = req.body as { oldPassword?: string; newPassword?: string };

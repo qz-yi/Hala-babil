@@ -2,7 +2,7 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   FlatList,
   Image,
@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useToast } from "@/components/Toast";
 import { IRAQI_GOVERNORATES, useApp, isUserVerified } from "@/context/AppContext";
 import type { User, Merchant, Order } from "@/context/AppContext";
@@ -270,6 +271,24 @@ export default function AdminScreen() {
   const [verifyModal, setVerifyModal] = useState<{ userId: string; userName: string } | null>(null);
   const [pwModal, setPwModal] = useState<{ userId: string; userName: string } | null>(null);
   const [newPw, setNewPw] = useState("");
+  const [allDbUsers, setAllDbUsers] = useState<User[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const tok = await AsyncStorage.getItem("zentram_jwt_token");
+        if (!tok) return;
+        const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
+          ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+          : "";
+        const res = await fetch(`${API_BASE}/api/admin/users`, {
+          headers: { Authorization: `Bearer ${tok}` },
+        });
+        const data = await res.json();
+        if (data?.users) setAllDbUsers(data.users);
+      } catch (_) {}
+    })();
+  }, []);
 
   if (!isManager) {
     return (
@@ -442,8 +461,8 @@ export default function AdminScreen() {
           {/* ── USERS TAB ── */}
           {tab === "users" && (
             <View>
-              <SectionHeader title={`المستخدمون (${users.filter(u => !u.role || u.role === "CUSTOMER").length})`} />
-              {users.filter((u) => !u.role || u.role === "CUSTOMER").map((u) => {
+              <SectionHeader title={`المستخدمون (${(allDbUsers.length > 0 ? allDbUsers : users).filter(u => !u.role || u.role === "CUSTOMER" || u.role === "USER").length})`} />
+              {(allDbUsers.length > 0 ? allDbUsers : users).filter((u) => !u.role || u.role === "CUSTOMER" || u.role === "USER").map((u) => {
                 const verified = isUserVerified(u);
                 return (
                   <View key={u.id} style={[styles.userCard, { backgroundColor: c.card, borderColor: c.border }]}>

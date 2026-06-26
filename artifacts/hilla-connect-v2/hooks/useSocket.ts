@@ -79,13 +79,16 @@ export function initiateCallSignal(payload: {
   getSocket().emit("initiate-call", payload);
 }
 
-/** Callee accepts — notifies caller + dismisses on own other devices */
+/** Callee accepts — notifies caller + joins WebRTC signalling room + dismisses on own devices */
 export function acceptCallSignal(payload: {
   callRoomId: string;
   fromUserId: string;
   calleeUserId: string;
 }) {
-  getSocket().emit("accept-call", payload);
+  const socket = getSocket();
+  // MUST join the WebRTC call room so offer/answer/ice-candidate relay reaches us
+  socket.emit("join-room", payload.callRoomId, payload.calleeUserId);
+  socket.emit("accept-call", payload);
 }
 
 /** Callee declines */
@@ -114,14 +117,17 @@ export function useSocket(userId?: string) {
 
     if (userId) {
       registerUserSocket(userId);
-      socket.on("reconnect", () => registerUserSocket(userId));
+      // Re-register on every reconnect so the server puts us back in user_${userId} room.
+      // socket.io.on (the Manager) is the correct event source for "reconnect".
+      const onReconnect = () => {
+        console.log(`🔄 [APP] Reconnected — re-registering userId: ${userId}`);
+        registerUserSocket(userId);
+      };
+      socket.io.on("reconnect", onReconnect);
+      return () => {
+        socket.io.off("reconnect", onReconnect);
+      };
     }
-
-    return () => {
-      if (userId) {
-        socket.off("reconnect");
-      }
-    };
   }, [userId]);
 
   const joinRoom = useCallback((roomId: string, uid: string) => {

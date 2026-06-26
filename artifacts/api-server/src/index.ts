@@ -106,11 +106,41 @@ io.on("connection", (socket) => {
     io.emit("user:online", { userId });
   });
 
-  // ── Subscribe to voice room socket room ──────────────────────────────────
-  // Client emits this to receive room:participant-joined/left + room:message events
-  socket.on("room:subscribe", (roomId: string) => {
+  // ── Subscribe to voice room socket channel ────────────────────────────────
+  // Client emits this when opening a room screen. We join the socket room AND
+  // immediately push back the current participant snapshot so the UI is never stale.
+  socket.on("room:subscribe", async (roomId: string) => {
     socket.join(`room_${roomId}`);
     logger.info({ roomId, socketId: socket.id }, "[socket.io] Subscribed to room channel");
+
+    try {
+      const [roomRes, partRes] = await Promise.all([
+        pool.query(`SELECT * FROM rooms WHERE id = $1`, [roomId]),
+        pool.query(
+          `SELECT user_id, user_name, user_image, seat_index
+             FROM room_participants WHERE room_id = $1 ORDER BY joined_at ASC`,
+          [roomId]
+        ),
+      ]);
+      if (!roomRes.rowCount) return;
+
+      const seatsJson: (string | null)[] = (roomRes.rows[0]["seats"] as any) ?? Array(8).fill(null);
+      const participants = partRes.rows.map((p) => ({
+        userId:    String(p["user_id"]),
+        userName:  p["user_name"] as string | null,
+        userImage: p["user_image"] as string | null,
+        seatIndex: p["seat_index"] as number,
+      }));
+
+      socket.emit("room:state", {
+        roomId,
+        participants,
+        seats: seatsJson,
+      });
+      logger.info({ roomId, count: participants.length }, "[socket.io] Sent room:state snapshot");
+    } catch (err) {
+      logger.error({ err, roomId }, "[socket.io] room:subscribe state fetch failed");
+    }
   });
 
   socket.on("room:unsubscribe", (roomId: string) => {

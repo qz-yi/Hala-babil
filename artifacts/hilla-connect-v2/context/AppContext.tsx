@@ -1317,6 +1317,114 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     socket.on("room:deleted", handleRoomDeleted);
     socket.on("room:message", handleRoomMessage);
 
+    // ── Socket: room seat changes (real-time participant sync) ─────────────
+    const handleParticipantJoined = ({ roomId, userId: uid, userName: uName, userImage: uImg, seatIndex }: any) => {
+      console.log(`👤 [APP] user_joined room ${roomId} seat ${seatIndex} — userId: ${uid}`);
+      setRooms((prev) =>
+        prev.map((r) => {
+          if (r.id !== roomId) return r;
+          const seats = [...(r.seats ?? Array(8).fill(null))];
+          const seatUsers = [...(r.seatUsers ?? Array(8).fill(null))];
+          if (seatIndex >= 0 && seatIndex < 8) {
+            // Remove user from any current seat first
+            for (let i = 0; i < 8; i++) {
+              if (seats[i] === uid) { seats[i] = null; seatUsers[i] = null; }
+            }
+            seats[seatIndex] = uid;
+            seatUsers[seatIndex] = { id: uid, name: uName ?? "", image: uImg } as any;
+          }
+          const presentUserIds = Array.from(new Set([...(r.presentUserIds ?? []), uid]));
+          return { ...r, seats, seatUsers, presentUserIds };
+        })
+      );
+    };
+
+    const handleParticipantLeft = ({ roomId, userId: uid }: any) => {
+      console.log(`🚪 [APP] user_left room ${roomId} — userId: ${uid}`);
+      setRooms((prev) =>
+        prev.map((r) => {
+          if (r.id !== roomId) return r;
+          const seats = (r.seats ?? Array(8).fill(null)).map((s: string | null) => (s === uid ? null : s));
+          const seatUsers = (r.seatUsers ?? Array(8).fill(null)).map((u: any) => (u?.id === uid ? null : u));
+          const presentUserIds = (r.presentUserIds ?? []).filter((id: string) => id !== uid);
+          return { ...r, seats, seatUsers, presentUserIds };
+        })
+      );
+    };
+
+    socket.on("room:participant-joined", handleParticipantJoined);
+    socket.on("user_joined", handleParticipantJoined);
+    socket.on("room:participant-left", handleParticipantLeft);
+
+    // ── Socket: live feed updates ──────────────────────────────────────────
+    const handlePostNew = (serverPost: any) => {
+      if (!serverPost?.id) return;
+      console.log(`📰 [APP] global_feed_update — new post: ${serverPost.id} by ${serverPost.creatorId}`);
+      setPosts((prev) => {
+        if (prev.find((p) => p.id === serverPost.id)) return prev;
+        const newPost: any = {
+          ...serverPost,
+          likedBy: [],
+          comments: [],
+          likeCount: serverPost.likesCount ?? 0,
+          commentCount: serverPost.commentsCount ?? 0,
+        };
+        return [newPost, ...prev];
+      });
+    };
+
+    const handlePostLiked = ({ postId, userId: likerId, liked, likesCount }: any) => {
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (p.id !== postId) return p;
+          const likedBy: string[] = liked
+            ? Array.from(new Set([...(p.likedBy ?? []), likerId]))
+            : (p.likedBy ?? []).filter((id: string) => id !== likerId);
+          return { ...p, likedBy, likeCount: likesCount };
+        })
+      );
+    };
+
+    const handlePostComment = ({ postId }: any) => {
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? { ...p, commentCount: (p.commentCount ?? p.comments?.length ?? 0) + 1 }
+            : p
+        )
+      );
+    };
+
+    socket.on("post:new", handlePostNew);
+    socket.on("global_feed_update", ({ post }: any) => { if (post) handlePostNew(post); });
+    socket.on("post:liked", handlePostLiked);
+    socket.on("post:comment", handlePostComment);
+
+    // ── Socket: DM from REST API path (new-message) ────────────────────────
+    const handleNewMessage = ({ chatId, message: msg }: { chatId: number; message: any }) => {
+      if (!msg) return;
+      setConversations((prev) =>
+        prev.map((c) => {
+          const match = (c as any).chatId === chatId ||
+            c.participants?.includes(msg.senderId);
+          if (!match) return c;
+          const newMsg: any = {
+            id: String(msg.id),
+            senderId: msg.senderId,
+            receiverId: msg.receiverId,
+            content: msg.content,
+            type: msg.type ?? "text",
+            mediaUrl: msg.mediaUrl,
+            timestamp: msg.timestamp ?? Date.now(),
+            read: false,
+          };
+          return { ...c, messages: [...(c.messages ?? []), newMsg], lastMessage: newMsg, updatedAt: Date.now() };
+        })
+      );
+    };
+
+    socket.on("new-message", handleNewMessage);
+
     // ── Socket: incoming private message ──────────────────────────────────
     const handlePrivateMessage = (payload: {
       conversationId: string;
@@ -1373,6 +1481,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       socket.off("room:created", handleRoomCreated);
       socket.off("room:deleted", handleRoomDeleted);
       socket.off("room:message", handleRoomMessage);
+      socket.off("room:participant-joined", handleParticipantJoined);
+      socket.off("user_joined", handleParticipantJoined);
+      socket.off("room:participant-left", handleParticipantLeft);
+      socket.off("post:new", handlePostNew);
+      socket.off("global_feed_update");
+      socket.off("post:liked", handlePostLiked);
+      socket.off("post:comment", handlePostComment);
+      socket.off("new-message", handleNewMessage);
       socket.off("private-message", handlePrivateMessage);
     };
   }, [currentUser?.id]);

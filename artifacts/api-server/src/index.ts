@@ -3,6 +3,7 @@ import { Server as SocketIOServer } from "socket.io";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { setSocketIo } from "./lib/socketSingleton";
+import { pool } from "@workspace/db";
 
 const rawPort = process.env["PORT"];
 
@@ -36,6 +37,43 @@ const gameRooms = new Map<string, any>();
 
 // ─── Presence Map: userId → Set<socketId> ────────────────────────────────────
 const presenceMap = new Map<string, Set<string>>();
+
+// ─── Room Heartbeat Tracker: "roomId:userId" → lastSeenMs ────────────────────
+const roomHeartbeats = new Map<string, number>();
+
+// Every 10 s: evict participants whose heartbeat is older than 15 s
+setInterval(async () => {
+  const cutoff = Date.now() - 15_000;
+  for (const [key, lastSeen] of roomHeartbeats.entries()) {
+    if (lastSeen < cutoff) {
+      roomHeartbeats.delete(key);
+      const [roomId, userId] = key.split(":");
+      try {
+        const participantResult = await pool.query(
+          `SELECT seat_index FROM room_participants WHERE room_id = $1 AND user_id = $2`,
+          [roomId, userId]
+        );
+        await pool.query(
+          `DELETE FROM room_participants WHERE room_id = $1 AND user_id = $2`,
+          [roomId, userId]
+        );
+        const seatIdx = participantResult.rows[0]?.seat_index as number ?? -1;
+        if (seatIdx >= 0) {
+          const roomResult = await pool.query(`SELECT seats FROM rooms WHERE id = $1`, [roomId]);
+          if (roomResult.rowCount && roomResult.rowCount > 0) {
+            const seats = (roomResult.rows[0].seats as (string | null)[]) ?? Array(8).fill(null);
+            const cleaned = seats.map((s: string | null) => (s === userId ? null : s));
+            await pool.query(`UPDATE rooms SET seats = $1::jsonb WHERE id = $2`, [JSON.stringify(cleaned), roomId]);
+          }
+        }
+        io.to(`room_${roomId}`).emit("room:participant-left", { roomId, userId, reason: "heartbeat_timeout" });
+        console.log(`⏱️  [SERVER] Heartbeat timeout — evicted userId: ${userId} from room: ${roomId}`);
+      } catch (err) {
+        logger.error({ err, roomId, userId }, "[heartbeat] Failed to evict stale participant");
+      }
+    }
+  }
+}, 10_000);
 
 function addPresence(userId: string, socketId: string) {
   if (!presenceMap.has(userId)) presenceMap.set(userId, new Set());
@@ -77,6 +115,13 @@ io.on("connection", (socket) => {
 
   socket.on("room:unsubscribe", (roomId: string) => {
     socket.leave(`room_${roomId}`);
+  });
+
+  // ── Room Heartbeat ────────────────────────────────────────────────────────
+  socket.on("room:heartbeat", ({ roomId, userId }: { roomId: string; userId: string; ts: number }) => {
+    if (roomId && userId) {
+      roomHeartbeats.set(`${roomId}:${userId}`, Date.now());
+    }
   });
 
   // ── Call Room (WebRTC signaling room) ─────────────────────────────────────

@@ -91,6 +91,8 @@ router.post("/posts", optionalAuth, async (req: AuthRequest, res) => {
     const io = getSocketIo();
     if (io) {
       io.emit("post:new", post);
+      io.emit("global_feed_update", { type: "new_post", post });
+      console.log(`📡 [SERVER] global_feed_update(new_post) — postId: ${post.id}`);
     }
 
     logger.info({ postId: post.id, creatorId }, "[posts] Post created");

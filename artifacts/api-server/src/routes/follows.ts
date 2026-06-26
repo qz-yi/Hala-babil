@@ -34,10 +34,17 @@ router.post("/follows/:targetUserId", optionalAuth, async (req: AuthRequest, res
       );
       following = true;
 
-      // Notify target user
+      // Notify target user via both event names
       const io = getSocketIo();
       if (io) {
         io.to(`user_${targetUserId}`).emit("new-follow", { followerId });
+        io.to(`user_${targetUserId}`).emit("notification", {
+          type: "follow",
+          from: followerId,
+          targetUserId,
+          timestamp: Date.now(),
+        });
+        console.log(`📡 [SERVER] notification(follow) → user_${targetUserId} from ${followerId}`);
       }
     }
 

@@ -32,6 +32,27 @@ export function getSocket(): Socket {
   return sharedSocket;
 }
 
+// ─── Room Heartbeat ───────────────────────────────────────────────────────────
+// Emits room:heartbeat every 5 s while the user is seated in a room.
+// Call startRoomHeartbeat when entering, stopRoomHeartbeat when leaving.
+let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
+export function startRoomHeartbeat(roomId: string, userId: string) {
+  stopRoomHeartbeat();
+  const emit = () => getSocket().emit("room:heartbeat", { roomId, userId, ts: Date.now() });
+  emit(); // immediate first beat
+  heartbeatInterval = setInterval(emit, 5_000);
+  console.log(`💓 [APP] Heartbeat started — room: ${roomId} user: ${userId}`);
+}
+
+export function stopRoomHeartbeat() {
+  if (heartbeatInterval !== null) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+    console.log("💔 [APP] Heartbeat stopped");
+  }
+}
+
 /** Register user in their personal socket room + Presence Manager */
 export function registerUserSocket(userId: string) {
   const socket = getSocket();

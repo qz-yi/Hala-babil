@@ -194,7 +194,10 @@ router.post("/rooms/:roomId/join", optionalAuth, async (req: AuthRequest, res) =
 
     const io = getSocketIo();
     if (io) {
-      io.to(`room_${roomId}`).emit("room:participant-joined", { roomId, userId: uid, userName, userImage, seatIndex });
+      const joinPayload = { roomId, userId: uid, userName, userImage, seatIndex };
+      io.to(`room_${roomId}`).emit("room:participant-joined", joinPayload);
+      io.to(`room_${roomId}`).emit("user_joined", joinPayload);
+      console.log(`📡 [SERVER] user_joined broadcast — userId: ${uid} → room: ${roomId} seat: ${seatIndex}`);
     }
 
     logger.info({ roomId, userId: uid, seatIndex }, "[rooms] User joined room");

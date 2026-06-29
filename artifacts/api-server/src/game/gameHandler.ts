@@ -118,7 +118,17 @@ function endGame(
 
 // ─── Handle turn expiry (server-side timer) ───────────────────────────────────
 function handleTurnExpiry(io: SocketIOServer, room: GameRoom): void {
-  logger.info({ roomId: room.id, turnIndex: room.currentTurnIndex }, "[game] Turn expired");
+  const timedOutPlayer = room.players[room.currentTurnIndex];
+  logger.info({ roomId: room.id, turnIndex: room.currentTurnIndex, userId: timedOutPlayer?.userId }, "[game] Turn expired");
+
+  // Broadcast timeout event to the whole room BEFORE advancing the turn so
+  // clients can distinguish a timeout-driven change from a normal move.
+  io.to(`game_${room.id}`).emit("game:timeout", {
+    roomId: room.id,
+    timedOutUserId: timedOutPlayer?.userId ?? null,
+    timedOutUserName: timedOutPlayer?.name ?? null,
+    previousTurnIndex: room.currentTurnIndex,
+  });
 
   if (room.gameType === "tictactoe") {
     nextTurn(room);
@@ -201,6 +211,14 @@ export function registerGameHandlers(io: SocketIOServer, socket: Socket): void {
       if (existing) {
         markPlayerConnected(room, userId, socket.id);
         socket.join(`game_${roomId}`);
+
+        // Resume the per-turn timer so the countdown isn't paused indefinitely.
+        // Only restart if no timer is running (cleared on disconnect).
+        if (!room.timer) {
+          setTurnTimer(room, () => handleTurnExpiry(io, room));
+        }
+
+        // Push fresh state with updated turnDeadline to the reconnecting client.
         socket.emit("game:state", buildClientState(room, userId));
         io.to(`game_${roomId}`).emit("game:player_reconnected", { userId, name });
         return;

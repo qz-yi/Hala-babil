@@ -2,6 +2,7 @@ import { createServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
 import app from "./app";
 import { logger } from "./lib/logger";
+import { registerGameHandlers, handleGameDisconnect } from "./game/gameHandler.js";
 import { setSocketIo } from "./lib/socketSingleton";
 import { pool } from "@workspace/db";
 
@@ -31,9 +32,6 @@ const io = new SocketIOServer(httpServer, {
 
 // Make io accessible from routes via singleton
 setSocketIo(io);
-
-// ─── Game Rooms: roomId → ephemeral GameState ────────────────────────────────
-const gameRooms = new Map<string, any>();
 
 // ─── Presence Map: userId → Set<socketId> ────────────────────────────────────
 const presenceMap = new Map<string, Set<string>>();
@@ -295,48 +293,8 @@ io.on("connection", (socket) => {
     });
   });
 
-  // ── GAME ROOMS ────────────────────────────────────────────────────────────
-  socket.on("game:join-room", (roomId: string) => {
-    socket.join(`game_${roomId}`);
-    const existing = gameRooms.get(roomId);
-    if (existing) socket.emit("game:state", existing);
-    logger.info({ roomId, socketId: socket.id }, "[game] Joined game room");
-  });
-
-  socket.on("game:start", (payload: { roomId: string; gameState: any }) => {
-    gameRooms.set(payload.roomId, payload.gameState);
-    io.to(`game_${payload.roomId}`).emit("game:state", payload.gameState);
-    logger.info({ roomId: payload.roomId, gameType: payload.gameState?.gameType }, "[game] Started");
-  });
-
-  socket.on("game:move", (payload: {
-    roomId: string;
-    newState: any;
-    playerId: string;
-    moveType: string;
-  }) => {
-    const current = gameRooms.get(payload.roomId);
-    if (!current) return;
-    const expected = current.players?.[current.currentTurnIndex];
-    if (expected?.id !== payload.playerId) {
-      logger.warn({ expected: expected?.id, got: payload.playerId }, "[game] Move rejected: wrong turn");
-      return;
-    }
-    gameRooms.set(payload.roomId, payload.newState);
-    socket.to(`game_${payload.roomId}`).emit("game:state", payload.newState);
-    logger.info({ roomId: payload.roomId, moveType: payload.moveType }, "[game] Move applied");
-  });
-
-  socket.on("game:reset", (payload: { roomId: string; newState: any }) => {
-    gameRooms.set(payload.roomId, payload.newState);
-    io.to(`game_${payload.roomId}`).emit("game:state", payload.newState);
-  });
-
-  socket.on("game:end", (roomId: string) => {
-    gameRooms.delete(roomId);
-    io.to(`game_${roomId}`).emit("game:ended");
-    logger.info({ roomId }, "[game] Ended");
-  });
+  // ── Game Engine (server-validated, real-time multiplayer) ────────────────
+  registerGameHandlers(io, socket);
 
   // ── Disconnect cleanup ────────────────────────────────────────────────────
   socket.on("disconnect", () => {
@@ -345,6 +303,7 @@ io.on("connection", (socket) => {
       io.emit("user:offline", { userId: registeredUserId });
       logger.info({ userId: registeredUserId, socketId: socket.id }, "[socket.io] Presence removed");
     }
+    handleGameDisconnect(io, socket.id);
     logger.info({ socketId: socket.id }, "[socket.io] Client disconnected");
   });
 });

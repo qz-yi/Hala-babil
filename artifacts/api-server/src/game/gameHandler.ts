@@ -19,19 +19,19 @@ import {
   getRoom,
   markPlayerConnected,
   markPlayerDisconnected,
+  registry,
   removePlayerFromRoom,
   scheduleCleanup,
   scheduleReconnect,
   setTurnTimer,
 } from "./gameRegistry.js";
-import { initTicTacToe, applyTicTacToeMove } from "./ticTacToeLogic.js";
+import { applyTicTacToeMove, initTicTacToe } from "./ticTacToeLogic.js";
 import {
-  initDomino,
-  applyDominoMove,
   applyDominoDraw,
+  applyDominoMove,
   applyDominoPass,
-  playerCanPlay,
   computeBlockedWinner,
+  initDomino,
 } from "./dominoLogic.js";
 
 // ─── Sanitise state for a specific viewer ────────────────────────────────────
@@ -78,7 +78,7 @@ function buildClientState(room: GameRoom, viewerUserId: string): ClientGameState
   return base;
 }
 
-// ─── Broadcast state to every player with their own sanitised view ────────────
+// ─── Broadcast personalised state to every player ────────────────────────────
 function broadcastState(io: SocketIOServer, room: GameRoom): void {
   for (const p of room.players) {
     const state = buildClientState(room, p.userId);
@@ -86,13 +86,37 @@ function broadcastState(io: SocketIOServer, room: GameRoom): void {
   }
 }
 
-// ─── Advance to next living turn index ───────────────────────────────────────
+// ─── Advance to next turn index ───────────────────────────────────────────────
 function nextTurn(room: GameRoom): void {
-  const total = room.players.length;
-  room.currentTurnIndex = (room.currentTurnIndex + 1) % total;
+  room.currentTurnIndex = (room.currentTurnIndex + 1) % room.players.length;
 }
 
-// ─── Handle turn expiry ───────────────────────────────────────────────────────
+// ─── End game ────────────────────────────────────────────────────────────────
+function endGame(
+  io: SocketIOServer,
+  room: GameRoom,
+  winnerId: string | null,
+  reason: "win" | "draw" | "forfeit" | "blocked",
+): void {
+  clearTimer(room);
+  room.status = "finished";
+  room.winner = winnerId;
+
+  const winner = room.players.find((p) => p.userId === winnerId);
+
+  io.to(`game_${room.id}`).emit("game:ended", {
+    roomId: room.id,
+    winnerId,
+    winnerName: winner?.name ?? null,
+    reason,
+    finalScores: room.domino?.scores ?? {},
+  });
+
+  broadcastState(io, room);
+  scheduleCleanup(room.id);
+}
+
+// ─── Handle turn expiry (server-side timer) ───────────────────────────────────
 function handleTurnExpiry(io: SocketIOServer, room: GameRoom): void {
   logger.info({ roomId: room.id, turnIndex: room.currentTurnIndex }, "[game] Turn expired");
 
@@ -100,7 +124,10 @@ function handleTurnExpiry(io: SocketIOServer, room: GameRoom): void {
     nextTurn(room);
     setTurnTimer(room, () => handleTurnExpiry(io, room));
     broadcastState(io, room);
-  } else if (room.gameType === "domino" && room.domino) {
+    return;
+  }
+
+  if (room.gameType === "domino" && room.domino) {
     const currentPlayer = room.players[room.currentTurnIndex];
     if (currentPlayer) {
       const { newState, isBlocked } = applyDominoPass(
@@ -112,41 +139,38 @@ function handleTurnExpiry(io: SocketIOServer, room: GameRoom): void {
       room.domino = newState;
 
       if (isBlocked) {
-        endGame(io, room, computeBlockedWinner(room.domino, room.players.map((p) => p.userId)), "blocked");
+        const playerIds = room.players.map((p) => p.userId);
+        endGame(io, room, computeBlockedWinner(room.domino, playerIds), "blocked");
         return;
       }
     }
+
     nextTurn(room);
     setTurnTimer(room, () => handleTurnExpiry(io, room));
     broadcastState(io, room);
   }
 }
 
-// ─── End game ────────────────────────────────────────────────────────────────
-function endGame(io: SocketIOServer, room: GameRoom, winnerId: string | null, reason: string): void {
-  clearTimer(room);
-  room.status = "finished";
-  room.winner = winnerId;
-
-  const winner = room.players.find((p) => p.userId === winnerId);
-  const finalScores = room.domino?.scores ?? {};
-
-  io.to(`game_${room.id}`).emit("game:ended", {
+// ─── Lobby helper ─────────────────────────────────────────────────────────────
+function emitLobbyState(io: SocketIOServer, room: GameRoom): void {
+  io.to(`game_${room.id}`).emit("game:lobby_state", {
     roomId: room.id,
-    winnerId,
-    winnerName: winner?.name ?? null,
-    reason,
-    finalScores,
+    players: room.players.map((p) => ({
+      userId: p.userId,
+      name: p.name,
+      avatar: p.avatar,
+      color: p.color,
+      connected: p.connected,
+    })),
+    hostUserId: room.hostUserId,
+    gameType: room.gameType,
   });
-
-  broadcastState(io, room);
-  scheduleCleanup(room.id);
 }
 
-// ─── Main handler wired into Socket.IO ───────────────────────────────────────
-export function registerGameHandlers(io: SocketIOServer, socket: Socket, registeredUserIdRef: { current: string | null }): void {
+// ─── Main handler registration ────────────────────────────────────────────────
+export function registerGameHandlers(io: SocketIOServer, socket: Socket): void {
 
-  // ── game:create ─────────────────────────────────────────────────────────────
+  // ── game:create ──────────────────────────────────────────────────────────────
   socket.on("game:create", (payload: GameCreatePayload) => {
     const { roomId, gameType, userId, name, avatar, color } = payload;
     logger.info({ roomId, gameType, userId }, "[game] game:create");
@@ -155,11 +179,8 @@ export function registerGameHandlers(io: SocketIOServer, socket: Socket, registe
     socket.join(`game_${roomId}`);
     markPlayerConnected(room, userId, socket.id);
 
+    emitLobbyState(io, room);
     broadcastState(io, room);
-    io.to(`game_${roomId}`).emit("game:lobby_state", {
-      roomId,
-      players: room.players.map((p) => ({ userId: p.userId, name: p.name, avatar: p.avatar, color: p.color })),
-    });
   });
 
   // ── game:join ────────────────────────────────────────────────────────────────
@@ -180,8 +201,7 @@ export function registerGameHandlers(io: SocketIOServer, socket: Socket, registe
       if (existing) {
         markPlayerConnected(room, userId, socket.id);
         socket.join(`game_${roomId}`);
-        const state = buildClientState(room, userId);
-        socket.emit("game:state", state);
+        socket.emit("game:state", buildClientState(room, userId));
         io.to(`game_${roomId}`).emit("game:player_reconnected", { userId, name });
         return;
       }
@@ -196,12 +216,8 @@ export function registerGameHandlers(io: SocketIOServer, socket: Socket, registe
     }
 
     socket.join(`game_${roomId}`);
-
+    emitLobbyState(io, room);
     broadcastState(io, room);
-    io.to(`game_${roomId}`).emit("game:lobby_state", {
-      roomId,
-      players: room.players.map((p) => ({ userId: p.userId, name: p.name, avatar: p.avatar, color: p.color })),
-    });
   });
 
   // ── game:start ───────────────────────────────────────────────────────────────
@@ -213,18 +229,12 @@ export function registerGameHandlers(io: SocketIOServer, socket: Socket, registe
     if (!room) { socket.emit("game:error", { message: "الغرفة غير موجودة" }); return; }
     if (room.hostUserId !== userId) { socket.emit("game:error", { message: "فقط المضيف يمكنه بدء اللعبة" }); return; }
     if (room.status !== "lobby") { socket.emit("game:error", { message: "اللعبة بدأت بالفعل" }); return; }
-
-    const MIN = room.gameType === "tictactoe" ? 2 : 2;
-    if (room.players.length < MIN) {
-      socket.emit("game:error", { message: `يجب أن يكون هناك لاعبان على الأقل` });
-      return;
-    }
+    if (room.players.length < 2) { socket.emit("game:error", { message: "يجب أن يكون هناك لاعبان على الأقل" }); return; }
 
     room.status = "playing";
     room.currentTurnIndex = 0;
 
     const playerIds = room.players.map((p) => p.userId);
-
     if (room.gameType === "tictactoe") {
       room.tictactoe = initTicTacToe(playerIds);
     } else {
@@ -238,7 +248,6 @@ export function registerGameHandlers(io: SocketIOServer, socket: Socket, registe
   // ── game:move ────────────────────────────────────────────────────────────────
   socket.on("game:move", (payload: GameMovePayload) => {
     const { roomId, userId, move } = payload;
-    logger.info({ roomId, userId, move }, "[game] game:move");
 
     const room = getRoom(roomId);
     if (!room) { socket.emit("game:error", { message: "الغرفة غير موجودة" }); return; }
@@ -257,14 +266,9 @@ export function registerGameHandlers(io: SocketIOServer, socket: Socket, registe
       if (error) { socket.emit("game:error", { message: error }); return; }
       room.tictactoe = newState;
 
-      if (winnerId) {
-        endGame(io, room, winnerId, "win");
-        return;
-      }
-      if (isDraw) {
-        endGame(io, room, null, "draw");
-        return;
-      }
+      if (winnerId) { endGame(io, room, winnerId, "win"); return; }
+      if (isDraw)   { endGame(io, room, null, "draw"); return; }
+
       nextTurn(room);
 
     } else if (move.kind === "domino" && room.domino) {
@@ -275,10 +279,8 @@ export function registerGameHandlers(io: SocketIOServer, socket: Socket, registe
       if (error) { socket.emit("game:error", { message: error }); return; }
       room.domino = newState;
 
-      if (winnerId) {
-        endGame(io, room, winnerId, "win");
-        return;
-      }
+      if (winnerId) { endGame(io, room, winnerId, "win"); return; }
+
       nextTurn(room);
 
     } else {
@@ -290,14 +292,13 @@ export function registerGameHandlers(io: SocketIOServer, socket: Socket, registe
     broadcastState(io, room);
   });
 
-  // ── game:draw (Dominos boneyard) ─────────────────────────────────────────────
+  // ── game:draw (Dominoes — boneyard) ─────────────────────────────────────────
   socket.on("game:draw", (payload: GameDrawPayload) => {
     const { roomId, userId } = payload;
-    logger.info({ roomId, userId }, "[game] game:draw");
 
     const room = getRoom(roomId);
     if (!room || !room.domino) { socket.emit("game:error", { message: "لعبة دومينو غير موجودة" }); return; }
-    if (room.status !== "playing") { socket.emit("game:error", { message: "اللعبة ليست جارية" }); return; }
+    if (room.status !== "playing")  { socket.emit("game:error", { message: "اللعبة ليست جارية" }); return; }
 
     const currentPlayer = room.players[room.currentTurnIndex];
     if (!currentPlayer || currentPlayer.userId !== userId) {
@@ -319,14 +320,13 @@ export function registerGameHandlers(io: SocketIOServer, socket: Socket, registe
     broadcastState(io, room);
   });
 
-  // ── game:pass (Dominos no-move) ──────────────────────────────────────────────
+  // ── game:pass (Dominoes — no valid move) ─────────────────────────────────────
   socket.on("game:pass", (payload: GamePassPayload) => {
     const { roomId, userId } = payload;
-    logger.info({ roomId, userId }, "[game] game:pass");
 
     const room = getRoom(roomId);
     if (!room || !room.domino) { socket.emit("game:error", { message: "لعبة دومينو غير موجودة" }); return; }
-    if (room.status !== "playing") { socket.emit("game:error", { message: "اللعبة ليست جارية" }); return; }
+    if (room.status !== "playing")  { socket.emit("game:error", { message: "اللعبة ليست جارية" }); return; }
 
     const currentPlayer = room.players[room.currentTurnIndex];
     if (!currentPlayer || currentPlayer.userId !== userId) {
@@ -341,7 +341,8 @@ export function registerGameHandlers(io: SocketIOServer, socket: Socket, registe
     room.domino = newState;
 
     if (isBlocked) {
-      endGame(io, room, computeBlockedWinner(room.domino, room.players.map((p) => p.userId)), "blocked");
+      const playerIds = room.players.map((p) => p.userId);
+      endGame(io, room, computeBlockedWinner(room.domino, playerIds), "blocked");
       return;
     }
 
@@ -366,49 +367,48 @@ export function registerGameHandlers(io: SocketIOServer, socket: Socket, registe
       endGame(io, room, winner?.userId ?? null, "forfeit");
     } else {
       removePlayerFromRoom(room, userId);
-      io.to(`game_${roomId}`).emit("game:lobby_state", {
-        roomId,
-        players: room.players.map((p) => ({ userId: p.userId, name: p.name, avatar: p.avatar, color: p.color })),
-      });
+      emitLobbyState(io, room);
     }
   });
+}
 
-  // ── disconnect: handle graceful reconnect window ──────────────────────────
-  socket.on("disconnect", () => {
-    const userId = registeredUserIdRef.current;
-    if (!userId) return;
+// ─── Disconnect handler (called from main index.ts disconnect event) ──────────
+export function handleGameDisconnect(io: SocketIOServer, socketId: string): void {
+  for (const [, room] of registry) {
+    const player = room.players.find((p) => p.socketId === socketId);
+    if (!player) continue;
 
-    for (const [roomId, room] of (await import("./gameRegistry.js")).registry) {
-      const player = room.players.find((p) => p.socketId === socket.id);
-      if (!player) continue;
+    if (room.status === "playing") {
+      markPlayerDisconnected(room, player.userId);
+      io.to(`game_${room.id}`).emit("game:player_left", {
+        userId: player.userId,
+        name: player.name,
+        temporary: true,
+      });
 
-      if (room.status === "playing") {
-        markPlayerDisconnected(room, player.userId);
-        io.to(`game_${roomId}`).emit("game:player_left", {
+      clearTimer(room);
+
+      scheduleReconnect(room, player.userId, () => {
+        const remaining = room.players.filter((p) => p.userId !== player.userId);
+        const winner = remaining.length === 1 ? remaining[0] : null;
+        endGame(io, room, winner?.userId ?? null, "forfeit");
+        io.to(`game_${room.id}`).emit("game:player_left", {
           userId: player.userId,
           name: player.name,
-          temporary: true,
+          temporary: false,
         });
+      });
 
-        clearTimer(room);
-
-        scheduleReconnect(room, player.userId, () => {
-          const remaining = room.players.filter((p) => p.userId !== player.userId);
-          const winner = remaining.length === 1 ? remaining[0] : null;
-          endGame(io, room, winner?.userId ?? null, "forfeit");
-          io.to(`game_${roomId}`).emit("game:player_left", {
-            userId: player.userId,
-            name: player.name,
-            temporary: false,
-          });
-        });
-      } else {
-        removePlayerFromRoom(room, player.userId);
-        io.to(`game_${roomId}`).emit("game:lobby_state", {
-          roomId,
-          players: room.players.map((p) => ({ userId: p.userId, name: p.name, avatar: p.avatar, color: p.color })),
-        });
-      }
+    } else if (room.status === "lobby") {
+      removePlayerFromRoom(room, player.userId);
+      io.to(`game_${room.id}`).emit("game:lobby_state", {
+        roomId: room.id,
+        players: room.players.map((p) => ({
+          userId: p.userId, name: p.name, avatar: p.avatar, color: p.color, connected: p.connected,
+        })),
+        hostUserId: room.hostUserId,
+        gameType: room.gameType,
+      });
     }
-  });
+  }
 }

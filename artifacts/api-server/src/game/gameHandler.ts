@@ -163,7 +163,7 @@ function handleTurnExpiry(io: SocketIOServer, room: GameRoom): void {
 
 // ─── Lobby helper ─────────────────────────────────────────────────────────────
 function emitLobbyState(io: SocketIOServer, room: GameRoom): void {
-  io.to(`game_${room.id}`).emit("game:lobby_state", {
+  const lobbyPayload = {
     roomId: room.id,
     players: room.players.map((p) => ({
       userId: p.userId,
@@ -174,7 +174,10 @@ function emitLobbyState(io: SocketIOServer, room: GameRoom): void {
     })),
     hostUserId: room.hostUserId,
     gameType: room.gameType,
-  });
+  };
+  io.to(`game_${room.id}`).emit("game:lobby_state", lobbyPayload);
+  // Also broadcast to the chat-room so non-game members see the lobby invitation
+  io.to(room.id).emit("game:lobby_state", lobbyPayload);
 }
 
 // ─── Main handler registration ────────────────────────────────────────────────
@@ -367,6 +370,29 @@ export function registerGameHandlers(io: SocketIOServer, socket: Socket): void {
     nextTurn(room);
     setTurnTimer(room, () => handleTurnExpiry(io, room));
     broadcastState(io, room);
+  });
+
+  // ── game:query ────────────────────────────────────────────────────────────────
+  // Returns current lobby or game state to the requesting client without joining.
+  socket.on("game:query", ({ roomId, userId }: { roomId: string; userId?: string }) => {
+    const room = getRoom(roomId);
+    if (!room) return;
+
+    if (room.status === "lobby") {
+      socket.emit("game:lobby_state", {
+        roomId: room.id,
+        players: room.players.map((p) => ({
+          userId: p.userId, name: p.name, avatar: p.avatar, color: p.color, connected: p.connected,
+        })),
+        hostUserId: room.hostUserId,
+        gameType: room.gameType,
+      });
+    } else if (room.status === "playing" && userId) {
+      const isPlayer = room.players.some((p) => p.userId === userId);
+      if (isPlayer) {
+        socket.emit("game:state", buildClientState(room, userId));
+      }
+    }
   });
 
   // ── game:leave ───────────────────────────────────────────────────────────────

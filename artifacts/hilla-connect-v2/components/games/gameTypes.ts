@@ -1,5 +1,55 @@
 export type GameType = "tictactoe" | "domino";
 export type GameStatus = "idle" | "selecting" | "splash" | "playing" | "finished";
+export type ClientGameStatus = "lobby" | "playing" | "finished";
+
+// ─── Server-side sanitised types (what the API emits per player) ──────────────
+export interface ClientGamePlayer {
+  userId: string;
+  name: string;
+  avatar?: string;
+  color: string;
+  connected: boolean;
+  handSize?: number;
+}
+
+export interface ClientDominoState {
+  myHand: DominoTile[];
+  opponentHandSizes: Record<string, number>;
+  board: BoardTile[];
+  leftEnd: number;
+  rightEnd: number;
+  boneyardSize: number;
+  scores: Record<string, number>;
+  passCount: number;
+  lastAction: string;
+}
+
+export interface ClientGameState {
+  roomId: string;
+  gameType: GameType;
+  status: ClientGameStatus;
+  players: ClientGamePlayer[];
+  currentTurnIndex: number;
+  turnDeadline: number;
+  winner: string | null;
+  tictactoe?: TicTacToeState;
+  domino?: ClientDominoState;
+}
+
+export interface ClientLobbyPlayer {
+  userId: string;
+  name: string;
+  avatar?: string;
+  color: string;
+  connected: boolean;
+}
+
+export interface ClientLobbyState {
+  roomId: string;
+  gameType: GameType;
+  hostUserId: string;
+  players: ClientLobbyPlayer[];
+}
 
 export interface GamePlayer {
   id: string;

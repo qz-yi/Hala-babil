@@ -1,17 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert, Animated, Modal, ScrollView, StyleSheet, Text,
+  Animated, Modal, Pressable, ScrollView, StyleSheet, Text,
   TouchableOpacity, View,
 } from "react-native";
 
 import { useGameEngine } from "@/hooks/useGameEngine";
 import {
-  GamePlayer, GameType, GAME_INFO, PLAYER_COLORS,
+  GameType, GAME_INFO,
 } from "./gameTypes";
 import GameSplash from "./GameSplash";
+import GameLobby from "./GameLobby";
 import WinScreen from "./WinScreen";
 import TicTacToeGame from "./TicTacToeGame";
 import DominoGame from "./DominoGame";
@@ -35,22 +36,28 @@ export default function GameEngine({
   visible, onClose, roomId, currentUserId, isOwner, seatedUsers,
 }: Props) {
   const [gamePickerVisible, setGamePickerVisible] = useState(false);
-  const [playerPickerVisible, setPlayerPickerVisible] = useState(false);
-  const [selectedGame, setSelectedGame] = useState<GameType | null>(null);
-  const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
+  const [confirmEndVisible, setConfirmEndVisible] = useState(false);
+
+  // Derive current user info from seated users list
+  const currentSeat = seatedUsers.find((u) => u.id === currentUserId);
+  const currentUserName = currentSeat?.name ?? "لاعب";
+  const currentUserAvatar = currentSeat?.avatar;
 
   const slideAnim = useRef(new Animated.Value(1000)).current;
   const bgOpacity = useRef(new Animated.Value(0)).current;
 
   const {
     game, isMyTurn, amIPlayer, turnTimeLeft,
-    startGame, endGame,
+    isHost, lobbyState, endedResult, playerLeft, gameError,
+    createGame, joinGame, startGame, endGame, queryRoom, clearError, clearEnded,
     ticTacToePlay, ticTacToeReset,
     dominoPlayTile, dominoDrawFromBoneyard,
-  } = useGameEngine(currentUserId, roomId);
+  } = useGameEngine(currentUserId, currentUserName, currentUserAvatar, roomId);
 
-  React.useEffect(() => {
+  // Slide animation
+  useEffect(() => {
     if (visible) {
+      queryRoom();
       Animated.parallel([
         Animated.timing(bgOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
         Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 50, friction: 10 }),
@@ -63,66 +70,28 @@ export default function GameEngine({
     }
   }, [visible]);
 
+  // Determine what to render
+  const showEndScreen = !!endedResult || game?.status === "finished";
+  const showPlaying = !showEndScreen && game?.status === "playing";
+  const showLobby = !showEndScreen && !showPlaying && !!lobbyState;
+  const showSplash = !showEndScreen && !showPlaying && !showLobby && game?.status === "splash";
+  const showNoGame = !showEndScreen && !showPlaying && !showLobby && !showSplash;
+
   const handleSelectGame = (gt: GameType) => {
-    setSelectedGame(gt);
     setGamePickerVisible(false);
-    setSelectedPlayers([]);
-    setPlayerPickerVisible(true);
-  };
-
-  const togglePlayer = (userId: string) => {
-    const maxPlayers = selectedGame ? GAME_INFO[selectedGame].maxPlayers : 4;
-    setSelectedPlayers((prev) => {
-      if (prev.includes(userId)) return prev.filter((id) => id !== userId);
-      if (prev.length >= maxPlayers) return prev;
-      return [...prev, userId];
-    });
-  };
-
-  const handleStartGame = () => {
-    if (!selectedGame) return;
-    const info = GAME_INFO[selectedGame];
-    if (selectedPlayers.length < info.minPlayers) {
-      Alert.alert("", `هذه اللعبة تحتاج على الأقل ${info.minPlayers} لاعبين`);
-      return;
-    }
-    if (selectedPlayers.length > info.maxPlayers) {
-      Alert.alert("", `الحد الأقصى ${info.maxPlayers} لاعبين لهذه اللعبة`);
-      return;
-    }
-
-    const players: GamePlayer[] = selectedPlayers.map((uid, i) => {
-      const user = seatedUsers.find((u) => u.id === uid);
-      return {
-        id: uid,
-        name: user?.name ?? `لاعب ${i + 1}`,
-        avatar: user?.avatar,
-        color: PLAYER_COLORS[i % PLAYER_COLORS.length],
-      };
-    });
-
-    setPlayerPickerVisible(false);
-    startGame(selectedGame, players);
+    createGame(gt);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const handleEndGame = () => {
-    Alert.alert("إنهاء اللعبة", "هل تريد إنهاء اللعبة الحالية؟", [
-      { text: "إلغاء", style: "cancel" },
-      {
-        text: "إنهاء",
-        style: "destructive",
-        onPress: () => {
-          endGame();
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        },
-      },
-    ]);
-  };
-
-  const winnerPlayer = game?.winner
-    ? game.players.find((p) => p.id === game.winner) ?? null
+  // Winner for WinScreen
+  const winnerPlayer = endedResult?.winnerId
+    ? (game?.players.find((p) => p.id === endedResult.winnerId) ?? null)
     : null;
+
+  const gameTypeName = game?.gameType ?? lobbyState?.gameType;
+  const headerGradient = gameTypeName
+    ? (GAME_INFO[gameTypeName]?.gradient ?? (["#1a1a2e", "#16213e"] as [string, string]))
+    : (["#1a1a2e", "#16213e"] as [string, string]);
 
   if (!visible) return null;
 
@@ -136,9 +105,10 @@ export default function GameEngine({
     >
       <Animated.View style={[styles.overlay, { opacity: bgOpacity }]}>
         <Animated.View style={[styles.panel, { transform: [{ translateY: slideAnim }] }]}>
+
           {/* ─── Header ─── */}
           <LinearGradient
-            colors={game ? (GAME_INFO[game.gameType]?.gradient ?? ["#1a1a2e", "#16213e"]) : ["#1a1a2e", "#16213e"]}
+            colors={headerGradient}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             style={styles.header}
           >
@@ -148,10 +118,10 @@ export default function GameEngine({
               </TouchableOpacity>
 
               <View style={styles.headerCenter}>
-                {game && game.status !== "idle" && game.status !== "selecting" ? (
+                {gameTypeName ? (
                   <>
-                    <Text style={styles.headerEmoji}>{GAME_INFO[game.gameType]?.emoji}</Text>
-                    <Text style={styles.headerTitle}>{GAME_INFO[game.gameType]?.name}</Text>
+                    <Text style={styles.headerEmoji}>{GAME_INFO[gameTypeName]?.emoji}</Text>
+                    <Text style={styles.headerTitle}>{GAME_INFO[gameTypeName]?.name}</Text>
                   </>
                 ) : (
                   <>
@@ -161,8 +131,11 @@ export default function GameEngine({
                 )}
               </View>
 
-              {game && game.status === "playing" && (isOwner || amIPlayer) ? (
-                <TouchableOpacity onPress={handleEndGame} style={styles.endGameBtn}>
+              {showPlaying && (isOwner || amIPlayer || isHost) ? (
+                <TouchableOpacity
+                  onPress={() => setConfirmEndVisible(true)}
+                  style={styles.endGameBtn}
+                >
                   <Ionicons name="stop-circle-outline" size={20} color="#FF6B6B" />
                 </TouchableOpacity>
               ) : (
@@ -170,8 +143,8 @@ export default function GameEngine({
               )}
             </View>
 
-            {/* Spectator / Player badge */}
-            {game && game.status === "playing" && (
+            {/* Role badge */}
+            {showPlaying && (
               <View style={styles.roleBadge}>
                 {amIPlayer ? (
                   <View style={[styles.rolePill, { backgroundColor: "rgba(76,175,80,0.3)" }]}>
@@ -194,18 +167,34 @@ export default function GameEngine({
             )}
           </LinearGradient>
 
+          {/* ─── Player-left banner ─── */}
+          {playerLeft && (
+            <View style={styles.playerLeftBanner}>
+              <Ionicons name="person-remove-outline" size={16} color="#FF9800" />
+              <Text style={styles.playerLeftText}>
+                {playerLeft.name} {playerLeft.temporary ? "انقطع الاتصال مؤقتاً ⏳" : "غادر اللعبة 👋"}
+              </Text>
+            </View>
+          )}
+
           {/* ─── Content ─── */}
           <View style={styles.content}>
-            {/* No game running — show lobby */}
-            {(!game || game.status === "idle") && (
-              <View style={styles.lobby}>
-                <Text style={styles.lobbyTitle}>اختر لعبة للبدء 🎮</Text>
+
+            {/* No game running */}
+            {showNoGame && (
+              <View style={styles.noGameArea}>
+                <Text style={styles.lobbyTitle}>ألعاب الغرفة 🎮</Text>
                 <Text style={styles.lobbySubtitle}>
-                  {isOwner ? "بما أنك صاحب الغرفة، يمكنك اختيار اللعبة" : "انتظر حتى يبدأ صاحب الغرفة لعبة"}
+                  {isOwner
+                    ? "اختر لعبة وابدأ مع اللاعبين في الغرفة"
+                    : "انتظر حتى يبدأ صاحب الغرفة لعبة"}
                 </Text>
 
                 {isOwner && (
-                  <TouchableOpacity onPress={() => setGamePickerVisible(true)} style={styles.startGameBtn}>
+                  <TouchableOpacity
+                    onPress={() => setGamePickerVisible(true)}
+                    style={styles.startGameBtn}
+                  >
                     <LinearGradient
                       colors={["#6366F1", "#4F46E5"]}
                       start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -230,13 +219,25 @@ export default function GameEngine({
               </View>
             )}
 
-            {/* Splash */}
-            {game && game.status === "splash" && (
+            {/* Lobby */}
+            {showLobby && (
+              <GameLobby
+                lobbyState={lobbyState!}
+                currentUserId={currentUserId}
+                isOwner={isOwner || isHost}
+                onJoin={joinGame}
+                onStart={startGame}
+                onLeave={() => { endGame(); }}
+              />
+            )}
+
+            {/* Splash / countdown */}
+            {showSplash && game && (
               <GameSplash gameType={game.gameType} />
             )}
 
             {/* Playing */}
-            {game && game.status === "playing" && (
+            {showPlaying && game && (
               <>
                 {game.gameType === "tictactoe" && game.tictactoe && (
                   <TicTacToeGame
@@ -267,14 +268,14 @@ export default function GameEngine({
               </>
             )}
 
-            {/* Win screen */}
-            {game && game.status === "finished" && (
+            {/* End screen */}
+            {showEndScreen && (
               <WinScreen
                 winner={winnerPlayer}
-                gameType={game.gameType}
-                players={game.players}
-                scores={game.domino ? game.domino.scores : undefined}
-                onClose={endGame}
+                gameType={game?.gameType ?? "tictactoe"}
+                players={game?.players ?? []}
+                scores={game?.domino?.scores ?? endedResult?.finalScores}
+                onClose={() => { clearEnded(); }}
               />
             )}
           </View>
@@ -282,16 +283,30 @@ export default function GameEngine({
       </Animated.View>
 
       {/* ─── Game Picker Modal ─── */}
-      <Modal visible={gamePickerVisible} transparent animationType="slide" onRequestClose={() => setGamePickerVisible(false)}>
-        <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setGamePickerVisible(false)} />
+      <Modal
+        visible={gamePickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setGamePickerVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.pickerOverlay}
+          activeOpacity={1}
+          onPress={() => setGamePickerVisible(false)}
+        />
         <View style={styles.pickerSheet}>
           <View style={styles.sheetHandle} />
           <Text style={styles.pickerTitle}>اختر لعبة 🎮</Text>
-          <ScrollView contentContainerStyle={{ gap: 10, paddingHorizontal: 16, paddingBottom: 32 }}>
+          <ScrollView
+            contentContainerStyle={{ gap: 10, paddingHorizontal: 16, paddingBottom: 32 }}
+          >
             {(Object.entries(GAME_INFO) as [GameType, typeof GAME_INFO.tictactoe][]).map(([gt, info]) => (
               <TouchableOpacity
                 key={gt}
-                onPress={() => { handleSelectGame(gt); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                onPress={() => {
+                  handleSelectGame(gt);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
                 activeOpacity={0.8}
               >
                 <LinearGradient
@@ -303,7 +318,9 @@ export default function GameEngine({
                   <View style={styles.gamePickerInfo}>
                     <Text style={styles.gamePickerName}>{info.name}</Text>
                     <Text style={styles.gamePickerDesc}>{info.description}</Text>
-                    <Text style={styles.gamePickerPlayers}>👥 {info.minPlayers}–{info.maxPlayers} لاعبين</Text>
+                    <Text style={styles.gamePickerPlayers}>
+                      👥 {info.minPlayers}–{info.maxPlayers} لاعبين
+                    </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.7)" />
                 </LinearGradient>
@@ -313,82 +330,55 @@ export default function GameEngine({
         </View>
       </Modal>
 
-      {/* ─── Player Picker Modal ─── */}
-      <Modal visible={playerPickerVisible} transparent animationType="slide" onRequestClose={() => setPlayerPickerVisible(false)}>
-        <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setPlayerPickerVisible(false)} />
-        <View style={styles.pickerSheet}>
-          <View style={styles.sheetHandle} />
-          {selectedGame && (
-            <>
-              <View style={styles.pickerHeader}>
-                <Text style={styles.gamePickerEmoji}>{GAME_INFO[selectedGame].emoji}</Text>
-                <View>
-                  <Text style={styles.pickerTitle}>{GAME_INFO[selectedGame].name}</Text>
-                  <Text style={styles.pickerSubtitle}>
-                    اختر {GAME_INFO[selectedGame].minPlayers}–{GAME_INFO[selectedGame].maxPlayers} لاعبين من المقاعد
-                  </Text>
-                </View>
-              </View>
+      {/* ─── Confirm End Game Modal ─── */}
+      <Modal
+        visible={confirmEndVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmEndVisible(false)}
+      >
+        <Pressable style={styles.confirmOverlay} onPress={() => setConfirmEndVisible(false)} />
+        <View style={styles.confirmSheet}>
+          <Text style={styles.confirmTitle}>إنهاء اللعبة؟</Text>
+          <Text style={styles.confirmMsg}>ستنتهي اللعبة لجميع اللاعبين وسيُحتسب الخروج خسارة.</Text>
+          <View style={styles.confirmBtns}>
+            <TouchableOpacity
+              onPress={() => setConfirmEndVisible(false)}
+              style={styles.confirmCancel}
+            >
+              <Text style={styles.confirmCancelText}>إلغاء</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                setConfirmEndVisible(false);
+                endGame();
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              }}
+              style={styles.confirmEnd}
+            >
+              <Text style={styles.confirmEndText}>إنهاء</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
-              <ScrollView contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingBottom: 16 }}>
-                {seatedUsers.length === 0 ? (
-                  <View style={styles.noSeatedMsg}>
-                    <Ionicons name="people-outline" size={40} color="rgba(255,255,255,0.3)" />
-                    <Text style={styles.noSeatedText}>لا يوجد أحد في المقاعد حتى الآن</Text>
-                  </View>
-                ) : (
-                  seatedUsers.map((u, i) => {
-                    const selected = selectedPlayers.includes(u.id);
-                    const color = PLAYER_COLORS[selectedPlayers.indexOf(u.id) % PLAYER_COLORS.length];
-                    return (
-                      <TouchableOpacity
-                        key={u.id}
-                        onPress={() => { togglePlayer(u.id); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                        style={[styles.playerPickerItem, selected && { borderColor: color, borderWidth: 2 }]}
-                      >
-                        <View style={[styles.playerPickerAvatar, { backgroundColor: (selected ? color : "#666") + "44" }]}>
-                          <Text style={{ fontSize: 18, color: selected ? color : "#999" }}>
-                            {u.name[0]?.toUpperCase()}
-                          </Text>
-                        </View>
-                        <Text style={styles.playerPickerName}>{u.name}</Text>
-                        {selected && (
-                          <View style={[styles.selectedBadge, { backgroundColor: color }]}>
-                            <Text style={styles.selectedBadgeText}>{selectedPlayers.indexOf(u.id) + 1}</Text>
-                          </View>
-                        )}
-                        {!selected && (
-                          <View style={styles.unselectedCircle}>
-                            <Ionicons name="add" size={16} color="rgba(255,255,255,0.4)" />
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })
-                )}
-              </ScrollView>
-
-              <View style={styles.pickerFooter}>
-                <Text style={styles.pickerCount}>
-                  {selectedPlayers.length} / {GAME_INFO[selectedGame].maxPlayers} لاعبين
-                </Text>
-                <TouchableOpacity
-                  onPress={handleStartGame}
-                  disabled={selectedPlayers.length < GAME_INFO[selectedGame].minPlayers}
-                  style={[styles.startBtn, selectedPlayers.length < GAME_INFO[selectedGame].minPlayers && { opacity: 0.5 }]}
-                >
-                  <LinearGradient
-                    colors={GAME_INFO[selectedGame].gradient}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                    style={styles.startBtnGradient}
-                  >
-                    <Ionicons name="game-controller" size={20} color="#fff" />
-                    <Text style={styles.startBtnText}>ابدأ اللعبة!</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
+      {/* ─── Game Error Modal ─── */}
+      <Modal
+        visible={!!gameError}
+        transparent
+        animationType="fade"
+        onRequestClose={clearError}
+      >
+        <Pressable style={styles.confirmOverlay} onPress={clearError} />
+        <View style={styles.confirmSheet}>
+          <View style={styles.errorIcon}>
+            <Ionicons name="alert-circle-outline" size={32} color="#EF4444" />
+          </View>
+          <Text style={styles.confirmTitle}>خطأ</Text>
+          <Text style={styles.confirmMsg}>{gameError}</Text>
+          <TouchableOpacity onPress={clearError} style={styles.errorOkBtn}>
+            <Text style={styles.errorOkText}>حسناً</Text>
+          </TouchableOpacity>
         </View>
       </Modal>
     </Modal>
@@ -432,10 +422,24 @@ const styles = StyleSheet.create({
     borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4,
   },
   roleText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  playerLeftBanner: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: "rgba(255,152,0,0.12)", padding: 10,
+    borderBottomWidth: 1, borderBottomColor: "rgba(255,152,0,0.2)",
+  },
+  playerLeftText: {
+    fontSize: 13, color: "#FF9800", fontFamily: "Inter_500Medium", flex: 1,
+  },
   content: { flex: 1 },
-  lobby: { flex: 1, padding: 16 },
-  lobbyTitle: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff", textAlign: "center", marginBottom: 6 },
-  lobbySubtitle: { fontSize: 14, color: "rgba(255,255,255,0.5)", fontFamily: "Inter_400Regular", textAlign: "center", marginBottom: 20 },
+  noGameArea: { flex: 1, padding: 16 },
+  lobbyTitle: {
+    fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff",
+    textAlign: "center", marginBottom: 6,
+  },
+  lobbySubtitle: {
+    fontSize: 14, color: "rgba(255,255,255,0.5)", fontFamily: "Inter_400Regular",
+    textAlign: "center", marginBottom: 20,
+  },
   startGameBtn: { marginBottom: 20 },
   startGameBtnGradient: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
@@ -445,13 +449,15 @@ const styles = StyleSheet.create({
   gameGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   gameInfoCard: {
     width: "47%", backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 16, padding: 14, gap: 4,
-    borderWidth: 1,
+    borderRadius: 16, padding: 14, gap: 4, borderWidth: 1,
   },
   gameInfoEmoji: { fontSize: 28 },
   gameInfoName: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
   gameInfoPlayers: { fontSize: 11, color: "rgba(255,255,255,0.5)", fontFamily: "Inter_400Regular" },
-  gameInfoDesc: { fontSize: 12, color: "rgba(255,255,255,0.65)", fontFamily: "Inter_400Regular", lineHeight: 16 },
+  gameInfoDesc: {
+    fontSize: 12, color: "rgba(255,255,255,0.65)",
+    fontFamily: "Inter_400Regular", lineHeight: 16,
+  },
   pickerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
   pickerSheet: {
     position: "absolute", bottom: 0, left: 0, right: 0,
@@ -465,11 +471,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.3)",
     alignSelf: "center", marginBottom: 12,
   },
-  pickerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff", paddingHorizontal: 16, marginBottom: 4 },
-  pickerSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.5)", fontFamily: "Inter_400Regular", paddingHorizontal: 16, marginBottom: 12 },
-  pickerHeader: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    paddingHorizontal: 16, paddingBottom: 12,
+  pickerTitle: {
+    fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff",
+    paddingHorizontal: 16, marginBottom: 12,
   },
   gamePickerCard: {
     flexDirection: "row", alignItems: "center", gap: 14,
@@ -478,40 +482,48 @@ const styles = StyleSheet.create({
   gamePickerEmoji: { fontSize: 36 },
   gamePickerInfo: { flex: 1, gap: 2 },
   gamePickerName: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
-  gamePickerDesc: { fontSize: 13, color: "rgba(255,255,255,0.75)", fontFamily: "Inter_400Regular" },
-  gamePickerPlayers: { fontSize: 12, color: "rgba(255,255,255,0.55)", fontFamily: "Inter_500Medium", marginTop: 2 },
-  playerPickerItem: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 16,
-    padding: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)",
+  gamePickerDesc: {
+    fontSize: 13, color: "rgba(255,255,255,0.75)", fontFamily: "Inter_400Regular",
   },
-  playerPickerAvatar: {
-    width: 44, height: 44, borderRadius: 14,
-    alignItems: "center", justifyContent: "center",
+  gamePickerPlayers: {
+    fontSize: 12, color: "rgba(255,255,255,0.55)",
+    fontFamily: "Inter_500Medium", marginTop: 2,
   },
-  playerPickerName: { flex: 1, fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  selectedBadge: {
-    width: 28, height: 28, borderRadius: 14,
-    alignItems: "center", justifyContent: "center",
+  confirmOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.72)",
   },
-  selectedBadgeText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#fff" },
-  unselectedCircle: {
-    width: 28, height: 28, borderRadius: 14,
-    borderWidth: 1.5, borderColor: "rgba(255,255,255,0.2)",
-    alignItems: "center", justifyContent: "center",
+  confirmSheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: "#121212",
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, paddingBottom: 40, gap: 12,
+    borderWidth: 1, borderColor: "#262626",
   },
-  noSeatedMsg: { alignItems: "center", gap: 12, paddingVertical: 40 },
-  noSeatedText: { fontSize: 14, color: "rgba(255,255,255,0.4)", fontFamily: "Inter_400Regular", textAlign: "center" },
-  pickerFooter: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 16, paddingVertical: 12, gap: 12,
-    borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)",
+  confirmTitle: {
+    fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff", textAlign: "center",
   },
-  pickerCount: { fontSize: 14, color: "rgba(255,255,255,0.6)", fontFamily: "Inter_500Medium" },
-  startBtn: { flex: 1 },
-  startBtnGradient: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    borderRadius: 16, paddingVertical: 14,
+  confirmMsg: {
+    fontSize: 14, color: "rgba(255,255,255,0.6)",
+    fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20,
   },
-  startBtnText: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
+  confirmBtns: { flexDirection: "row", gap: 10, marginTop: 4 },
+  confirmCancel: {
+    flex: 1, backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 14, paddingVertical: 14, alignItems: "center",
+  },
+  confirmCancelText: {
+    fontSize: 15, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.7)",
+  },
+  confirmEnd: {
+    flex: 1, backgroundColor: "rgba(239,68,68,0.2)",
+    borderRadius: 14, paddingVertical: 14, alignItems: "center",
+    borderWidth: 1, borderColor: "rgba(239,68,68,0.4)",
+  },
+  confirmEndText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#EF4444" },
+  errorIcon: { alignItems: "center" },
+  errorOkBtn: {
+    backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 14,
+    paddingVertical: 14, alignItems: "center", marginTop: 4,
+  },
+  errorOkText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
 });

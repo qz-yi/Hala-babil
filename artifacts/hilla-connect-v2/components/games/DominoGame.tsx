@@ -199,8 +199,20 @@ export default function DominoGame({
               <View style={[styles.opponentAvatar, { backgroundColor: p.color + "44" }]}>
                 <Text style={{ fontSize: 14, color: p.color }}>{p.name[0]?.toUpperCase()}</Text>
               </View>
-              <Text style={styles.opponentName}>{p.name.split(" ")[0]}</Text>
-              <Text style={styles.opponentCards}>🀱 {hand.length}</Text>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={styles.opponentName}>{p.name.split(" ")[0]}</Text>
+                <View style={styles.faceDownRow}>
+                  {hand.slice(0, 7).map((_, i) => (
+                    <View key={i} style={[styles.faceDownTile, { marginLeft: i > 0 ? -4 : 0 }]} />
+                  ))}
+                  {hand.length > 7 && (
+                    <Text style={styles.extraCount}>+{hand.length - 7}</Text>
+                  )}
+                  {hand.length === 0 && (
+                    <Text style={styles.extraCount}>فارغة</Text>
+                  )}
+                </View>
+              </View>
             </View>
           );
         })}
@@ -346,6 +358,12 @@ const styles = StyleSheet.create({
   opponentAvatar: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   opponentName: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
   opponentCards: { fontSize: 10, color: "rgba(255,255,255,0.6)" },
+  faceDownRow: { flexDirection: "row", alignItems: "center" },
+  faceDownTile: {
+    width: 11, height: 18, backgroundColor: "#1A237E",
+    borderRadius: 2, borderWidth: 1, borderColor: "#3949AB",
+  },
+  extraCount: { fontSize: 9, color: "rgba(255,255,255,0.5)", marginLeft: 4 },
   boardEnds: {
     flexDirection: "row", alignItems: "center",
     paddingHorizontal: 12, paddingVertical: 8, gap: 8,

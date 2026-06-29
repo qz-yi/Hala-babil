@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useRef } from "react";
 import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+import { gameSounds } from "@/utils/gameSounds";
 import type { ClientLobbyState, GameType } from "./gameTypes";
 import { GAME_INFO } from "./gameTypes";
 
@@ -23,6 +24,15 @@ export default function GameLobby({
   const info = GAME_INFO[gameType as GameType];
   const amIIn = players.some((p) => p.userId === currentUserId);
   const canStart = isOwner && players.length >= info.minPlayers;
+
+  // Play sound when a new player joins
+  const prevPlayerCount = useRef(players.length);
+  useEffect(() => {
+    if (players.length > prevPlayerCount.current) {
+      gameSounds.playJoin();
+    }
+    prevPlayerCount.current = players.length;
+  }, [players.length]);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -115,7 +125,7 @@ export default function GameLobby({
       <View style={styles.ctaRow}>
         {!amIIn && (
           <TouchableOpacity
-            onPress={() => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); onJoin(); }}
+            onPress={() => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); gameSounds.playJoin(); onJoin(); }}
             style={styles.joinBtn}
             activeOpacity={0.85}
           >
@@ -132,7 +142,7 @@ export default function GameLobby({
 
         {amIIn && isOwner && (
           <TouchableOpacity
-            onPress={() => { if (canStart) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); onStart(); } }}
+            onPress={() => { if (canStart) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); gameSounds.playStart(); onStart(); } }}
             style={[styles.joinBtn, !canStart && { opacity: 0.5 }]}
             disabled={!canStart}
             activeOpacity={0.85}

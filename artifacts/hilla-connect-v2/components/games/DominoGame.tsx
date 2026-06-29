@@ -1,5 +1,5 @@
 import * as Haptics from "expo-haptics";
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   Animated,
   ScrollView,
@@ -11,6 +11,7 @@ import {
 import { Circle, Line, Rect, Svg } from "react-native-svg";
 
 import TurnTimer from "@/components/games/TurnTimer";
+import { gameSounds } from "@/utils/gameSounds";
 import { DominoState, DominoTile, GamePlayer } from "./gameTypes";
 
 // ── Domino dot layout ──────────────────────────────────────────────────────

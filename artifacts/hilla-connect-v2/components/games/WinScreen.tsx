@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { gameSounds } from "@/utils/gameSounds";
 import { GamePlayer, GAME_INFO, GameType } from "./gameTypes";
 
 interface Props {
@@ -8,9 +9,10 @@ interface Props {
   players: GamePlayer[];
   scores?: Record<string, number>;
   onClose: () => void;
+  onRematch?: () => void;
 }
 
-export default function WinScreen({ winner, gameType, players, scores, onClose }: Props) {
+export default function WinScreen({ winner, gameType, players, scores, onClose, onRematch }: Props) {
   const scale = useRef(new Animated.Value(0)).current;
   const confetti1 = useRef(new Animated.Value(-50)).current;
   const confetti2 = useRef(new Animated.Value(-50)).current;
@@ -31,7 +33,7 @@ export default function WinScreen({ winner, gameType, players, scores, onClose }
           Animated.timing(trophyBounce, { toValue: -10, duration: 600, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
           Animated.timing(trophyBounce, { toValue: 0, duration: 600, useNativeDriver: true, easing: Easing.in(Easing.ease) }),
         ]),
-        { iterations: -1 }
+        { iterations: -1 },
       ),
     ]).start();
 
@@ -44,10 +46,16 @@ export default function WinScreen({ winner, gameType, players, scores, onClose }
             Animated.timing(c, { toValue: 800, duration: 2000 + i * 300, useNativeDriver: true, easing: Easing.linear }),
             Animated.timing(c, { toValue: -50, duration: 0, useNativeDriver: true }),
           ]),
-          { iterations: -1 }
+          { iterations: -1 },
         ).start();
       }, delays[i]);
     });
+
+    // Play sound on appear
+    setTimeout(() => {
+      if (winner) gameSounds.playWin();
+      else gameSounds.playDraw();
+    }, 400);
   }, []);
 
   const confettis = [
@@ -62,7 +70,10 @@ export default function WinScreen({ winner, gameType, players, scores, onClose }
   return (
     <Animated.View style={[styles.overlay, { opacity: bgOpacity }]}>
       {confettis.map((c, i) => (
-        <Animated.Text key={i} style={[styles.confetti, { left: c.x as any, transform: [{ translateY: c.anim }] }]}>
+        <Animated.Text
+          key={i}
+          style={[styles.confetti, { left: c.x as any, transform: [{ translateY: c.anim }] }]}
+        >
           {c.emoji}
         </Animated.Text>
       ))}
@@ -90,7 +101,7 @@ export default function WinScreen({ winner, gameType, players, scores, onClose }
 
         {scores && (
           <View style={styles.scoresArea}>
-            {players
+            {[...players]
               .sort((a, b) => (scores[b.id] ?? 0) - (scores[a.id] ?? 0))
               .map((p, i) => (
                 <View key={p.id} style={styles.scoreRow}>
@@ -103,9 +114,24 @@ export default function WinScreen({ winner, gameType, players, scores, onClose }
           </View>
         )}
 
-        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-          <Text style={styles.closeBtnText}>✕ إنهاء اللعبة</Text>
-        </TouchableOpacity>
+        <View style={styles.btnRow}>
+          {onRematch && (
+            <TouchableOpacity
+              onPress={onRematch}
+              style={styles.rematchBtn}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.rematchText}>🔄 إعادة</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={onClose}
+            style={[styles.closeBtn, onRematch ? { flex: 1 } : { width: "100%" }]}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.closeBtnText}>✕ إنهاء</Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
     </Animated.View>
   );
@@ -141,69 +167,51 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 20,
   },
-  trophy: {
-    fontSize: 64,
-    marginBottom: 4,
-  },
+  trophy: { fontSize: 64, marginBottom: 4 },
   winTitle: {
-    fontSize: 28,
-    fontFamily: "Inter_700Bold",
-    color: "#FFD700",
-    letterSpacing: 2,
+    fontSize: 28, fontFamily: "Inter_700Bold",
+    color: "#FFD700", letterSpacing: 2,
   },
   winnerAvatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 72, height: 72, borderRadius: 22,
+    alignItems: "center", justifyContent: "center",
   },
-  winnerName: {
-    fontSize: 24,
-    fontFamily: "Inter_700Bold",
-    textAlign: "center",
-  },
-  winnerMsg: {
-    fontSize: 15,
-    color: "rgba(255,255,255,0.75)",
-    fontFamily: "Inter_500Medium",
-    textAlign: "center",
-  },
-  drawMsg: {
-    fontSize: 16,
-    color: "rgba(255,255,255,0.75)",
-    fontFamily: "Inter_500Medium",
-    textAlign: "center",
-    lineHeight: 24,
-  },
+  winnerName: { fontSize: 24, fontFamily: "Inter_700Bold", textAlign: "center" },
+  winnerMsg: { fontSize: 15, color: "rgba(255,255,255,0.75)", fontFamily: "Inter_500Medium", textAlign: "center" },
+  drawMsg: { fontSize: 16, color: "rgba(255,255,255,0.75)", fontFamily: "Inter_500Medium", textAlign: "center", lineHeight: 24 },
   scoresArea: {
-    width: "100%",
-    gap: 6,
+    width: "100%", gap: 6,
     backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 16, padding: 12,
   },
-  scoreRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
+  scoreRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   scoreRank: { fontSize: 18, width: 28 },
   scoreDot: { width: 10, height: 10, borderRadius: 5 },
   scoreName: { flex: 1, fontSize: 14, color: "#fff", fontFamily: "Inter_600SemiBold" },
   scoreVal: { fontSize: 14, color: "#FFD700", fontFamily: "Inter_700Bold" },
+  btnRow: {
+    flexDirection: "row",
+    gap: 10,
+    width: "100%",
+    marginTop: 4,
+  },
+  rematchBtn: {
+    flex: 1,
+    backgroundColor: "rgba(99,102,241,0.2)",
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(99,102,241,0.4)",
+  },
+  rematchText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#818CF8" },
   closeBtn: {
     backgroundColor: "rgba(255,255,255,0.12)",
     borderRadius: 16,
-    paddingHorizontal: 28,
     paddingVertical: 12,
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
-    marginTop: 4,
   },
-  closeBtnText: {
-    fontSize: 15,
-    fontFamily: "Inter_700Bold",
-    color: "#fff",
-  },
+  closeBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#fff" },
 });
